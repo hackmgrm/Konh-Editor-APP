@@ -1,0 +1,5 @@
+# Crates in the dependency tree already use edition2024 (getrandom among them),
+# which needs 1.85+. Pinning it here rather than moving the machine's global
+# default toolchain, so other Rust projects on this machine are unaffected.
+[toolchain]
+channel = "1.95"

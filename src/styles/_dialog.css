@@ -1,0 +1,779 @@
+/* ============================================================
+   9 · Modal, forms, vault gate
+   ============================================================ */
+
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: scrim-in var(--t-base) var(--ease);
+}
+
+.modal {
+  width: min(540px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-4), var(--sheen);
+  overflow: hidden;
+  animation: modal-in var(--t-slow) var(--spring);
+}
+
+.modal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 15px 14px 13px 20px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-1);
+}
+
+.modal-close {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.modal-close:hover {
+  background: var(--sunken);
+  color: var(--text-1);
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 20px 16px;
+}
+
+.modal-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--line-hair);
+  background: var(--sunken);
+}
+
+.modal-foot .btn:first-of-type {
+  margin-left: auto;
+}
+
+/* ---------------- Form ---------------- */
+
+.form-section {
+  padding: 16px 0 4px;
+}
+
+.form-section + .form-section {
+  border-top: 1px solid var(--line-hair);
+}
+
+.form-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.form-note {
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--text-2);
+  margin: 0 0 10px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.field > span:first-child {
+  flex: none;
+  width: 66px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.field input[type='text'],
+.field input[type='password'],
+.field input:not([type]) {
+  flex: 1;
+  min-width: 0;
+  height: 31px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.field input::placeholder {
+  color: var(--text-3);
+}
+
+.field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.field-with-action {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-action {
+  flex: none;
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.field-action:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.cover-picker {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cover-thumb {
+  width: 54px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-btn:hover {
+  color: var(--accent-hi);
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.checkbox-field input {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+
+.form-error {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--danger);
+  /* WeChat's own wording follows the translation on its own line */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.form-progress {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+
+.form-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ok);
+}
+
+.form-warn {
+  margin: 10px 0 2px;
+  padding: 9px 11px;
+  font-size: 11px;
+  line-height: 1.75;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--r-sm);
+}
+
+.form-warn code,
+.form-note code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  background: var(--sunken);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 2px;
+}
+
+/* The push dialog's one-line account summary: which account this is going to,
+   and the way through to where that is changed. Not a form — the credentials
+   themselves live in the settings dialog. */
+.account-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 6px;
+}
+
+.account-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.account-dot.off {
+  background: var(--text-3);
+}
+
+.account-appid {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 4px 8px;
+  border-radius: var(--r-xs);
+  background: var(--sunken);
+  color: var(--text-1);
+}
+
+.account-line .account-settings {
+  margin-left: auto;
+  height: 27px;
+}
+
+/* Egress IP: monospace, so it is easy to check character by character */
+.ip-badge {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: var(--r-xs);
+  background: var(--sunken);
+  color: var(--text-1);
+}
+
+.ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 3px;
+  color: var(--accent-hi);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-ring);
+}
+
+.ext-link:hover {
+  border-bottom-color: var(--accent-hi);
+}
+
+/* A self-check verdict: not an error, but something you have to decide about
+   (an account without API permission, say) */
+.form-caution {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--warn);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------------- Vault gate ---------------- */
+
+/* The blank frame while the vault opens. No skeleton screen — reading a
+   local folder is usually over in a blink. */
+.vault-boot {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+
+.vault-boot .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.vault-gate {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow: auto;
+}
+
+.vault-gate-card {
+  width: min(560px, 100%);
+  padding: 34px 40px 30px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-4), var(--sheen);
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--text-1);
+  animation: modal-in var(--t-slow) var(--spring);
+}
+
+.vault-gate-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--shadow-2);
+  margin-bottom: 18px;
+}
+
+.vault-gate-card h1 {
+  margin: 0 0 6px;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.vault-gate-card p {
+  margin: 0 0 14px;
+  color: var(--text-2);
+}
+
+.vault-gate-card code {
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--accent-soft);
+  border-radius: 4px;
+  color: var(--accent-hi);
+}
+
+.vault-gate-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  margin: 0 0 18px !important;
+  background: var(--danger-soft);
+  border-radius: var(--r-md);
+  color: var(--danger) !important;
+  font-size: 12.5px;
+}
+
+/* Directory sketch: monospace and unwrapped, so the three lines' alignment
+   is legible at a glance */
+.vault-gate-tree {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: 12px/1.85 var(--mono);
+  color: var(--text-2);
+  white-space: pre;
+}
+
+.vault-gate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 6px;
+  padding: 11px 22px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.vault-gate-btn:hover {
+  background: var(--accent-hi);
+}
+
+.vault-gate-btn:active {
+  transform: scale(0.98);
+}
+
+.vault-gate-hint {
+  margin: 14px 0 0 !important;
+  font-size: 12.5px;
+  color: var(--text-3) !important;
+}
+
+/* ---------------- Drafts box ---------------- */
+
+/* The drafts box is a list of articles with covers, not a form — the 540px
+   form width would wrap every row */
+.modal.wide {
+  width: min(760px, 100%);
+}
+
+.modal.wide .modal-body {
+  /* A short box should not leave the dialog a sliver tall, and a long one
+     should not push the footer off screen */
+  min-height: 280px;
+}
+
+.draft-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 4px;
+}
+
+.draft-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 8px;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.draft-row + .draft-row {
+  border-top: 1px solid var(--line-hair);
+}
+
+.draft-row:hover {
+  background: var(--sunken);
+}
+
+.draft-cover {
+  flex: none;
+  width: 68px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  background: var(--sunken);
+}
+
+.draft-cover.empty {
+  background: var(--sunken);
+}
+
+.draft-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Position inside a multi-article draft — draft/update addresses articles by
+   this number, so it is the thing that tells you which one you are overwriting */
+.draft-index {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--sunken);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.draft-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.draft-digest {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.draft-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The body as WeChat stores it, in its own frame: its inline styles cannot
+   reach the app around it, and nothing in it runs */
+.draft-preview {
+  width: 100%;
+  height: 62vh;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: #fff;
+  margin: 8px 0;
+}
+
+/* ---------------- Push target ---------------- */
+
+.target-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 6px;
+}
+
+.target-badge {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: var(--r-xs);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.target-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-line .btn,
+.target-line .target-pick {
+  margin-left: auto;
+  height: 27px;
+}
+
+/* ------------------------------------------------------------
+   Update dialog
+   ------------------------------------------------------------
+   The one dialog whose subject is the application itself. Version numbers are
+   the headline, so they get the size and the monospace; the release notes are
+   whatever the GitHub release body says, printed verbatim.
+   ------------------------------------------------------------ */
+
+.update-versions {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 2px 0 10px;
+}
+
+.update-ver {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.update-ver.from {
+  color: var(--text-3);
+}
+
+.update-ver.to {
+  color: var(--accent);
+}
+
+.update-arrow {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.update-date {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* Verbatim release body: it is written as plain text with line breaks and
+   the occasional list, and reflowing it would only lose that */
+.update-notes {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-bar {
+  height: 4px;
+  margin: 2px 0 12px;
+  border-radius: 999px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.update-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease-out;
+}
+
+/* Before Content-Length arrives there is no percentage to show, so the bar
+   says "something is happening" instead of lying about how much */
+.update-bar-fill.indeterminate {
+  width: 34%;
+  animation: update-sweep 1.1s ease-in-out infinite;
+}
+
+@keyframes update-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(294%); }
+}
+
+/* The "关于" block in settings: version on the left, the check on the right */
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 4px;
+}
+
+.update-line .app-version {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.update-line .btn {
+  margin-left: auto;
+}

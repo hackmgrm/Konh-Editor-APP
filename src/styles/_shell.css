@@ -1,0 +1,524 @@
+/* ============================================================
+   3 · Shell: toolbar / workspace / split / pane heads / toast
+   ============================================================ */
+
+/* ---------------- Toolbar ----------------
+   The desktop build uses this strip as the window title bar: the native
+   title is turned off on macOS (titleBarStyle: Overlay) and the traffic
+   lights float directly over it, which is what --traffic-pad reserves.
+   The whole strip drags the window. That is `data-tauri-drag-region="deep"` on
+   the header doing it, not CSS — `-webkit-app-region` is Electron's mechanism
+   and does nothing here. Tauri excludes buttons, links and inputs from a drag
+   region on its own, so the controls keep working without opting out; only a
+   floating layer rendered inside the header has to (see TypesetPopover). */
+
+.toolbar {
+  position: relative;
+  z-index: 40;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px 0 calc(12px + var(--traffic-pad));
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+/* Brand lockup */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* Seal-style wordmark: flat fill, no glow, no gradient — a stamp pressed
+   onto the page */
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--shadow-1);
+}
+
+/* The glyph carries its own padding inside the 32-unit viewBox, so it fills
+   the chip edge to edge. */
+.brand-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.brand-name {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+/* Hairline divider inside the toolbar */
+.tb-sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--line-strong);
+  opacity: 0.7;
+}
+
+/* The open draft: the toolbar is the window title, so it should say which
+   piece is being edited */
+.tb-doc {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.tb-doc-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Save indicator: a warm dot breathing while a write is pending, settling
+   into a still grey dot once it lands on disk */
+.tb-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.5;
+  transition: background var(--t-base) var(--ease), opacity var(--t-base) var(--ease);
+}
+
+.tb-dot.saving {
+  background: var(--accent);
+  opacity: 1;
+  animation: dot-breathe 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes dot-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  flex: none;
+}
+
+.menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ---------------- Workspace ---------------- */
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--rail-gap);
+  padding: var(--shell-pad);
+}
+
+.split {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+/* ---------------- Split handle ----------------
+   A short hairline at rest that grows into a grip on hover. The strip itself
+   is 16px wide purely so it is easy to grab. */
+
+.split-bar {
+  position: relative;
+  flex: none;
+  width: 16px;
+  margin: 0 -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+.split-bar::before {
+  content: '';
+  width: 2px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: var(--line-strong);
+  transition:
+    height var(--t-base) var(--ease),
+    width var(--t-base) var(--ease),
+    background var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.split-bar:hover::before,
+.split-dragging .split-bar::before {
+  width: 3px;
+  height: 68px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-softer), 0 0 14px var(--accent-ring);
+}
+
+/* ---------------- Split panes ---------------- */
+
+.split-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-side {
+  flex: 0 0 auto;
+  width: calc(100% - 430px);
+  max-width: calc(100% - 430px);
+  min-width: 0;
+  transition:
+    width var(--t-slow) var(--ease),
+    flex-basis var(--t-slow) var(--ease),
+    opacity var(--t-base) var(--ease);
+}
+
+/* Kill the width transition while dragging so the handle tracks the cursor */
+.editor-side.no-transition {
+  transition: none;
+}
+
+/* Preview mode: the source pane collapses away */
+.editor-side.collapsed {
+  flex-basis: 0;
+  width: 0 !important;
+  min-width: 0;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace.mode-preview .split-bar {
+  display: none;
+}
+
+.preview-side {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ---------------- Pane head ----------------
+   A 40px strip: the title is set as an eyebrow (small, wide tracking,
+   dimmed) with status and tool buttons on the right. Shared by every panel
+   so the horizontal rhythm lines up across the window. */
+
+.pane-head {
+  flex: none;
+  min-height: var(--head-h);
+  padding: 0 10px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+.pane-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.pane-title svg {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.pane-head-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+}
+
+/* Separate adjacent stats with a middle dot rather than more whitespace */
+.pane-head-right .pane-stat + .pane-stat::before {
+  content: '·';
+  margin-right: 8px;
+  opacity: 0.5;
+}
+
+/* ---------------- Pane-head breadcrumb ----------------
+   The left side of a pane head used to read "source" and "preview" — two words
+   that name what you are already looking at. It carries something you cannot
+   otherwise see instead: which folder of the workspace the draft lives in, and
+   which theme and density the preview is rendering at.
+
+   The last segment is the subject and gets full weight; anything before it is
+   context and recedes. */
+
+.pane-path {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pane-path .seg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pane-path .seg + .seg::before {
+  content: '/';
+  margin-right: 5px;
+  color: var(--text-3);
+  opacity: 0.55;
+}
+
+.pane-path .seg.last {
+  flex: 0 1 auto;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* The preview head reverses the emphasis: the theme is the subject and the
+   density trails it, so the separator becomes a middle dot */
+.pane-path .seg.last + .seg::before {
+  content: '·';
+}
+
+/* A quiet "saving" that appears only while a write is pending, then leaves.
+   The toolbar dot carries this too; here it is close to where you are typing. */
+.pane-saving {
+  flex: none;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+  font-size: 10px;
+  animation: pop-in var(--t-base) var(--spring);
+}
+
+/* Pane-head status: always quiet text — state is carried by color, not by
+   a row of colored pills competing for attention */
+.pane-stat {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-3);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: color var(--t-base) var(--ease);
+}
+
+.pane-stat.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.pane-stat.count-warn {
+  color: var(--warn);
+}
+
+.pane-stat.count-over {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* "contains images" notice: needs to be seen, but is still just a line of text */
+.pane-stat.warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+
+.pane-stat.warn::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+/* ---------------- Toast ----------------
+   Springs up from the bottom center. A dark pill reads cleanly under either
+   appearance, so the type only tints the leading dot rather than restyling
+   the whole capsule. */
+
+.status {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #2b2723;
+  color: #f6f1e8;
+  border-radius: var(--r-full);
+  padding: 10px 18px 10px 15px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  box-shadow: var(--shadow-4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, 16px) scale(0.94);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--t-slow) var(--spring),
+    opacity var(--t-base) var(--ease);
+  z-index: 200;
+  max-width: min(92vw, 520px);
+}
+
+:root[data-appearance='dark'] .status {
+  background: #322d28;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.status::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.status.show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ---------------- Conflict bar ----------------
+   Spans the full width under the toolbar — "both sides edited this" is worth
+   interrupting the reader once. */
+
+.conflict-bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  animation: bar-drop var(--t-slow) var(--ease);
+}
+
+@keyframes bar-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.conflict-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--accent-hi);
+}
+
+.conflict-row > svg {
+  flex: none;
+}
+
+.conflict-row + .conflict-row {
+  border-top: 1px solid var(--line);
+}
+
+.conflict-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.conflict-row button {
+  flex: none;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.conflict-row button:hover {
+  background: var(--accent-hi);
+}
+
+.conflict-row button:active {
+  transform: scale(0.97);
+}
+
+.conflict-row button.ghost {
+  background: transparent;
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+.conflict-row button.ghost:hover {
+  background: var(--accent-soft);
+}
+
+/* ---------------- Update pill ----------------
+   Only in the toolbar when a newer release is actually waiting. Tinted rather
+   than filled: 推草稿 is the one solid button up there and it should stay the
+   one, but a plain .btn among six others would never be noticed. */
+
+.update-pill {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+.update-pill:hover {
+  background: var(--accent-softer);
+  border-color: var(--accent);
+}
+
+.update-pill svg {
+  opacity: 1;
+  color: var(--accent);
+}

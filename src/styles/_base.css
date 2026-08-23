@@ -1,0 +1,524 @@
+/* ============================================================
+   2 · Base layer and shared primitives
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-1);
+  text-rendering: optimizeLegibility;
+  /* Ambient light: two very faint warm pools over the canvas, so the
+     background reads as air rather than a flat fill */
+  background:
+    radial-gradient(820px 400px at 88% -16%, var(--glow-warm) 0%, transparent 64%),
+    radial-gradient(720px 440px at -12% 114%, var(--glow-cool) 0%, transparent 60%),
+    var(--canvas);
+  background-attachment: fixed;
+  transition: background-color var(--t-slow) var(--ease-in-out);
+  overflow: hidden;
+}
+
+/* Subpixel antialiasing is macOS's default and is what its own apps look like;
+   turning it off there gives the lighter, more even weight this design is drawn
+   for. On Windows the same declaration is actively harmful — ClearType is
+   subpixel-rendered on purpose, and overriding it makes small text thin and
+   fringed. So it applies to exactly one platform. */
+:root[data-os='mac'] body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grain: one sheet over everything — this is what makes it read as paper.
+   Sits on top of the stack but never takes pointer events. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-ring);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* A mouse press should not leave a focus ring behind; keyboard arrival should */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------- Panels ----------------
+   The four main regions (file tree / editor / preview / agent) share one
+   shell: frosted glass, a hairline frame, an inner highlight along the top.
+   No drop shadow at rest — if everything floats, nothing does; real
+   elevation is reserved for menus, dialogs and toasts. */
+
+.surface {
+  background: var(--surface-1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1), var(--sheen);
+}
+
+/* ---------------- Buttons ---------------- */
+
+.btn {
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.btn:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.btn:active {
+  transform: scale(0.975);
+}
+
+.btn svg {
+  flex: none;
+  opacity: 0.72;
+  transition: opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.btn:hover svg {
+  opacity: 1;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.btn.primary:hover {
+  background: var(--accent-hi);
+  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.btn.primary svg {
+  opacity: 1;
+}
+
+/* Pressed state (a toolbar button whose panel is open) */
+.btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+.btn.active svg {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Square icon-only button */
+.btn.icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* The quiet little icon buttons inside panels */
+.ghost-btn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.ghost-btn:hover:not(:disabled),
+.ghost-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.ghost-btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------------- Segmented control ----------------
+   The thumb is one absolutely positioned solid block translated by --seg-i
+   (which slot is active). Using transform rather than recoloring each button
+   means switching slides instead of blinking. */
+
+.segmented {
+  position: relative;
+  display: inline-flex;
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  isolation: isolate;
+}
+
+.segmented::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--seg-n, 2));
+  border-radius: calc(var(--r-sm) - 2px);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+  transform: translateX(calc(var(--seg-i, 0) * 100%));
+  transition: transform var(--t-base) var(--spring);
+}
+
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 4px 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: calc(var(--r-sm) - 2px);
+  cursor: pointer;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: color var(--t-base) var(--ease);
+}
+
+.seg-btn:hover {
+  color: var(--text-1);
+}
+
+.seg-btn.active {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.seg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Vertical variant (typographic density) */
+.segmented.vertical {
+  flex-direction: column;
+}
+
+.segmented.vertical::before {
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  width: auto;
+  height: calc((100% - 4px) / var(--seg-n, 3));
+  bottom: auto;
+  transform: translateY(calc(var(--seg-i, 0) * 100%));
+}
+
+/* ---------------- Switch ---------------- */
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 2px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-1);
+  font-size: 12.5px;
+}
+
+.switch-row .switch-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.switch-row .switch-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.switch {
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 19px;
+  border-radius: var(--r-full);
+  background: var(--sunken-strong);
+  transition: background var(--t-base) var(--ease);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--t-base) var(--spring);
+}
+
+.switch-row[aria-checked='true'] .switch {
+  background: var(--accent);
+}
+
+.switch-row[aria-checked='true'] .switch::after {
+  transform: translateX(13px);
+}
+
+/* ---------------- Overlays (menus / popovers) ---------------- */
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.popover {
+  background: var(--surface-2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3), var(--sheen);
+  padding: 4px;
+  animation: pop-in var(--t-base) var(--spring);
+  transform-origin: top right;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  color: var(--text-1);
+  text-align: left;
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.menu-item .menu-icon {
+  flex: none;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.menu-item .menu-hint {
+  margin-left: auto;
+  padding-left: 14px;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+/* Checkmark slot on the right of a selected item */
+.menu-item .menu-check {
+  margin-left: auto;
+  padding-left: 14px;
+  color: var(--accent);
+  opacity: 0;
+}
+
+.menu-item[aria-checked='true'] .menu-check {
+  opacity: 1;
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+/* ---------------- Inputs ---------------- */
+
+.input {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* ---------------- Section eyebrow ---------------- */
+
+.eyebrow {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* ---------------- Custom scrollbars ----------------
+   Thin track, nearly invisible at rest, darkening on hover.
+   The standard properties are reserved for engines that do not understand
+   ::-webkit-scrollbar (Firefox) — in current Chrome, scrollbar-width takes
+   over wholesale and overrides everything below, hover darkening included. */
+
+@supports not selector(::-webkit-scrollbar) {
+  .scroll-thin,
+  .code-edit .cm-scroller {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
+.scroll-thin::-webkit-scrollbar,
+.code-edit .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-thin::-webkit-scrollbar-track,
+.scroll-thin::-webkit-scrollbar-corner,
+.code-edit .cm-scroller::-webkit-scrollbar-track,
+.code-edit .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb,
+.code-edit .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--r-full);
+  /* Transparent border + padding-box: the thumb looks thinner while its
+     hit area stays the same width */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  opacity: 0;
+  transition: background var(--t-base) var(--ease);
+}
+
+.scroll-thin:hover::-webkit-scrollbar-thumb,
+.code-edit .cm-scroller:hover::-webkit-scrollbar-thumb {
+  background: var(--thumb);
+  background-clip: padding-box;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb:hover,
+.code-edit .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--thumb-hi);
+  background-clip: padding-box;
+}
+
+/* Same reason as the low-DPI block at the end of _tokens.css: a backdrop
+   filter forces a non-opaque compositing layer, and every glyph painted into
+   one loses subpixel rendering. The blur is worth that trade at 2x; at 1x it
+   is not. */
+@media (max-resolution: 1.5dppx), (-webkit-max-device-pixel-ratio: 1.5) {
+  :root:not([data-os='mac']) .surface,
+  :root:not([data-os='mac']) .popover,
+  :root:not([data-os='mac']) .modal-backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

@@ -1,0 +1,123 @@
+/* ============================================================
+   Mars Editor · application shell
+   ------------------------------------------------------------
+   Warm paper, ambient light, grain, frosted glass, terracotta accent.
+
+   The article body is deliberately absent from this file: theme.ts inlines
+   every style it needs, because the WeChat editor throws away `class` and
+   `<style>` and keeps only inline `style`. Preview and paste therefore agree
+   by construction. Everything here is chrome around that article.
+   ============================================================ */
+
+@import './styles/_tokens.css';
+@import './styles/_base.css';
+@import './styles/_shell.css';
+@import './styles/_sidebar.css';
+@import './styles/_typeset.css';
+@import './styles/_editor.css';
+@import './styles/_preview.css';
+@import './styles/_agent.css';
+@import './styles/_dialog.css';
+
+/* ============================================================
+   10 · Responsive
+   ------------------------------------------------------------
+   The desktop window has a 900px minimum, so anything below that is only
+   reachable in a browser. These rules exist so it degrades gracefully
+   rather than because it is a target size.
+   ============================================================ */
+
+/* Tight but still side by side: give the columns back some width */
+@media (max-width: 1180px) {
+  .file-tree {
+    width: 196px;
+  }
+
+  .agent-side {
+    width: 300px;
+  }
+
+  .tree-file-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .file-tree {
+    width: 100%;
+    max-height: 180px;
+  }
+
+  .split {
+    flex-direction: column;
+    /* Stacked vertically the split has to be allowed to shrink, or it grows
+       to content height and overflows the workspace */
+    min-height: 0;
+  }
+
+  .split-bar {
+    width: auto;
+    height: 16px;
+    margin: -3px 0;
+    cursor: row-resize;
+  }
+
+  .split-bar::before {
+    width: 40px;
+    height: 2px;
+  }
+
+  .split-bar:hover::before,
+  .split-dragging .split-bar::before {
+    width: 68px;
+    height: 3px;
+  }
+
+  .split-pane.editor-side {
+    /* Override the inline width the drag writes: stacked, width is full and
+       the two panes divide the height instead */
+    width: 100% !important;
+    /* The base max-width: calc(100% - 430px) goes negative on a narrow
+       viewport and would crush the editor to zero */
+    max-width: none;
+    flex: 0 0 50%;
+  }
+
+  .split-pane.preview-side {
+    flex: 1 1 0;
+  }
+
+  .agent-side {
+    width: 100%;
+    max-height: 320px;
+  }
+
+  .typeset-pop {
+    width: min(340px, calc(100vw - 24px));
+  }
+}
+
+/* ============================================================
+   11 · Reduced motion
+   ------------------------------------------------------------
+   Honor the system setting literally: no transitions, no keyframes. Every
+   affordance in this file also reads statically (color, weight, position),
+   so nothing becomes unusable when the motion is taken away.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

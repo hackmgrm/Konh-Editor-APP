@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Screenshot source; the README uses the compressed example.webp
+/example.png
+
+# Local release tooling
+scripts/
+
+# Agent tooling
+.claude/

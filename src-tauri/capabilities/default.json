@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口权限：原生对话框（选目录 / 另存为 / 确认框）、任意 http/https 出网、用系统浏览器打开外链、拖动窗口，以及检查并安装应用更新后重启",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "dialog:default",
+    "dialog:allow-ask",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "http://**" }, { "url": "https://**" }]
+    },
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

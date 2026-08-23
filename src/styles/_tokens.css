@@ -1,0 +1,236 @@
+/* ============================================================
+   1 · Design tokens
+   ------------------------------------------------------------
+   Colors are named by role, never by hue: `surface-2` means "a raised
+   solid fill" — lighter than the canvas in dark mode, whiter than it in
+   light mode. Call sites never need to know which palette is active.
+
+   The dark palette is written once: [data-appearance] always carries the
+   *resolved* value (light / dark), see store/appearance.ts, so there is no
+   need to repeat the whole ramp inside a prefers-color-scheme query.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Canvas and ambient light ---- */
+  --canvas: #efece4;
+  --glow-warm: #f5e3d6;   /* terracotta, top right */
+  --glow-cool: #e7e6de;   /* warm sand, bottom left */
+  --grain: 0.5;           /* paper grain strength */
+
+  /* ---- Surfaces ---- */
+  --surface-1: rgba(255, 253, 250, 0.76);  /* panels: frosted glass */
+  --surface-2: #fffdfa;                    /* solid: cards / menus / inputs */
+  --surface-3: rgba(255, 253, 250, 0.55);  /* lighter still: buttons at rest */
+  --sunken: rgba(60, 54, 44, 0.05);        /* recessed: segmented track, code bg */
+  --sunken-strong: rgba(60, 54, 44, 0.09);
+  --scrim: rgba(48, 38, 26, 0.3);          /* modal backdrop */
+
+  /* ---- Strokes ---- */
+  --line: rgba(60, 54, 44, 0.09);
+  --line-strong: rgba(60, 54, 44, 0.17);
+  --line-hair: rgba(60, 54, 44, 0.055);    /* dividers inside a panel, fainter than its frame */
+
+  /* ---- Text ---- */
+  --text-1: #2f2b25;
+  --text-2: #6e6a60;
+  --text-3: #a49e92;
+
+  /* ---- Accent (terracotta, the brand color) ---- */
+  --accent: #d97757;
+  --accent-hi: #c05f3e;
+  --accent-soft: rgba(217, 119, 87, 0.11);
+  --accent-softer: rgba(217, 119, 87, 0.06);
+  --accent-ring: rgba(217, 119, 87, 0.28);
+  --on-accent: #fffaf7;
+
+  /* ---- Semantic ---- */
+  --warn: #a8700c;
+  --warn-soft: rgba(194, 137, 47, 0.12);
+  --danger: #b3402f;
+  --danger-soft: rgba(179, 64, 47, 0.1);
+  --ok: #3f8a5f;
+
+  /* ---- Scrollbar thumb ---- */
+  --thumb: rgba(90, 82, 68, 0.26);
+  --thumb-hi: rgba(90, 82, 68, 0.46);
+
+  /* ---- Editor syntax (see EditorPane's HighlightStyle) ---- */
+  --syn-key: #9a5aa0;
+  --syn-str: #55813f;
+  --syn-num: #a9631d;
+  --syn-com: #a8a296;
+  --syn-fn: #3a6ba4;
+  --syn-type: #2d827e;
+
+  /* ---- Elevation: warm-tinted, two layers (tight contact + wide diffusion) ---- */
+  --shadow-1: 0 1px 2px rgba(52, 40, 28, 0.05);
+  --shadow-2: 0 1px 2px rgba(52, 40, 28, 0.04), 0 6px 16px -8px rgba(52, 40, 28, 0.14);
+  --shadow-3: 0 2px 6px -2px rgba(52, 40, 28, 0.1), 0 14px 34px -12px rgba(52, 40, 28, 0.22);
+  --shadow-4: 0 4px 12px -4px rgba(52, 40, 28, 0.14), 0 32px 72px -20px rgba(52, 40, 28, 0.34);
+  /* Inner highlight along the top edge: gives frosted panels thickness
+     instead of reading as a flat translucent rectangle. */
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+
+  /* ---- Radii ---- */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 15px;
+  --r-xl: 20px;
+  --r-full: 999px;
+
+  /* ---- Motion ----
+     Three durations cover everything: fast for state changes (hover, press),
+     base for elements entering and leaving, slow for layout displacement.
+     Two curves only — `ease` decelerates, `spring` overshoots a little. */
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 340ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --spring: cubic-bezier(0.34, 1.42, 0.64, 1);
+
+  /* ---- Type ----
+     Each stack runs macOS first, then Windows, then Linux, then a generic. The
+     Latin and the CJK faces are listed separately because on every one of them
+     they are separate fonts, and a stack that names only the Latin one leaves
+     the Chinese to whatever the system picks — which on Windows is still SimSun
+     for a lot of text and reads as a document from 2005, and on Linux is
+     fontconfig's guess, which under a non-zh locale is usually Noto Sans CJK
+     **JP**: the same code points drawn with Japanese glyph forms (直, 骨, 门
+     among hundreds), which to a Chinese reader looks subtly wrong on every
+     page and has no setting anywhere in this app to explain it.
+     `Segoe UI Variable Text` is Windows 11's UI face; `Microsoft YaHei UI` is
+     the tighter UI cut of YaHei and is what Windows' own chrome uses.
+     `Cantarell` is GNOME's, `Noto Sans` is on essentially every distribution.
+
+     `--mono` repeats that CJK tail, and it has to: not one of the monospace
+     faces above carries a Han glyph, so the editor — the only large block of
+     Chinese set in `--mono` — used to hand every character to the system's
+     own fallback. On macOS that lands on PingFang SC while `-apple-system`
+     elsewhere in the app resolves to PingFang *UI* Text SC, a different cut
+     with its own spacing; on Windows and Linux the two diverge much further.
+     Either way the editor read as a different Chinese font from the panel
+     beside it. Listing the UI font ahead of the named faces keeps Han on
+     exactly the face the rest of the app uses, and because the monospace
+     families come first, Latin and digits are still monospaced. No Han face
+     is monospaced by default on any platform, so there was never a column to
+     preserve here. */
+  --mono: ui-monospace, 'SF Mono', Menlo, 'Cascadia Mono', Consolas,
+    'JetBrains Mono', 'Noto Sans Mono', 'DejaVu Sans Mono', 'Liberation Mono',
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'Source Han Sans SC', 'WenQuanYi Micro Hei', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI',
+    Cantarell, 'Noto Sans', Roboto, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif;
+  --serif: Georgia, 'Liberation Serif', 'Songti SC', 'Source Han Serif SC',
+    'Noto Serif CJK SC', SimSun, 'Times New Roman', serif;
+
+  /* ---- Layout constants ---- */
+  --rail-gap: 12px;
+  --shell-pad: 14px;
+  --head-h: 40px;
+  /* Borderless macOS window: the traffic lights float over the top-left
+     corner, so the toolbar has to yield this much room to them. */
+  --traffic-pad: 0px;
+}
+
+/* Only macOS, and only inside the shell.
+   titleBarStyle: Overlay is a macOS-only setting — Windows keeps its native
+   title bar above our toolbar and has nothing floating over it, so reserving
+   the gap there would just be 74px of dead space at the left end. */
+:root.is-tauri[data-os='mac'] {
+  --traffic-pad: 74px;
+}
+
+:root[data-appearance='dark'] {
+  color-scheme: dark;
+
+  --canvas: #141311;
+  --glow-warm: #2c211a;
+  --glow-cool: #1b1c1e;
+  --grain: 0.34;
+
+  --surface-1: rgba(38, 35, 31, 0.72);
+  --surface-2: #262320;
+  --surface-3: rgba(255, 248, 238, 0.045);
+  --sunken: rgba(255, 248, 238, 0.055);
+  --sunken-strong: rgba(255, 248, 238, 0.1);
+  --scrim: rgba(8, 7, 6, 0.55);
+
+  --line: rgba(255, 246, 232, 0.1);
+  --line-strong: rgba(255, 246, 232, 0.19);
+  --line-hair: rgba(255, 246, 232, 0.06);
+
+  --text-1: #ece6db;
+  --text-2: #a09a8e;
+  --text-3: #6d6860;
+
+  --accent: #e28a63;
+  --accent-hi: #f0a37f;
+  --accent-soft: rgba(226, 138, 99, 0.15);
+  --accent-softer: rgba(226, 138, 99, 0.08);
+  --accent-ring: rgba(226, 138, 99, 0.34);
+  --on-accent: #201510;
+
+  --warn: #d9a445;
+  --warn-soft: rgba(217, 164, 69, 0.14);
+  --danger: #e0705c;
+  --danger-soft: rgba(224, 112, 92, 0.14);
+  --ok: #6fb98c;
+
+  --thumb: rgba(236, 230, 219, 0.2);
+  --thumb-hi: rgba(236, 230, 219, 0.38);
+
+  --syn-key: #cf9ed6;
+  --syn-str: #a0cf8a;
+  --syn-num: #e2a96b;
+  --syn-com: #6d6860;
+  --syn-fn: #86b6ea;
+  --syn-type: #6fcfc9;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 2px 6px -2px rgba(0, 0, 0, 0.4), 0 14px 34px -12px rgba(0, 0, 0, 0.7);
+  --shadow-4: 0 4px 12px -4px rgba(0, 0, 0, 0.5), 0 32px 72px -20px rgba(0, 0, 0, 0.8);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Fallback for the frames before JS runs: don't flash a light canvas
+   on a machine that is set to dark. */
+@media (prefers-color-scheme: dark) {
+  html:not([data-appearance]) {
+    background: #141311;
+  }
+}
+
+/* ---------------- Low-DPI screens, off macOS ----------------
+   Two things this design leans on cost text clarity on a 96 DPI monitor, and
+   both of them are free on a Retina display:
+
+   - The panels are frosted glass, so they are translucent. Chromium will not
+     use ClearType's subpixel rendering inside a layer that is not opaque; it
+     falls back to grayscale antialiasing, and small text — Chinese text above
+     all — goes thin and soft. Here the panels simply become the colour they
+     were blending to.
+   - The grain sheet lays one noise pixel on every device pixel, glyph edges
+     included. At 2x it averages into paper texture; at 1x it is dirt on the
+     type.
+
+   Both stay exactly as they are on a Retina Mac, which is what they were
+   drawn for. */
+@media (max-resolution: 1.5dppx), (-webkit-max-device-pixel-ratio: 1.5) {
+  :root:not([data-os='mac']) {
+    --grain: 0.12;
+    --surface-1: #fbf9f5;
+  }
+
+  :root[data-appearance='dark']:not([data-os='mac']) {
+    --grain: 0.09;
+    --surface-1: #211f1b;
+  }
+}

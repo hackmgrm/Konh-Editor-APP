@@ -1,0 +1,346 @@
+/* ============================================================
+   7 · Preview pane: device stage, phone frame, article chrome
+   ------------------------------------------------------------
+   The article body itself carries no rules from this file — every one of its
+   styles is inlined by theme.ts so that what you see here and what WeChat
+   receives on paste are the same thing.
+   ============================================================ */
+
+/* Article theme tokens, pushed onto :root by PreviewPane so the shell
+   (status bar, article head, footer) can follow the chosen paper. */
+:root {
+  --art-bg: #ffffff;
+  --art-ink: #2b2b28;
+  --art-accent: #d97757;
+  --art-heading: #1f1f1c;
+  --art-heading-font: var(--serif);
+  --art-hr: #e5e3dc;
+  --art-foot-text: #8a867e;
+}
+
+.phone-stage {
+  flex: 1;
+  overflow: auto;
+  padding: 26px 20px 40px;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  /* A pool of light behind the device, so it reads as standing on a surface */
+  background:
+    radial-gradient(560px 320px at 50% 14%, var(--accent-softer), transparent 70%);
+}
+
+/* ---------------- iPhone frame ----------------
+   Titanium rail plus a thin inner highlight. The corner radius is generous
+   on purpose: real iPhone corners are continuous curves, and a tight radius
+   immediately reads as "a rounded rectangle" instead of a phone. */
+
+.phone-frame {
+  position: relative;
+  width: 420px;
+  max-width: 100%;
+  height: 100%;
+  border-radius: 56px;
+  padding: 11px;
+  background: linear-gradient(148deg, #7b756d 0%, #322e29 26%, #1d1a17 52%, #3d3832 78%, #736d66 100%);
+  box-shadow:
+    var(--shadow-4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.55);
+}
+
+/* Side buttons: action + volume on the left, power on the right */
+.phone-frame .side-btn {
+  position: absolute;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #565049, #2a2622);
+}
+
+.phone-frame .side-btn.action {
+  left: -3px;
+  top: 104px;
+  height: 30px;
+}
+
+.phone-frame .side-btn.vol-up {
+  left: -3px;
+  top: 150px;
+  height: 54px;
+}
+
+.phone-frame .side-btn.vol-down {
+  left: -3px;
+  top: 216px;
+  height: 54px;
+}
+
+.phone-frame .side-btn.power {
+  right: -3px;
+  top: 168px;
+  height: 78px;
+  background: linear-gradient(270deg, #565049, #2a2622);
+}
+
+.phone-screen {
+  position: relative;
+  height: 100%;
+  border-radius: 45px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--art-bg);
+  color: var(--art-ink);
+  /* Phone mode scales the whole screen down to a realistic reading size */
+  zoom: 0.92;
+  transition: none;
+}
+
+/* ---------------- macOS window chrome (desktop mode) ---------------- */
+
+.desktop-bar {
+  display: none;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(128, 128, 128, 0.08);
+  border-bottom: 1px solid var(--art-hr);
+  position: relative;
+}
+
+.desktop-bar .traffic {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.desktop-bar .traffic.t1 { background: #ff5f57; }
+.desktop-bar .traffic.t2 { background: #febc2e; }
+.desktop-bar .traffic.t3 { background: #28c840; }
+
+.desktop-bar .bar-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--art-foot-text);
+}
+
+/* ---------------- iOS status bar ---------------- */
+
+.statusbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* The Dynamic Island takes the middle, so the content splits to the sides */
+  padding: 15px 26px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  position: relative;
+  z-index: 5;
+  color: var(--art-heading);
+  background: var(--art-bg);
+  transition: none;
+}
+
+.statusbar .time {
+  font-variant-numeric: tabular-nums;
+}
+
+.statusbar .dynamic-island {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  transform: translateX(-50%);
+  width: 84px;
+  height: 25px;
+  border-radius: var(--r-full);
+  background: #0b0a09;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+/* The camera: one glint at the right end of the island */
+.statusbar .dynamic-island::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 32%, #2f3a44 0%, #14181c 62%, #0b0a09 100%);
+}
+
+.statusbar .sb-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---------------- Article ---------------- */
+
+.article-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Home indicator: floats above the content, which scrolls under it */
+.home-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  transform: translateX(-50%);
+  width: 116px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--art-ink);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.article-head {
+  padding: 26px 28px 0;
+  background: var(--art-bg);
+  transition: none;
+}
+
+.article-head .head-title {
+  font-family: var(--art-heading-font);
+  font-weight: 700;
+  font-size: 25px;
+  line-height: 1.35;
+  color: var(--art-heading);
+  margin: 0;
+  transition: none;
+}
+
+.article-head .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--art-hr);
+  transition: none;
+}
+
+.article-head .author {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--art-accent);
+  transition: none;
+}
+
+.article-head .byline {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--art-foot-text);
+  transition: none;
+}
+
+.article-head .byline::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--art-foot-text);
+}
+
+/* Body container. Every style inside is inline ⇒ preview and paste match. */
+.check-body {
+  padding: 6px 28px 8px;
+}
+
+.article-footer {
+  position: static;
+  padding: 14px 28px 24px;
+  background: var(--art-bg);
+  border-top: 1px solid var(--art-hr);
+  transition: none;
+}
+
+.article-footer .actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.article-footer .action {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--art-foot-text);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.article-footer .action:hover {
+  color: var(--art-accent);
+  background: var(--accent-softer);
+}
+
+/* ---------------- Desktop mode (pane ≥ 860px) ----------------
+   Same markup, different chrome: the device rail gives way to a plain
+   window so the wider measure is what you are judging. */
+
+.preview-side[data-width='desktop'] .phone-stage {
+  padding: 26px 28px 40px;
+  background: none;
+}
+
+.preview-side[data-width='desktop'] .phone-frame {
+  width: 100%;
+  max-width: 880px;
+  height: auto;
+  padding: 0;
+  border-radius: var(--r-lg);
+  background: transparent;
+  box-shadow: none;
+}
+
+.preview-side[data-width='desktop'] .side-btn,
+.preview-side[data-width='desktop'] .home-indicator {
+  display: none;
+}
+
+.preview-side[data-width='desktop'] .phone-screen {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-sizing: border-box;
+  box-shadow: var(--shadow-3);
+  /* Desktop mode: back to true type size */
+  zoom: 1;
+}
+
+.preview-side[data-width='desktop'] .desktop-bar {
+  display: flex;
+}
+
+.preview-side[data-width='desktop'] .statusbar {
+  display: none;
+}
+
+.preview-side[data-width='desktop'] .article-head {
+  padding: 34px 56px 0;
+}
+
+.preview-side[data-width='desktop'] .check-body {
+  padding: 8px 56px 8px;
+}
+
+.preview-side[data-width='desktop'] .article-footer {
+  padding: 14px 56px 24px;
+}

@@ -1,0 +1,266 @@
+/* ============================================================
+   5 · Typeset popover: themes / density / body options / appearance
+   ------------------------------------------------------------
+   This used to be a permanent 96px column down the left edge. Picking a
+   theme is something you do once and then leave alone, so it was paying
+   rent on prime real estate every single session; folded into a popover it
+   gets more room, bigger swatches, and the workspace gets its width back.
+   ============================================================ */
+
+.typeset-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: min(72vh, 640px);
+  overflow-y: auto;
+  padding: 14px;
+  z-index: 90;
+}
+
+.typeset-group + .typeset-group {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.typeset-group > .eyebrow {
+  display: block;
+  margin-bottom: 9px;
+}
+
+/* Sub-label inside the theme list ("light" / "dark") */
+.typeset-sub {
+  margin: 12px 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.typeset-group > .typeset-sub:first-of-type {
+  margin-top: 0;
+}
+
+/* ---------------- Theme cards ----------------
+   Every card is a miniature sheet of paper drawn with that theme's own
+   tokens — its paper color, its heading face, its accent, two body rules.
+   Far more useful than a dropdown of names: you can see the difference
+   without switching to it. */
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* Each card sits in a slot so the delete button can be positioned against the
+   card without becoming part of it — a button inside a button is not a thing
+   the DOM allows, and the card itself is the radio */
+.theme-slot {
+  position: relative;
+  display: flex;
+}
+
+.theme-card {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  transition:
+    transform var(--t-base) var(--spring),
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.theme-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-2);
+}
+
+.theme-card:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.theme-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2.5px var(--accent-ring);
+}
+
+/* The paper sample */
+.theme-card .swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px 10px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+/* The heading row of the sample: a glyph or number may sit in front of the
+   "Aa", and a centred theme centres the pair */
+.theme-card .swatch-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.theme-card .swatch-head.center {
+  justify-content: center;
+}
+
+.theme-card .swatch-aa {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.theme-card .swatch-bar {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  margin: 2px 0 3px;
+}
+
+.theme-card .swatch-line {
+  height: 2px;
+  border-radius: 2px;
+  opacity: 0.22;
+}
+
+.theme-card .swatch-line.short {
+  width: 58%;
+}
+
+.theme-card-name {
+  padding: 6px 8px 7px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.theme-card.active .theme-card-name {
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+/* Checkmark on the active card, tucked into the corner of the sample */
+.theme-card .swatch-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-1);
+  animation: pop-in var(--t-base) var(--spring);
+}
+
+/* Deleting one of the agent's themes. Hidden until the slot is hovered: the
+   list is read far more often than it is pruned, and twelve little bins in the
+   grid would read as clutter on every open */
+.theme-drop {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-1);
+  color: var(--text-3);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.theme-slot:hover .theme-drop,
+.theme-drop:focus-visible {
+  opacity: 1;
+}
+
+.theme-drop:hover {
+  color: var(--danger);
+}
+
+/* The way past the twelve presets. Full width under the grid, quiet enough
+   not to compete with the cards themselves */
+.theme-ask {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.theme-ask:hover {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+  color: var(--accent-hi);
+}
+
+.theme-ask > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.theme-ask-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* ---------------- Density and switches ---------------- */
+
+.typeset-group .segmented {
+  width: 100%;
+}
+
+.typeset-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-3);
+}

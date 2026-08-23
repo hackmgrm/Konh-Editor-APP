@@ -1,0 +1,357 @@
+/* ============================================================
+   4 · Left rail: file tree
+   ============================================================ */
+
+.file-tree {
+  flex: none;
+  width: 224px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tree-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--head-h);
+  padding: 0 8px 0 8px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+/* The title slot is the vault name — with two workspaces open at once this is
+   the only thing that tells you which set of drafts you are looking at, which
+   makes it worth more than a static "Files" label.
+
+   It is also the only way to switch workspaces, so it has to *look* pressable:
+   a bordered pill with a trailing chevron, rather than a label that happens to
+   respond to clicks. A heading nobody knows to click is a heading. */
+.tree-vault {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.tree-vault > svg:first-child {
+  flex: none;
+  color: var(--accent);
+}
+
+/* The chevron sits at the far right and darkens on hover — the part that says
+   "there are others" */
+.tree-vault .tree-vault-caret {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.tree-vault:hover {
+  background: var(--surface-2);
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+.tree-vault:hover .tree-vault-caret {
+  color: var(--accent);
+}
+
+.tree-vault-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+/* ---------------- A row ----------------
+   Folders, drafts, images and everything else share one skeleton; depth is
+   expressed with an inline padding-left (rows are flattened, not nested in
+   the DOM). Single line: name on the left, secondary info on the right,
+   which yields to the action buttons on hover — at two lines per row, a
+   dozen files already fill the panel. */
+
+.tree-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 27px;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.tree-file:hover {
+  background: var(--sunken);
+}
+
+.tree-file.active {
+  background: var(--accent-soft);
+}
+
+/* The short bar down the left of the selected row: lighter than recoloring
+   the whole row, and more definite about what is selected */
+.tree-file.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2.5px;
+  height: 14px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  transform: translateY(-50%);
+  animation: bar-grow var(--t-base) var(--spring);
+}
+
+@keyframes bar-grow {
+  from { height: 0; }
+  to { height: 14px; }
+}
+
+.tree-file-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 4px 0 6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-1);
+}
+
+.tree-file-main > svg {
+  flex: none;
+  color: var(--text-3);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.tree-file:hover .tree-file-main > svg {
+  color: var(--text-2);
+}
+
+.tree-file.active .tree-file-main > svg {
+  color: var(--accent);
+}
+
+/* The caret occupies a fixed slot: files have none, but still have to line
+   up with sibling folders */
+.tree-caret {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  color: var(--text-3);
+  transition: transform var(--t-base) var(--ease);
+}
+
+/* An image is its own icon — a thumbnail says far more than a generic
+   picture glyph */
+.tree-thumb {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--sunken);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.tree-file-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-file.active .tree-file-name {
+  font-weight: 600;
+  color: var(--accent-hi);
+}
+
+/* Secondary info: word count / dimensions / time. Fades out on hover to
+   make room for the action buttons */
+.tree-file-meta {
+  flex: none;
+  padding-right: 8px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  white-space: nowrap;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.tree-file:hover .tree-file-meta,
+.tree-file:focus-within .tree-file-meta {
+  opacity: 0;
+}
+
+/* An image no draft references: one amber dot, and nothing gets blocked */
+.tree-dot-unused {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  opacity: 0.8;
+}
+
+/* Row actions: only revealed on hover or focus — always-on icons are noise */
+.tree-file-actions {
+  position: absolute;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.tree-file:hover .tree-file-actions,
+.tree-file:focus-within .tree-file-actions {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.tree-file-actions button {
+  width: 21px;
+  height: 21px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.tree-file-actions button:hover {
+  background: var(--surface-2);
+  color: var(--accent-hi);
+  box-shadow: var(--shadow-1);
+}
+
+/* Drag: the row being dragged dims, the folder that would catch it lights up */
+.tree-file.dragging {
+  opacity: 0.35;
+}
+
+.tree-file.drop-into,
+.tree-body.drop-into {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent-ring);
+}
+
+.tree-body.drop-into {
+  border-radius: 0;
+}
+
+/* Rename: the whole row becomes an input */
+.tree-file.renaming {
+  gap: 7px;
+  padding: 0 6px;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.tree-file.renaming > svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-1);
+  outline: none;
+}
+
+.tree-empty {
+  margin: 10px 8px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
+.tree-cleanup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 8px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.tree-cleanup:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+/* Foot of the rail: where the author is reachable. It sits below the scroll
+   area rather than inside it, so it stays put no matter how long the file list
+   grows — and a hairline keeps it from reading as one more tree row. */
+.tree-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--line-hair);
+}
+
+/* Context menu: positioned at the cursor, styled by the shared popover rules */
+.tree-menu {
+  position: fixed;
+  min-width: 160px;
+  z-index: 120;
+  transform-origin: top left;
+}

@@ -1,0 +1,35 @@
+# Windows 安装包。手动触发（Actions → Windows 安装包 → Run workflow），
+# 跑完在这次运行的 Artifacts 里下载 .exe。
+name: Windows 安装包
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # rust-toolchain.toml 会把版本钉住，这里只负责让 rustup 在场
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: 打包
+        run: npm run app:build -- --bundles nsis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mars-editor-windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

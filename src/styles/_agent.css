@@ -1,0 +1,860 @@
+/* ============================================================
+   8 · Local agent panel
+   ------------------------------------------------------------
+   Docked on the far right, mirroring the file tree: that side says where
+   the drafts are, this side says who else is allowed to edit them.
+   ============================================================ */
+
+.agent-side {
+  flex: none;
+  width: 336px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  animation: agent-slide var(--t-slow) var(--ease);
+}
+
+@keyframes agent-slide {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Collapsed means hidden, not unmounted — a run in flight still needs a
+   place to report to. */
+.agent-side.collapsed {
+  display: none;
+}
+
+/* The claude / codex switch in the pane head, one size down from the
+   toolbar pair so it does not compete with the title */
+.agent-kinds {
+  margin-left: auto;
+}
+
+.agent-kinds .seg-btn {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-family: var(--mono);
+  letter-spacing: -0.01em;
+}
+
+/* ---------------- CLI not found ----------------
+   Not an error dialog — an input you can fix on the spot. */
+
+.agent-missing {
+  flex: none;
+  padding: 11px 14px 12px;
+  border-bottom: 1px solid var(--line-hair);
+  background: var(--accent-soft);
+}
+
+.agent-missing p {
+  margin: 0 0 9px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--accent-hi);
+}
+
+.agent-missing code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.agent-bin-row {
+  display: flex;
+  gap: 6px;
+}
+
+.agent-bin-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: 11.5px var(--mono);
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.agent-bin-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.agent-bin-row button {
+  flex: none;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.agent-bin-row button:hover {
+  background: var(--accent-hi);
+}
+
+/* ---------------- Timeline ---------------- */
+
+.agent-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  /* Whether to follow the tail is the panel's own decision (scroll up and it
+     stops). Browser scroll anchoring only gets in the way here: the beat
+     being spoken reflows every 60ms, and anchoring would keep shoving the
+     viewport down over the lines you scrolled back to read. */
+  overflow-anchor: none;
+}
+
+.agent-empty {
+  margin: auto 0;
+  display: flex;
+  justify-content: center;
+  color: var(--accent);
+  opacity: 0.32;
+}
+
+/* Looking for claude / codex on this machine. Normally never seen — the
+   answer is warmed at startup — but a shell that takes its time to start is
+   several seconds, and several seconds of nothing reads as a broken panel */
+.agent-waking {
+  margin: auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.agent-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.agent-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: agent-pulse 1.1s var(--ease-in-out) infinite;
+}
+
+.agent-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.agent-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.agent-beat {
+  /* The log is a column flex box, so a beat would otherwise be squeezed once
+     the timeline outgrows the panel — which the tool strips, being the only
+     beats that clipped their own overflow, showed as text sliced in half. */
+  flex: none;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: beat-in var(--t-base) var(--ease);
+}
+
+@keyframes beat-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* What you said: pulled to the right and indented — a quotation, not a bubble */
+.agent-beat.you {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 7px 11px;
+  border-radius: var(--r-md) var(--r-md) 3px var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.agent-beat.agent {
+  color: var(--text-1);
+}
+
+/* ---------------- Tool calls ----------------
+   What it ran, or which file it touched. These are not speech and should not
+   read like speech, but they are also not the point of the panel — you skim
+   past them on the way to what the agent said. So: no box, no frame, no
+   colour. An icon, the name of the call, the thing it was called on, all a
+   step quieter than the prose around them; the row only lifts off the page
+   when the pointer is on it.
+
+   One line, always. Everything trims to the panel's width and the untrimmed
+   string is the tooltip — a command line wrapped over three lines in a 336px
+   column is three lines of noise between two sentences. */
+
+.agent-beat.tool {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 3px 8px 3px 4px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.agent-beat.tool:hover {
+  background: var(--sunken);
+}
+
+/* Consecutive calls are one stretch of work, not a list of separate events —
+   they close up so the run reads as one block against the timeline's rhythm */
+.agent-beat.tool + .agent-beat.tool {
+  margin-top: -6px;
+}
+
+.agent-tool-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-xs);
+  background: var(--sunken);
+  color: var(--text-3);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.agent-beat.tool:hover .agent-tool-icon {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.agent-tool-verb {
+  flex: none;
+  font: 500 10.5px var(--mono);
+  letter-spacing: -0.01em;
+  color: var(--text-2);
+}
+
+/* The target gives up its width first: which tool ran is one short word and
+   always worth keeping whole, while the path or command line is the part that
+   can afford an ellipsis */
+.agent-tool-target {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 10.5px var(--mono);
+  color: var(--text-3);
+}
+
+/* A call that came back non-zero. Only the icon carries it — a whole red row
+   for a failed `ls` reads as an alarm, and it usually is not one */
+.agent-beat.tool.bad .agent-tool-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.agent-beat.note {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.agent-beat.note.bad {
+  color: var(--danger);
+}
+
+/* "still working": three dots keeping time */
+.agent-beat.working {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.agent-beat.working::before,
+.agent-beat.working::after,
+.agent-beat.working > .dot {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: agent-pulse 1.1s var(--ease-in-out) infinite;
+}
+
+.agent-beat.working > .dot {
+  animation-delay: 0.15s;
+}
+
+.agent-beat.working::after {
+  animation-delay: 0.3s;
+}
+
+@keyframes agent-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* ---------------- Composer ---------------- */
+
+.agent-composer {
+  flex: none;
+  padding: 10px 12px 11px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.agent-composer textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: 13px/1.6 var(--sans);
+  resize: none;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.agent-composer textarea::placeholder {
+  color: var(--text-3);
+}
+
+.agent-composer textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.agent-composer textarea:disabled {
+  opacity: 0.55;
+}
+
+/* Which draft this turn will mention, sitting above the box rather than beside
+   the send button — read there it looks like something attached to the message
+   you are about to send, which is exactly what it is */
+.agent-context {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.agent-context span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-composer-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.agent-foot-gap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------------- Model / effort / permission ----------------
+   Three settings that decide what the next turn costs and how far it may
+   reach. They belong next to the send button rather than in a settings sheet:
+   you change them per question, not per install — a throwaway "what does this
+   file do" and a "rewrite the export path" do not want the same model, the
+   same thinking, or the same rope.
+
+   Sized to disappear: at rest they read as a caption under the box, and only
+   look like buttons once you go near them. Whatever is chosen is on the chip,
+   so nothing has to be opened to know where the panel stands. */
+
+/* Effort and permission are two short words each and always fit; the model
+   name is the one that can run long, so it is the only one allowed to shrink.
+   Left to share the shrinking evenly, all three end up as `思…` `放…` */
+.agent-tune {
+  flex: none;
+}
+
+.agent-tune.wide {
+  flex: 0 1 auto;
+  min-width: 3.5em;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-3);
+  font: 10.5px var(--mono);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.agent-chip:hover {
+  background: var(--sunken);
+  color: var(--text-2);
+}
+
+.agent-chip.on {
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+/* Nothing was picked here, so what the chip names is the CLI's own setting.
+   Saying it outright beats the word "default" — it is the model that will
+   actually run — but it is not this panel's choice, and should not read like
+   one until you make it one */
+.agent-chip.inherited .agent-chip-text {
+  opacity: 0.72;
+}
+
+/* The model name is the one that runs long (`default · deepseek-v4-flash`);
+   it gives up width before the two short chips beside it do */
+.agent-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Opens upward, and spans the whole composer rather than hanging off its own
+   chip.
+   Both halves of that are forced by the panel: it is pinned to the bottom, so
+   the shared .popover's downward drop from the toolbar is wrong; and at 336px
+   with `overflow: hidden`, a menu wide enough to explain itself anchored to a
+   chip two thirds of the way along simply gets its right half cut off. Which
+   chip it belongs to is carried by that chip staying lit while it is open. */
+.agent-tune-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 300px;
+  overflow-y: auto;
+  transform-origin: bottom center;
+  animation: tune-in var(--t-base) var(--spring);
+}
+
+@keyframes tune-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Two lines per entry, so the label can stay short and the consequence still
+   gets said. .menu-item is a single nowrap row, hence the overrides */
+.agent-tune-item {
+  align-items: flex-start;
+  white-space: normal;
+  padding: 6px 10px;
+}
+
+.agent-tune-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.agent-tune-label {
+  font-size: 12px;
+}
+
+.agent-tune-note {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.agent-tune-item:hover .agent-tune-note {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.agent-tune-item .menu-check {
+  margin-top: 1px;
+  padding-left: 8px;
+}
+
+.agent-send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.agent-send:hover:not(:disabled) {
+  background: var(--accent-hi);
+}
+
+.agent-send:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.agent-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* "stop" should not look like the primary action */
+.agent-send.stop {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--text-2);
+}
+
+.agent-send.stop:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* ---------------- Session history ----------------
+   Takes over the timeline area rather than opening a floating layer —
+   the panel is narrow enough as it is. */
+
+.agent-history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agent-history-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.agent-history-row:hover {
+  background: var(--sunken);
+}
+
+.agent-history-row.active {
+  background: var(--accent-soft);
+}
+
+.agent-history-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Which CLI said it, at a glance */
+.agent-badge {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  font: 500 10px var(--mono);
+  color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+
+.agent-badge.claude {
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+.agent-history-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-1);
+}
+
+.agent-history-when {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-history-drop {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.agent-history-row:hover .agent-history-drop {
+  opacity: 1;
+}
+
+.agent-history-drop:hover {
+  color: var(--danger);
+}
+
+.agent-history-empty {
+  margin: 28px 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.agent-history-note {
+  margin: 14px 8px 4px;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text-3);
+}
+
+.agent-history-note code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+/* ============================================================
+   Markdown inside an agent beat.
+   streamdown emits Tailwind class names; this project has no Tailwind, so
+   those land as no-ops. What actually matches is the data-streamdown
+   attribute it sets alongside them — which works out well: it places the
+   structure, this file decides what it looks like, on the same variables as
+   the rest of the panel.
+   ============================================================ */
+
+.agent-beat.agent .agent-md {
+  /* The pre-wrap on .agent-beat is for plain-text beats; markdown wraps on
+     its own, and wrapping it twice turns source indentation and blank lines
+     into layout intent. */
+  white-space: normal;
+}
+
+.agent-md > * {
+  margin: 0;
+}
+
+.agent-md > * + * {
+  margin-top: 8px;
+}
+
+/* The panel starts at 13px; scaling headings up from there would make it a
+   second article. Weight and a couple of points do the layering instead. */
+.agent-md h1,
+.agent-md h2,
+.agent-md h3,
+.agent-md h4,
+.agent-md h5,
+.agent-md h6 {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.agent-md h1 {
+  font-size: 14px;
+}
+
+.agent-md [data-streamdown='strong'],
+.agent-md strong {
+  font-weight: 650;
+}
+
+.agent-md [data-streamdown='unordered-list'],
+.agent-md [data-streamdown='ordered-list'] {
+  padding-left: 1.4em;
+  /* streamdown defaults to list-inside (marker crammed against the text);
+     in a narrow panel the wrapped lines then tuck under the marker */
+  list-style-position: outside;
+}
+
+.agent-md [data-streamdown='unordered-list'] {
+  list-style-type: disc;
+}
+
+.agent-md [data-streamdown='ordered-list'] {
+  list-style-type: decimal;
+}
+
+.agent-md [data-streamdown='list-item'] {
+  margin: 2px 0;
+}
+
+/* Loose lists wrap each item in a p; that p should not add paragraph spacing */
+.agent-md li p {
+  margin: 0;
+}
+
+.agent-md li p + p {
+  margin-top: 6px;
+}
+
+.agent-md [data-streamdown='link'] {
+  color: var(--accent-hi);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.agent-md [data-streamdown='inline-code'] {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--sunken);
+}
+
+.agent-md [data-streamdown='code-block'] {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--sunken);
+  overflow: hidden;
+  /* streamdown inlines content-visibility:auto with a 200px placeholder —
+     that is for saving render work on long documents. On a timeline that
+     auto-scrolls to the bottom it only makes the scroll position compute
+     against a fake height, and nothing here is long enough to need it. */
+  content-visibility: visible !important;
+}
+
+.agent-md [data-streamdown='code-block-header'] {
+  padding: 5px 9px 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.agent-md [data-streamdown='code-block-body'] {
+  overflow-x: auto;
+  padding: 6px 9px 8px;
+}
+
+.agent-md pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.62;
+}
+
+.agent-md pre code {
+  font: inherit;
+}
+
+/* Each line in a code block is a span that Tailwind would make `block`;
+   without Tailwind, un-blocked spans run the whole listing into one line. */
+.agent-md pre code > span {
+  display: block;
+}
+
+.agent-md [data-streamdown='blockquote'] {
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--text-2);
+}
+
+.agent-md [data-streamdown='blockquote'] p {
+  margin: 0;
+}
+
+.agent-md [data-streamdown='table-wrapper'],
+.agent-md [data-streamdown='table-wrapper'] > div {
+  overflow-x: auto;
+}
+
+.agent-md [data-streamdown='table'] {
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.agent-md [data-streamdown='table-header-cell'],
+.agent-md [data-streamdown='table-cell'] {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.agent-md [data-streamdown='table-header-cell'] {
+  background: var(--sunken);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.agent-md [data-streamdown='horizontal-rule'] {
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.agent-md [data-streamdown='image'],
+.agent-md [data-streamdown='image-wrapper'] {
+  max-width: 100%;
+  border-radius: var(--r-xs);
+}

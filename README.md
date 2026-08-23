@@ -1,0 +1,83 @@
+# 火星编辑器 · Mars Editor
+
+Markdown 写作，一键转成公众号排版 —— 粘进公众号编辑器即可无损还原，也可以直接推送到公众号
+草稿箱。你在预览里看到的，就是读者手机上的样子。
+
+macOS / Windows / Linux 桌面应用。
+
+![火星编辑器：左边文件树，中间 Markdown 编辑区，右边公众号预览与 Agent 面板](example.webp)
+
+## 工作区就是一个普通文件夹
+
+草稿不藏在应用里面，就是磁盘上的文件：
+
+```
+工作区/
+├── 随便怎么放.md    任意层级的 .md / .markdown / .txt，点开就能编辑
+├── 系列/
+│   └── 第一篇.md
+└── images/          粘贴 / 拖入的图默认落在这里，但图放哪一层都认
+```
+
+目录结构由你自己定，应用不规定 —— 左侧文件树如实显示文件夹里的东西，新建、改名、删除、
+拖拽移动都是直接落到磁盘上的真操作。
+
+## 和命令行 agent 一起改稿
+
+顶栏的「Agent」直接对接你本机装好的 Claude Code / Codex —— 用的是你自己的账号和配置，
+不填 key、不选模型、不做任何额外配置。它把进程起在当前工作区里，agent 直接改那些 `.md`，
+编辑器监听到改动实时跟着变。
+
+这里指的是**命令行版本** —— 终端里敲 `claude` 或 `codex` 能跑起来的那个。应用是去 PATH 和
+若干常见安装目录（npm 全局 bin、Homebrew、`~/.local/bin`、nvm / volta / fnm / pnpm / bun /
+cargo / scoop 的 bin）里找这两个可执行文件的。桌面 GUI 版不会往 PATH 里放可执行文件，装了也
+检测不到，得另外装一份 CLI。
+
+## 功能
+
+- Markdown 实时预览，编辑区与预览区滚动同步
+- 十二套内置主题（浅色 / 深色纸底）、三档排版密度；也可以让 agent 按你的口味写一套
+- 编辑器界面自身有浅色 / 深色两套外观，默认跟随系统
+- 一键复制为公众号可用的富文本
+- 图片拖拽 / 粘贴上传，落到工作区 `images/`
+- 代码高亮、脚注、`==高亮==` 等扩展语法
+- 外链自动转文末脚注（公众号正文点不动外链）
+- 复制时自动把外链图内嵌，绕开图床防盗链
+- 一键推送到公众号草稿箱，正文图片自动上传微信素材
+- 正文长图 `.png` 导出，走系统「存储到…」对话框
+
+## 公众号推送
+
+直连微信接口，请求由 Rust 侧发出：AppSecret 从本机直接到微信，中间不经过任何第三方。
+出口 IP 就是你这条宽带，白名单填一次一直有效。
+
+AppID / AppSecret 填在顶栏齿轮「设置」里，下面跟着「IP 白名单」一步 —— 这一步不能跳过：
+出口 IP 不在白名单里，微信一律返回 40164，凭据填得再对也调不通。按「获取出口 IP」拿到本机
+出口地址，粘进公众号后台保存，再用底栏的「测试连接」验一遍。
+
+## 开发
+
+```bash
+npm install
+npm run app        # 开发模式，起 Tauri 窗口
+npm run app:build  # 打包，产物在 src-tauri/target/release/bundle/
+                   # macOS 出 .app / .dmg，Windows 出 NSIS 安装包，Linux 出 .deb / .rpm / .AppImage
+                   # 带 --no-sign：本地打包不做签名
+npm run build      # 只做前端类型检查 + 构建
+```
+
+Rust 侧的测试覆盖了 vault 的核心逻辑（冲突检测、路径越界、图片编解码）：
+
+```bash
+cd src-tauri && cargo test
+```
+
+工具链由 `src-tauri/rust-toolchain.toml` pin 在 1.95 —— 依赖树里有 crate 用 edition2024。
+
+## 技术栈
+
+Tauri 2 · Rust · React 19 · TypeScript · Vite 7 · CodeMirror 6 · markdown-it · highlight.js
+
+## 协议
+
+MIT

@@ -1,0 +1,50 @@
+# Linux packages. Manual trigger (Actions → Linux 安装包 → Run workflow);
+# the .deb / .rpm / .AppImage land in this run's Artifacts.
+name: Linux 安装包
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Pinned to 22.04, not ubuntu-latest: the AppImage carries whatever glibc the
+    # runner has, and one built on 24.04 refuses to start on any older distro.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # rust-toolchain.toml pins the version; this only puts rustup in place
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # WebKitGTK is what Tauri renders in on Linux. rpm and patchelf are for
+      # the bundler itself — the .rpm target and the AppImage's relinking step.
+      - name: 系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            rpm patchelf
+
+      - run: npm ci
+
+      - name: 打包
+        run: npm run app:build -- --bundles deb,rpm,appimage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mars-editor-linux
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
