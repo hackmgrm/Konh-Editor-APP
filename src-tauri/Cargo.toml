@@ -3,8 +3,9 @@ name = "mars-editor"
 version = "0.1.0"
 description = "火星编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/whyubel1eve/Mars-Editor-APP"
+homepage = "https://mars-editor.cc"
 edition = "2021"
 rust-version = "1.85"
 

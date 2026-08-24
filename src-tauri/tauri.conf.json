@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "longDescription": "Markdown 写作，一键转成公众号内联样式富文本 —— 粘进公众号编辑器即可无损还原，也可以直接推送到草稿箱。草稿不藏在应用里，就是磁盘上的普通 .md 文件。",
     "createUpdaterArtifacts": true,
     "targets": [
       "app",
@@ -47,14 +48,6 @@
           "English"
         ],
         "displayLanguageSelector": false
-      }
-    },
-    "linux": {
-      "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libgtk-3-0"
-        ]
       }
     },
     "icon": [
