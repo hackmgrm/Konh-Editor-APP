@@ -1,6 +1,6 @@
 [package]
 name = "mars-editor"
-version = "0.1.0"
+version = "0.1.2"
 description = "火星编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
@@ -30,6 +30,7 @@ tauri-plugin-opener = "2.5.3"
 tauri-plugin-process = "2.3.0"
 base64 = "0.23.1"
 notify = "8.2.0"
+tauri-plugin-clipboard-manager = "2.3.2"
 
 [dev-dependencies]
 tempfile = "3.27.0"
