@@ -12,6 +12,7 @@ import {
   FolderOpen,
   FolderPlus,
   GithubLogo,
+  Globe,
   Image as ImageIcon,
   PencilSimple,
   Trash,
@@ -43,6 +44,8 @@ interface Props {
   onReveal: (path: string) => void;
   onNewDraft: (parent: string) => void;
   onNewFolder: (parent: string) => void;
+  /** Turn a web page into a draft, dropped into `parent` (see reader.ts) */
+  onImportUrl: (parent: string) => void;
   onRename: (path: string, name: string) => void;
   onDelete: (path: string) => void;
   /** Drag-move: put `path` inside the `toParent` directory (empty = root) */
@@ -150,6 +153,7 @@ export default function FileTree({
   onReveal,
   onNewDraft,
   onNewFolder,
+  onImportUrl,
   onRename,
   onDelete,
   onMove,
@@ -507,6 +511,15 @@ export default function FileTree({
         >
           <FolderPlus size={14} weight="bold" />
         </button>
+        {/* Also a way of creating a draft, so it sits with the other two */}
+        <button
+          className="ghost-btn"
+          title="从链接导入：把一个网页转成草稿"
+          aria-label="从链接导入"
+          onClick={() => onImportUrl("")}
+        >
+          <Globe size={14} weight="bold" />
+        </button>
       </div>
 
       {/* Empty space is a drop target too: dropping here moves back to the root */}
@@ -609,6 +622,17 @@ export default function FileTree({
                   >
                     <FolderPlus size={14} className="menu-icon" />
                     新建文件夹
+                  </button>
+                  <button
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(null);
+                      onImportUrl(parent);
+                    }}
+                  >
+                    <Globe size={14} className="menu-icon" />
+                    从链接导入
                   </button>
                   {entry && (
                     <>

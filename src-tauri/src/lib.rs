@@ -8,6 +8,12 @@ mod window;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Reading the clipboard, and only from here. The WebView's own
+        // navigator.clipboard.readText() works, but WebKit answers it with a
+        // "Paste" confirmation the user has to click — so pre-filling a field
+        // from the clipboard would cost more clicks than it saves. From this
+        // side there is no popup (see src/components/ImportUrlDialog.tsx)
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_http::init())
         // External links: the webview cannot open one itself, so they go out
         // through the OS (see src/external.ts)

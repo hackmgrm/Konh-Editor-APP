@@ -6,6 +6,7 @@ import TypesetPopover from './components/TypesetPopover';
 import Toolbar from './components/Toolbar';
 import DraftBoxDialog from './components/DraftBoxDialog';
 import PublishDialog from './components/PublishDialog';
+import ImportUrlDialog from './components/ImportUrlDialog';
 import SettingsDialog from './components/SettingsDialog';
 import UpdateDialog from './components/UpdateDialog';
 import ConflictBar from './components/ConflictBar';
@@ -22,6 +23,7 @@ import {
 import { copyRichText } from './clipboard';
 import { confirmDestructive } from './confirm';
 import { inlineRemoteImages } from './remoteImages';
+import { importArticle } from './reader';
 import { safeFileName, saveBlob } from './exchange';
 import { renderLongImage } from './longimage';
 import { DENSITIES, getDensity, getTheme } from './theme';
@@ -131,6 +133,9 @@ function Workspace({ vault }: { vault: VaultApi }) {
 
   /** A copy is running (remote images have to be fetched first) */
   const [copying, setCopying] = useState(false);
+  /** "From a link": the dialog, and the folder the new draft should land in */
+  const [importOpen, setImportOpen] = useState(false);
+  const [importParent, setImportParent] = useState('');
   /** The push-to-drafts dialog */
   const [publishOpen, setPublishOpen] = useState(false);
   /** The drafts box, read back from WeChat */
@@ -343,6 +348,35 @@ function Workspace({ vault }: { vault: VaultApi }) {
         flash(err instanceof Error ? err.message : '新建失败');
       }
     })();
+  };
+
+  /**
+   * A web page, turned into a draft in this workspace.
+   *
+   * Two things happen and both belong to the workspace, not to reader.ts: the
+   * images are written through the vault (so the tree and the preview pick them
+   * up like any other image), and the finished body becomes a real file named
+   * after the article.
+   */
+  const runImport = async (
+    url: string,
+    parent: string,
+    withImages: boolean,
+    onProgress: (msg: string) => void,
+  ) => {
+    const result = await importArticle(url, {
+      withImages,
+      addImage: vault.addImage,
+      // The file names already in images/ — one import must not overwrite
+      // pictures another one put there
+      taken: new Set(imageNames),
+      onProgress: (done, total) => onProgress(`正在存图 ${done}/${total}…`),
+    });
+    const created = await vault.newDraft(result.title || '网页导入', result.markdown, parent);
+    if (created) setActiveDraft(created.id);
+    const note = result.saved ? `，存了 ${result.saved} 张图` : '';
+    const missed = result.missed ? `（${result.missed} 张没抓到，正文里还是外链）` : '';
+    flash(`已导入「${created?.name ?? result.title}」${note}${missed}`);
   };
 
   /** New folder */
@@ -711,6 +745,10 @@ function Workspace({ vault }: { vault: VaultApi }) {
           onReveal={handleReveal}
           onNewDraft={handleNewDraft}
           onNewFolder={handleNewFolder}
+          onImportUrl={(parent) => {
+            setImportParent(parent);
+            setImportOpen(true);
+          }}
           onRename={handleRename}
           onDelete={handleDelete}
           onMove={handleMove}
@@ -763,6 +801,12 @@ function Workspace({ vault }: { vault: VaultApi }) {
           />
         )}
       </main>
+      <ImportUrlDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        parent={importParent}
+        onImport={(url, withImages, onProgress) => runImport(url, importParent, withImages, onProgress)}
+      />
       <PublishDialog
         open={publishOpen}
         onClose={closePublish}

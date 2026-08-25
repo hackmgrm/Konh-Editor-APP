@@ -9,7 +9,11 @@ import {
   type WechatConfig,
 } from '../wechat';
 import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
+import { getReaderKey, setReaderKey } from '../reader';
 import { RELEASES_URL, appVersion, checkForUpdate, dismissVerdict, useUpdate } from '../store/updater';
+
+/** Where a free key comes from, for the one link in the 网页导入 section */
+const READER_HOME = 'https://jina.ai/reader/';
 
 interface Props {
   open: boolean;
@@ -38,6 +42,9 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   const update = useUpdate();
   const [version, setVersion] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  /** Optional, and stored the moment it is typed — there is nothing to verify
+   *  it against short of spending a request */
+  const [readerKey, setKey] = useState(getReaderKey);
   const [busy, setBusy] = useState(false);
   /** Narrower than `busy`: only the connection self-check */
   const [testing, setTesting] = useState(false);
@@ -56,6 +63,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
       setProbe(null);
       setCopied(false);
       setShowSecret(false);
+      setKey(getReaderKey());
       // Same for 已是最新 / 检查失败 — both are answers to a question asked
       // during some earlier visit
       dismissVerdict();
@@ -211,6 +219,34 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 当前这个出口 IP <strong>会变</strong>，填进白名单也没用 —— 换成本机代理再取一次。
               </p>
             )}
+          </section>
+
+          {/* Optional, and last in the list on purpose: the feature works
+              without any of this. The field exists for the one person who
+              imports enough pages in a minute to hit the anonymous ceiling. */}
+          <section className="form-section">
+            <div className="form-section-label">网页导入</div>
+            <p className="form-note">
+              「从链接导入」的正文提取走
+              <a href={READER_HOME} target="_blank" rel="noopener noreferrer" className="ext-link">
+                Jina Reader <ArrowSquareOut size={11} weight="bold" />
+              </a>
+              —— 不填 key 也能用，每分钟 20 次。填一个免费 key 可以提到每分钟 500 次。
+              这是本应用里唯一一处会经过第三方的请求，发过去的只有你要导入的那个网址。
+            </p>
+            <label className="field">
+              <span>Jina API Key</span>
+              <input
+                type="password"
+                value={readerKey}
+                onChange={(e) => {
+                  setKey(e.target.value);
+                  setReaderKey(e.target.value);
+                }}
+                placeholder="可空，jina_…"
+                spellCheck={false}
+              />
+            </label>
           </section>
 
           {/* Version, and the manual way to ask about a new one. The automatic

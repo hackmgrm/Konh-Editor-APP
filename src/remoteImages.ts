@@ -30,8 +30,14 @@ function needsInline(src: string): boolean {
   return /^https?:\/\//i.test(src) && !isWechatCdn(src);
 }
 
-/** Fetch one; null on failure, leaving the caller to keep the original address */
-async function fetchAsDataUrl(src: string): Promise<string | null> {
+/**
+ * Fetch one; null on failure, leaving the caller to keep the original address.
+ *
+ * Exported because importing a web page needs exactly this and nothing more
+ * (see reader.ts): the same Referer trick, the same "is it really an image"
+ * check, the same per-session cache.
+ */
+export async function fetchImageAsDataUrl(src: string): Promise<string | null> {
   const cached = cache.get(src);
   if (cached) return cached;
   try {
@@ -96,7 +102,7 @@ export async function inlineRemoteImages(
       const index = cursor++;
       if (index >= targets.length) return;
       const src = targets[index];
-      const dataUrl = await fetchAsDataUrl(src);
+      const dataUrl = await fetchImageAsDataUrl(src);
       if (dataUrl) resolved.set(src, dataUrl);
       onProgress?.(++done, targets.length);
     }
@@ -123,7 +129,7 @@ export async function inlineRemoteImages(
  * WeChat's is an argument nobody wins by feel, and one measurement settles it.
  */
 export async function measureRemoteImage(url: string): Promise<{ w: number; h: number; bytes: number } | null> {
-  const dataUrl = await fetchAsDataUrl(url);
+  const dataUrl = await fetchImageAsDataUrl(url);
   if (!dataUrl) return null;
   const bytes = Math.floor(((dataUrl.length - dataUrl.indexOf(',') - 1) * 3) / 4);
   return await new Promise((resolve) => {
