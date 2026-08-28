@@ -201,7 +201,7 @@ export interface Theme {
   /** Strikethrough color */
   delColor: string;
   /** ==mark== highlight */
-  mark: { background: string; color: string; borderRadius: string; padding: string };
+  mark: { background: string; color: string; borderRadius: string; padding: string; underline?: boolean; borderColor?: string };
   /** Footnotes */
   footnote: { refColor: string; blockBorder: string; textColor: string; numColor: string; textSize: string };
   /** highlight.js palette (key = hljs class, value = color) */

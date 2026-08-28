@@ -9,7 +9,7 @@
   "accentSoft": "#eeefe9",
   "body": {
     "font": "'IBM Plex Sans',-apple-system,system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif",
-    "fontSize": "15px",
+    "fontSize": "14px",
     "lineHeight": "1.9",
     "color": "#4d4f46",
     "bg": "#fdfdf8",
@@ -31,7 +31,7 @@
     "h3": "16px",
     "h4": "15px"
   },
-  "pMargin": "16px",
+  "pMargin": "24px",
   "list": {
     "bullet": "•",
     "bulletColor": "#4d4f46",
@@ -104,7 +104,9 @@
     "background": "#fbe6d6",
     "color": "#23251d",
     "borderRadius": "3px",
-    "padding": "1px 4px"
+    "padding": "1px 4px",
+    "underline": true,
+    "borderColor": "#ed7b2f"
   },
   "footnote": {
     "refColor": "#ed7b2f",

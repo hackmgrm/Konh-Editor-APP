@@ -137,7 +137,7 @@ const GROUPS: Record<string, Record<string, Kind>> = {
     width: 'css',
   },
   img: { borderRadius: 'css', margin: 'css', caption: 'bool', frame: 'css' },
-  mark: { background: 'css', color: 'css', borderRadius: 'css', padding: 'css' },
+  mark: { background: 'css', color: 'css', borderRadius: 'css', padding: 'css', underline: 'bool', borderColor: 'css' },
   footnote: {
     refColor: 'css',
     blockBorder: 'css',

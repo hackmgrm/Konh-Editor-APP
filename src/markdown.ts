@@ -919,6 +919,17 @@ md.renderer.rules.del_close = (() => '</del>') as RenderRule;
 /* ==mark== highlight (markdown-it-mark) */
 md.renderer.rules.mark_open = ((_t, _i, _o, env) => {
   const m = env.theme.mark;
+  // olive-journal asks for an orange underline instead of a tinted box
+  if (m.underline) {
+    return `<mark style="${st({
+      'border-bottom': `2px solid ${m.borderColor ?? '#ed7b2f'}`,
+      'font-weight': '600',
+      color: m.color,
+      'background': 'transparent',
+      'border-radius': '0',
+      padding: '0',
+    })}">`;
+  }
   return `<mark style="${st({
     background: m.background,
     color: m.color,
@@ -1524,7 +1535,7 @@ function buildSignature(author: string, th: Theme): string {
     `<section style="margin-top:18px;">` +
     `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '22px 16px', 'text-align': 'center', 'font-family': th.body.font })}">` +
     `<p style="${st({ 'font-size': '13px', 'font-weight': '700', color: c.ink, 'line-height': '1.6', margin: '0 0 14px' })}">${esc(
-      '如果你觉得今天这篇有收获，欢迎点赞、在看、转发三连，我们下篇见',
+      '如果这篇对你有用，欢迎点赞、在看、转发，让更多朋友看到。我们下篇见。',
     )}</p>` +
     `<section style="${st({ display: 'flex', 'justify-content': 'center', gap: '18px', 'margin-bottom': '14px', 'flex-wrap': 'wrap' })}">` +
     icon('👍', '赞', c.olive, c.sub) +
