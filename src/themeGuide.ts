@@ -23,7 +23,7 @@ const EXAMPLE = JSON.stringify(
   2,
 );
 
-export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
+export const THEME_GUIDE = `# 空核编辑器 · 主题文件格式
 
 这个目录里每一个 \`.json\` 文件就是一个自定义主题，文件名必须等于主题的 \`id\`
 （比如 \`celadon.json\` 里的 id 就是 \`celadon\`）。编辑器在监听这个目录：文件一存，
@@ -224,13 +224,13 @@ front-matter 支持的键（值都是字符串）：
 \`\`\`markdown
 ---
 title:    文章标题
-kicker:   内刊标签（如 空运新视角）
+kicker:   内刊标签（如 空核域界 · 第三周）
 date:     日期
 summary:  底部摘要条文字
 subtitle: 头图副标题（可选）
 tags:     标签1 · 标签2（用 · 或 , 分隔）
 intro:    导语文字（可选；不写则把正文第一个 > 引用当导语）
-author:   作者署名（默认 空核域界）
+author:   作者署名（默认空核域界；旧值“空运新视角”会自动迁移）
 ---
 
 正文用普通 Markdown 写。第一个 \`>\` 引用会变成「导语」卡（除非 front-matter 已写 \`intro\`）；

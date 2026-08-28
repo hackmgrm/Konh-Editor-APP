@@ -1516,7 +1516,10 @@ function buildIntroCard(text: string, th: Theme): string {
 /** Signature + engagement card: author line, 点赞/在看/收藏, sign-off. */
 function buildSignature(author: string, th: Theme): string {
   const c = comp(th);
-  const a = author && author.trim() ? author.trim() : '空核域界';
+  const requestedAuthor = author.trim();
+  // Existing 空运新视角 drafts belong to the renamed brand. Preserve any
+  // other explicit byline so guest-authored articles still work.
+  const a = !requestedAuthor || requestedAuthor === '空运新视角' ? '空核域界' : requestedAuthor;
   const icon = (glyph: string, label: string, fill: string, txt: string) =>
     `<section style="${st({ 'text-align': 'center', color: txt })}">` +
     `<section style="${st({ width: '40px', height: '40px', display: 'flex', 'align-items': 'center', 'justify-content': 'center', margin: '0 auto 6px', background: fill, 'border-radius': '6px', border: `1px solid ${c.border}` })}">` +
@@ -1562,12 +1565,16 @@ export interface RenderOptions {
 export interface RenderResult {
   /** Body HTML (without the outer wrapper; shared by preview and export checks) */
   body: string;
+  /** Body as it should appear in preview, including front-matter components. */
+  previewBody: string;
   /** Complete export HTML (wrapped in a section carrying the base font) */
   html: string;
   /** Whether the body contains any images */
   hasImage: boolean;
   /** Article title: a front-matter `title`, else the first H1 (may be empty) */
   title: string;
+  /** Whether the preview body already contains its own article head. */
+  hasHero: boolean;
 }
 
 export function renderArticle(
@@ -1608,6 +1615,7 @@ export function renderArticle(
   const introHtml = fm?.intro ? buildIntroCard(fm.intro, th) : '';
   const sigHtml = fm ? buildSignature(fm.author ?? '', th) : '';
   const title = fm?.title ?? extractTitle(body);
+  const previewBody = `${heroHtml}${introHtml}${body}${sigHtml}`;
 
   const html = `<section style="${st({
     'font-family': th.body.font,
@@ -1616,12 +1624,14 @@ export function renderArticle(
     color: th.body.color,
     'word-break': 'break-word',
     ...(th.body.bg ? { background: th.body.bg } : {}),
-  })}">${heroHtml}${introHtml}${body}${sigHtml}</section>`;
+  })}">${previewBody}</section>`;
   return {
     body,
+    previewBody,
     html,
-    hasImage: /<img\s/i.test(body),
+    hasImage: /<img\s/i.test(previewBody),
     title,
+    hasHero: fm !== null,
   };
 }
 

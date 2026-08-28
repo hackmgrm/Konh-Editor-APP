@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Mars Editor",
+  "productName": "KonhEditor",
   "version": "0.1.2",
-  "identifier": "com.mars-editor.app",
+  "identifier": "com.konheditor.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5273",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "火星编辑器",
+        "title": "空核编辑器",
         "width": 1440,
         "height": 900,
         "minWidth": 900,

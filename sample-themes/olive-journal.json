@@ -1,7 +1,7 @@
 {
   "id": "olive-journal",
-  "name": "橄榄手记",
-  "description": "墨黑标题 + 橄榄灰底卡 + 橙色强调，内刊式 01/02 编号章节；开启 front-matter 自动头图/导语/签名",
+  "name": "空核域界",
+  "description": "空核域界品牌定制版：墨黑标题、橄榄灰底卡与橙色强调；front-matter 自动生成品牌头图、导语和签名",
   "base": "editorial",
   "appearance": "light",
   "mono": "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",

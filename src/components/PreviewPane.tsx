@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BatteryFull, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
-import { extractTitle, stripFirstH1 } from '../markdown';
+import { stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
 import type { Theme } from '../theme';
 
 interface Props {
   body: string;
+  title: string;
+  hasHero: boolean;
   theme: Theme;
   /** Whether the body contains images (shows the WeChat paste notice) */
   hasImage: boolean;
@@ -102,14 +104,16 @@ function buildAnchors(scroll: HTMLElement): Anchor[] {
  * Every style in the body HTML is inline ⇒ preview and export (the WeChat
  * paste) are identical.
  */
-export default function PreviewPane({ body, theme, hasImage, densityName, resizeKey, sync }: Props) {
+export default function PreviewPane({ body, title, hasHero, theme, hasImage, densityName, resizeKey, sync }: Props) {
   const paneRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [widthMode, setWidthMode] = useState<'phone' | 'desktop'>('phone');
-  const title = useMemo(() => extractTitle(body), [body]);
   /** Body used for the preview (duplicate h1 removed; exports still use the full body) */
-  const previewBody = useMemo(() => (title ? stripFirstH1(body) : body), [body, title]);
+  const previewBody = useMemo(
+    () => (!hasHero && title ? stripFirstH1(body) : body),
+    [body, hasHero, title],
+  );
   /** Date in the article head (a new Date() on every render means nothing) */
   const today = useMemo(() => new Date(), []);
 
@@ -247,7 +251,7 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
     <section className="split-pane surface preview-side" ref={paneRef} data-width={widthMode}>
       <div className="pane-head">
         {/* What is being previewed, rather than the word "preview" — which of
-            the twelve themes is on, and at which density. With the theme rail
+            the active theme is on, and at which density. With the theme rail
             folded into a popover, this is the only place that still says. */}
         <span className="pane-path" title="在顶栏的「排版」里更换">
           <span className="seg last">{theme.name}</span>
@@ -287,15 +291,17 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
             </div>
             <div className="article-scroll scroll-thin" ref={scrollRef}>
               {/* WeChat article head: title (with a placeholder when empty) plus byline */}
-              <div className="article-head">
-                <h1 className="head-title">{title || '未命名文章'}</h1>
-                <div className="meta">
-                  <span className="author">火星</span>
-                  <span className="byline">
-                    {today.getFullYear()} 年 {today.getMonth() + 1} 月 {today.getDate()} 日
-                  </span>
+              {!hasHero && (
+                <div className="article-head">
+                  <h1 className="head-title">{title || '未命名文章'}</h1>
+                  <div className="meta">
+                    <span className="author">空核域界</span>
+                    <span className="byline">
+                      {today.getFullYear()} 年 {today.getMonth() + 1} 月 {today.getDate()} 日
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div
                 className="check-body"
                 ref={bodyRef}

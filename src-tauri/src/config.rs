@@ -6,7 +6,7 @@
 //! possibly shared, and an AppSecret in there is an AppSecret leaked.
 //!
 //! So it lives in the app config directory instead (on macOS,
-//! ~/Library/Application Support/com.mars-editor.app/settings.json).
+//! ~/Library/Application Support/com.konheditor.app/settings.json).
 //! The shape is a flat string → string map, matching how localStorage was used
 //! before, so the front end did not have to change any call sites when it moved
 //! over to this.

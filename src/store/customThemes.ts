@@ -1,5 +1,5 @@
 /**
- * Themes the agent wrote, as opposed to the twelve that ship in theme.ts.
+ * Themes the agent wrote, as opposed to the presets that ship in theme.ts.
  *
  * Each one is a JSON file in the app config directory (see themes.rs), and the
  * shape it holds is deliberately *not* a whole Theme: it names a `base` preset

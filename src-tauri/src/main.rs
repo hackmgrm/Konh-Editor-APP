@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  mars_editor_lib::run();
+  konh_editor_lib::run();
 }

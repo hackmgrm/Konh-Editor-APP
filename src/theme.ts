@@ -241,6 +241,7 @@ const SANS =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif";
 const SERIF = "Georgia, 'Songti SC', 'SimSun', 'Times New Roman', serif";
 const MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+const OLIVE_FONT = "'IBM Plex Sans',-apple-system,system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
 
 /* ---------------- highlight.js palettes (one light, one dark) ---------------- */
 
@@ -1038,8 +1039,198 @@ export const nightSakuraTheme: Theme = {
   codePaletteMode: 'dark',
 };
 
+/** 空核域界定制版：墨黑标题、橄榄灰卡片与橙色强调，并通过
+ *  front-matter 生成品牌头图、导语和签名卡。内部 id 保留 olive-journal，
+ *  以免升级后让已经选用该主题的草稿失去主题。 */
+export const oliveJournalTheme: Theme = {
+  ...editorialTheme,
+  id: 'olive-journal',
+  name: '空核域界',
+  description: '空核域界品牌定制版：墨黑标题、橄榄灰底卡与橙色强调；front-matter 自动生成品牌头图、导语和签名',
+  appearance: 'light',
+  mono: MONO,
+  body: { font: OLIVE_FONT, fontSize: '14px', lineHeight: '1.9', color: '#4d4f46', bg: '#fdfdf8', align: 'justify' },
+  accent: '#ed7b2f',
+  accentSoft: '#eeefe9',
+  heading: { font: OLIVE_FONT, fontWeight: '800', color: '#23251d', lineHeight: '1.3', letterSpacing: '0.2px', marginTop: '24px', marginBottom: '8px', decor: 'numbered' },
+  headingSizes: { h1: '24px', h2: '18px', h3: '16px', h4: '15px', h5: '17px', h6: '16px' },
+  pMargin: '24px',
+  list: { bullet: '•', bulletColor: '#4d4f46', ordered: 'accent' },
+  quote: { style: 'bar', background: '#eeefe9', color: '#4d4f46', borderLeft: '4px solid #ed7b2f', borderRadius: '0 8px 8px 0', padding: '14px 18px', margin: '24px 0', fontStyle: 'italic', extra: { 'text-align': 'justify' } },
+  callout: { background: '#eeefe9', color: '#4d4f46', borderLeft: '4px solid #ed7b2f', borderRadius: '0 10px 10px 0', padding: '14px 18px', margin: '24px 0', badgeBg: '#ed7b2f', badgeColor: '#ffffff' },
+  code: { background: '#e5e7e0', color: '#1e1f23', borderRadius: '4px', padding: '2px 5px', fontSize: '0.9em' },
+  codeBlock: { background: '#eeefe9', color: '#1e1f23', borderRadius: '6px', padding: '14px 16px', fontSize: '14px', lineHeight: '1.6' },
+  link: { color: '#ed7b2f', textDecoration: 'underline' },
+  listPaddingLeft: '22px',
+  listItemMargin: '8px 0',
+  table: { borderColor: '#bfc1b7', headBg: '#eeefe9', headColor: '#23251d', fontSize: '15px', cellPadding: '8px 12px', style: 'minimal' },
+  hr: { color: '#bfc1b7', margin: '28px 0', style: 'glyph', glyph: '· · ·' },
+  img: { borderRadius: '8px', margin: '16px auto', caption: true },
+  strongColor: '#23251d',
+  delColor: '#9ea096',
+  mark: { background: '#fbe6d6', color: '#23251d', borderRadius: '3px', padding: '1px 4px', underline: true, borderColor: '#ed7b2f' },
+  footnote: { refColor: '#ed7b2f', blockBorder: '#bfc1b7', textColor: '#9ea096', numColor: '#ed7b2f', textSize: '12px' },
+  codePalette: PALETTE_LIGHT,
+  codePaletteMode: 'light',
+  components: { frontMatter: true, cardBg: '#fdfdf8', ink: '#1e1f23', border: '#bfc1b7', sub: '#65675e', weak: '#9ea096', olive: '#eeefe9' },
+};
+
+/** Presets adapted from isjiamu/gzh-design-skill. The source component
+ * libraries are richer than this renderer's token vocabulary, so these keep
+ * each theme's palette, heading silhouette and characteristic surfaces. */
+export const moyuGreenTheme: Theme = {
+  ...classicTheme,
+  id: 'moyu-green', name: '摸鱼绿', description: '翡翠绿杂志风，卡片丰富、信息密度高，适合教程与工具盘点',
+  accent: '#059669', accentSoft: '#ECFDF5',
+  body: { ...classicTheme.body, fontSize: '14px', lineHeight: '1.9', color: '#374151' },
+  heading: { ...classicTheme.heading, color: '#111827', decor: 'band' },
+  quote: { ...classicTheme.quote, background: '#ECFDF5', color: '#374151', borderLeft: '4px solid #059669', borderRadius: '10px' },
+  callout: { ...classicTheme.callout, background: '#F0FDF4', color: '#374151', borderLeft: '4px solid #059669', borderRadius: '10px', badgeBg: '#059669', badgeColor: '#ffffff' },
+  list: { bullet: '▸', bulletColor: '#059669', ordered: 'pill' },
+  table: { ...classicTheme.table, borderColor: '#BBF7D0', headBg: '#059669', headColor: '#ffffff', style: 'striped', stripeBg: '#F0FDF4' },
+  hr: { color: '#A7F3D0', margin: '30px 0', style: 'dashed' },
+  mark: { background: '#FDE68A', color: '#111827', borderRadius: '3px', padding: '1px 4px', underline: true, borderColor: '#059669' },
+  strongColor: '#111827', link: { color: '#059669', textDecoration: 'underline' },
+};
+
+export const redWhiteTheme: Theme = {
+  ...editorialTheme,
+  id: 'red-white', name: '红白色系', description: '正红点睛的经典编辑风，编号章节与力量感标题',
+  accent: '#DC2626', accentSoft: '#FEF2F2',
+  body: { ...editorialTheme.body, color: '#44403C', bg: '#ffffff' },
+  heading: { ...editorialTheme.heading, color: '#1C1917', decor: 'numbered' },
+  quote: { ...editorialTheme.quote, background: '#ffffff', color: '#1C1917', borderLeft: '4px solid #DC2626', borderRadius: '12px', style: 'card', bigMark: true },
+  callout: { ...editorialTheme.callout, background: '#FEF2F2', color: '#44403C', borderLeft: '4px solid #DC2626', badgeBg: '#DC2626', badgeColor: '#ffffff' },
+  table: { ...editorialTheme.table, borderColor: '#FECACA', headBg: '#DC2626', headColor: '#ffffff' },
+  hr: { color: '#FECACA', margin: '32px 0', style: 'double' },
+  mark: { background: '#FEE2E2', color: '#991B1B', borderRadius: '4px', padding: '1px 4px', underline: true, borderColor: '#DC2626' },
+  strongColor: '#1C1917', link: { color: '#DC2626', textDecoration: 'underline' },
+};
+
+export const graphiteMinimalTheme: Theme = {
+  ...minimalTheme,
+  id: 'graphite-minimal', name: '石墨极简', description: '纯白、石墨灰、几何细线与大留白，理性克制',
+  accent: '#52525B', accentSoft: '#F4F4F5',
+  body: { ...minimalTheme.body, color: '#52525B', bg: '#ffffff' },
+  heading: { ...minimalTheme.heading, color: '#27272A', decor: 'numbered' },
+  quote: { ...minimalTheme.quote, background: '#FAFAFA', color: '#3F3F46', borderLeft: '0', borderRadius: '0', style: 'pull' },
+  callout: { ...minimalTheme.callout, background: '#FAFAFA', color: '#52525B', borderLeft: '3px solid #52525B', borderRadius: '0' },
+  hr: { color: '#E4E4E7', margin: '38px 0', style: 'line', width: '18%' },
+  mark: { background: '#F4F4F5', color: '#27272A', borderRadius: '0', padding: '1px 3px', underline: true, borderColor: '#52525B' },
+  strongColor: '#27272A', link: { color: '#52525B', textDecoration: 'underline' },
+};
+
+export const zenWhitespaceTheme: Theme = {
+  ...minimalTheme,
+  id: 'zen-whitespace', name: '留白禅意', description: '墨绿点睛、东方衬线与超大留白，沉静舒展',
+  accent: '#4A5D52', accentSoft: '#EEF3F0',
+  body: { ...minimalTheme.body, lineHeight: '1.9', color: '#525252', bg: '#ffffff' },
+  heading: { ...minimalTheme.heading, font: SERIF, color: '#2B2B2B', align: 'center', decor: 'center-rule', marginTop: '46px' },
+  quote: { ...minimalTheme.quote, background: '#ffffff', color: '#2B2B2B', borderLeft: '0', borderRadius: '0', style: 'pull', fontStyle: 'normal' },
+  callout: { ...minimalTheme.callout, background: '#EEF3F0', color: '#3D5046', borderLeft: '0', borderRadius: '0' },
+  hr: { color: '#E8E8E8', margin: '46px 0', style: 'line', width: '15%' },
+  mark: { background: '#D6E4DC', color: '#2B2B2B', borderRadius: '0', padding: '1px 3px', underline: true, borderColor: '#B5C8BC' },
+  strongColor: '#2B2B2B', link: { color: '#4A5D52', textDecoration: 'underline' },
+};
+
+export const moyuTicketTheme: Theme = {
+  ...typewriterTheme,
+  id: 'moyu-ticket', name: '摸鱼票据', description: '米黄纸感、票据描边与硬阴影，适合测评和工具对比',
+  accent: '#059669', accentSoft: '#F0FDF4',
+  body: { ...typewriterTheme.body, font: SANS, fontSize: '14px', lineHeight: '1.9', color: '#555555', bg: '#fffef8' },
+  heading: { ...typewriterTheme.heading, font: SANS, color: '#1a1a1a', decor: 'boxed' },
+  quote: { ...typewriterTheme.quote, background: '#fffef8', color: '#555555', borderLeft: '2px dashed #059669', borderRadius: '0', extra: { border: '2px solid #1a1a1a', 'box-shadow': '4px 4px 0 #1a1a1a' } },
+  callout: { ...typewriterTheme.callout, background: '#F0FDF4', color: '#555555', borderLeft: '4px solid #059669', borderRadius: '0' },
+  list: { bullet: '★', bulletColor: '#059669', ordered: 'pill' },
+  table: { ...typewriterTheme.table, borderColor: '#1a1a1a', headBg: '#059669', headColor: '#ffffff' },
+  hr: { color: '#A7F3D0', margin: '34px 0', style: 'dashed' },
+  img: { ...typewriterTheme.img, borderRadius: '0', frame: '2px solid #1a1a1a' },
+  mark: { background: '#F0FDF4', color: '#1a1a1a', borderRadius: '0', padding: '1px 4px', underline: true, borderColor: '#059669' },
+  strongColor: '#1a1a1a', link: { color: '#059669', textDecoration: 'underline' },
+};
+
+/** Presets adapted from Kianzzz/zhouxing-paiban-wx's style library. */
+export const graphiteDossierTheme: Theme = {
+  ...editorialTheme,
+  id: 'graphite-dossier', name: '石墨档案', description: '等宽编号、档案章标、密集网格与无圆角结构',
+  accent: '#4B5563', accentSoft: '#F3F4F6',
+  body: { ...editorialTheme.body, color: '#374151', bg: '#ffffff' },
+  heading: { ...editorialTheme.heading, font: MONO, color: '#111827', decor: 'numbered' },
+  quote: { ...editorialTheme.quote, background: '#F3F4F6', color: '#374151', borderLeft: '4px solid #4B5563', borderRadius: '0' },
+  callout: { ...editorialTheme.callout, background: '#F3F4F6', color: '#374151', borderLeft: '4px solid #4B5563', borderRadius: '0' },
+  table: { ...editorialTheme.table, borderColor: '#9CA3AF', headBg: '#1F2937', headColor: '#ffffff', style: 'grid' },
+  hr: { color: '#4B5563', margin: '34px 0', style: 'double' },
+  img: { ...editorialTheme.img, borderRadius: '0', frame: '1px solid #9CA3AF' },
+  strongColor: '#111827', link: { color: '#4B5563', textDecoration: 'underline' },
+};
+
+export const greenWhiteCleanTheme: Theme = {
+  ...moyuGreenTheme,
+  id: 'green-white-clean', name: '绿白清简', description: '水印刊头、轻量章节、对话引用卡与克制代码卡',
+  accent: '#01A539', accentSoft: '#F2FFF5',
+  heading: { ...moyuGreenTheme.heading, color: '#015F25', decor: 'accent-bar' },
+  quote: { ...moyuGreenTheme.quote, background: '#ffffff', color: '#475569', borderLeft: '4px solid #01A539', borderRadius: '10px' },
+  table: { ...moyuGreenTheme.table, borderColor: '#C8F0D2', headBg: '#F2FFF5', headColor: '#015F25' },
+  hr: { color: '#C8F0D2', margin: '40px 0', style: 'line' },
+  link: { color: '#01A539', textDecoration: 'underline' },
+};
+
+export const inkBlueEditorialTheme: Theme = {
+  ...editorialTheme,
+  id: 'ink-blue-editorial', name: '墨蓝刊读', description: '衬线正文、通栏深色章节、居中引语与影印图片',
+  accent: '#315B7D', accentSoft: '#F2F6F9',
+  body: { ...editorialTheme.body, font: SERIF, color: '#263746', bg: '#ffffff' },
+  heading: { ...editorialTheme.heading, font: SERIF, color: '#183247', decor: 'band' },
+  quote: { ...editorialTheme.quote, background: '#ffffff', color: '#294C67', borderLeft: '0', borderRadius: '0', style: 'pull' },
+  callout: { ...editorialTheme.callout, background: '#F2F6F9', color: '#294C67', borderLeft: '4px solid #315B7D', borderRadius: '0' },
+  table: { ...editorialTheme.table, borderColor: '#7895AB', headBg: '#183247', headColor: '#ffffff' },
+  hr: { color: '#315B7D', margin: '40px 0', style: 'double' },
+  img: { borderRadius: '0', margin: '28px auto', caption: true, frame: '9px solid #ffffff' },
+  strongColor: '#183247', link: { color: '#315B7D', textDecoration: 'underline' },
+};
+
+export const mistPurpleStoryTheme: Theme = {
+  ...zenWhitespaceTheme,
+  id: 'mist-purple-story', name: '雾紫叙事', description: '窄栏衬线、大段呼吸、居中章名与大字金句',
+  accent: '#7559A6', accentSoft: '#F4EEFC',
+  body: { ...zenWhitespaceTheme.body, font: SERIF, lineHeight: '2.08', color: '#4C4556' },
+  heading: { ...zenWhitespaceTheme.heading, color: '#4E3C70', decor: 'center-rule' },
+  quote: { ...zenWhitespaceTheme.quote, color: '#594A70' },
+  callout: { ...zenWhitespaceTheme.callout, background: '#F4EEFC', color: '#594A70' },
+  table: { ...zenWhitespaceTheme.table, borderColor: '#DCCFF0', headBg: '#ffffff', headColor: '#4E3C70', style: 'minimal' },
+  hr: { color: '#7559A6', margin: '48px 0', style: 'line', width: '38px' },
+  mark: { background: '#DCCFF0', color: '#3E3158', borderRadius: '0', padding: '1px 3px' },
+  strongColor: '#3E3158', link: { color: '#7559A6', textDecoration: 'underline' },
+};
+
+export const sandGoldJournalTheme: Theme = {
+  ...moyuTicketTheme,
+  id: 'sand-gold-journal', name: '沙金手记', description: '米黄纸张、虚线撕口、硬阴影与盖章式章节',
+  accent: '#9A6A2F', accentSoft: '#FFFDF8',
+  body: { ...moyuTicketTheme.body, font: SERIF, color: '#594837', bg: '#FFFDF8' },
+  heading: { ...moyuTicketTheme.heading, font: SERIF, color: '#4E3822', decor: 'boxed' },
+  quote: { ...moyuTicketTheme.quote, background: '#FFFDF8', color: '#6A5138', borderLeft: '1px dashed #9A6A2F', extra: { border: '1px dashed #9A6A2F', 'box-shadow': '5px 5px 0 #EFE2CB' } },
+  callout: { ...moyuTicketTheme.callout, background: '#FFFDF8', color: '#6A5138', borderLeft: '4px solid #9A6A2F' },
+  table: { ...moyuTicketTheme.table, borderColor: '#C7A675', headBg: '#6B4A26', headColor: '#ffffff' },
+  hr: { color: '#9A6A2F', margin: '40px 0', style: 'dashed' },
+  img: { borderRadius: '0', margin: '28px auto', caption: true, frame: '10px solid #FFFDF8' },
+  mark: { background: '#FFFDF8', color: '#6B4A26', borderRadius: '999px', padding: '1px 5px', underline: true, borderColor: '#9A6A2F' },
+  strongColor: '#4E3822', link: { color: '#9A6A2F', textDecoration: 'underline' },
+};
+
 export const themes: Theme[] = [
   classicTheme,
+  oliveJournalTheme,
+  moyuGreenTheme,
+  redWhiteTheme,
+  graphiteMinimalTheme,
+  zenWhitespaceTheme,
+  moyuTicketTheme,
+  graphiteDossierTheme,
+  greenWhiteCleanTheme,
+  inkBlueEditorialTheme,
+  mistPurpleStoryTheme,
+  sandGoldJournalTheme,
   minimalTheme,
   editorialTheme,
   inkTheme,
