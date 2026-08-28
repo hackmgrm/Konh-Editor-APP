@@ -208,6 +208,31 @@ export interface Theme {
   codePalette: Record<string, string>;
   /** Palette mode (dark for the terminal theme, light for the rest) */
   codePaletteMode: 'light' | 'dark';
+  /**
+   * Front-matter driven article components (hero / intro / signature cards).
+   *
+   * Opt-in per theme: when `frontMatter` is unset the renderer behaves exactly
+   * as before, so adding this block never changes articles that do not open
+   * with a `---` front-matter. Colors default to other theme fields
+   * (heading.color, hr.color, accentSoft…), so a theme can opt in with just
+   * `{ "frontMatter": true }` and inherit the rest.
+   */
+  components?: {
+    /** Enable `---` YAML front-matter → hero + intro + signature cards */
+    frontMatter?: boolean;
+    /** Card surface (defaults to body.bg) */
+    cardBg?: string;
+    /** Dark bar / header fill (defaults to heading.color) */
+    ink?: string;
+    /** Hairline / divider color (defaults to hr.color) */
+    border?: string;
+    /** Secondary text (defaults to body.color) */
+    sub?: string;
+    /** Muted text (defaults to delColor) */
+    weak?: string;
+    /** Soft fill for the intro body (defaults to accentSoft) */
+    olive?: string;
+  };
 }
 
 /* ---------------- Font stacks ---------------- */

@@ -203,6 +203,42 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 8. 值里不要出现 \`<\`、\`>\`、\`"\`——它们会被塞进 HTML 的 style 属性里，编辑器会把
    带这些字符的值直接丢掉。
 
+## front-matter 自动头图 / 导语 / 签名（components）
+
+开启后，文章顶部用 \`---\` 写 front-matter，编辑器会自动在文章前后拼上「头图卡 / 导语卡 / 签名卡」，不用再手动粘 HTML。只在主题开启、且文章确实以 \`---\` 开头时才生效，普通文章完全不受影响。
+
+顶层加一个 \`components\` 对象：
+
+| 字段 | 说明 |
+| --- | --- |
+| \`frontMatter\` | \`true\` 才开启；其余字段都是可选的 |
+| \`cardBg\` | 卡片底色，默认 \`body.bg\` |
+| \`ink\` | 深色条 / 头图底，默认 \`heading.color\` |
+| \`border\` | 描边 / 分隔线，默认 \`hr.color\` |
+| \`sub\` | 次要文字，默认 \`body.color\` |
+| \`weak\` | 弱化文字，默认 \`delColor\` |
+| \`olive\` | 导语卡底色，默认 \`accentSoft\` |
+
+front-matter 支持的键（值都是字符串）：
+
+\`\`\`markdown
+---
+title:    文章标题
+kicker:   内刊标签（如 空运新视角）
+date:     日期
+summary:  底部摘要条文字
+subtitle: 头图副标题（可选）
+tags:     标签1 · 标签2（用 · 或 , 分隔）
+intro:    导语文字（可选；不写则把正文第一个 > 引用当导语）
+author:   作者署名（默认 空核域界）
+---
+
+正文用普通 Markdown 写。第一个 \`>\` 引用会变成「导语」卡（除非 front-matter 已写 \`intro\`）；
+其余 \`>\` 仍是普通引用卡；\`##\` 章节自动编号。
+\`\`\`
+
+样例见仓库 \`sample-themes/olive-journal.json\`。
+
 ## 一个完整的内置主题（classic），供比对
 
 \`\`\`json

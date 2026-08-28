@@ -145,6 +145,15 @@ const GROUPS: Record<string, Record<string, Kind>> = {
     numColor: 'css',
     textSize: 'css',
   },
+  components: {
+    frontMatter: 'bool',
+    cardBg: 'css',
+    ink: 'css',
+    border: 'css',
+    sub: 'css',
+    weak: 'css',
+    olive: 'css',
+  },
 };
 
 /** Groups that additionally accept a free `extra` map of CSS declarations */

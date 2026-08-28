@@ -601,7 +601,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /** Default title: the first H1 in the body, falling back to the draft name.
    *  Computed only at the moment the dialog opens */
   const defaultTitle = useMemo(() => {
-    const fromBody = extractTitle(renderArticle(markdown, theme, imageIndex, density, renderOptions).body);
+    const rendered = renderArticle(markdown, theme, imageIndex, density, renderOptions);
+    const fromBody = rendered.title || extractTitle(rendered.body);
     return fromBody || activeDraft?.name || '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishOpen]);

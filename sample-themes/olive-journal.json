@@ -1,0 +1,126 @@
+{
+  "id": "olive-journal",
+  "name": "橄榄手记",
+  "description": "墨黑标题 + 橄榄灰底卡 + 橙色强调，内刊式 01/02 编号章节；开启 front-matter 自动头图/导语/签名",
+  "base": "editorial",
+  "appearance": "light",
+  "mono": "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  "accent": "#ed7b2f",
+  "accentSoft": "#eeefe9",
+  "body": {
+    "font": "'IBM Plex Sans',-apple-system,system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif",
+    "fontSize": "15px",
+    "lineHeight": "1.9",
+    "color": "#4d4f46",
+    "bg": "#fdfdf8",
+    "align": "justify"
+  },
+  "heading": {
+    "font": "'IBM Plex Sans',-apple-system,system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif",
+    "fontWeight": "800",
+    "color": "#23251d",
+    "lineHeight": "1.3",
+    "letterSpacing": "0.2px",
+    "marginTop": "24px",
+    "marginBottom": "8px",
+    "decor": "numbered"
+  },
+  "headingSizes": {
+    "h1": "24px",
+    "h2": "18px",
+    "h3": "16px",
+    "h4": "15px"
+  },
+  "pMargin": "16px",
+  "list": {
+    "bullet": "•",
+    "bulletColor": "#4d4f46",
+    "ordered": "accent"
+  },
+  "listPaddingLeft": "22px",
+  "listItemMargin": "8px 0",
+  "quote": {
+    "style": "bar",
+    "background": "#eeefe9",
+    "color": "#4d4f46",
+    "borderLeft": "4px solid #ed7b2f",
+    "borderRadius": "0 8px 8px 0",
+    "padding": "14px 18px",
+    "margin": "24px 0",
+    "extra": {
+      "text-align": "justify"
+    }
+  },
+  "callout": {
+    "background": "#eeefe9",
+    "color": "#4d4f46",
+    "borderLeft": "4px solid #ed7b2f",
+    "borderRadius": "0 10px 10px 0",
+    "padding": "14px 18px",
+    "margin": "24px 0",
+    "badgeBg": "#ed7b2f",
+    "badgeColor": "#ffffff"
+  },
+  "code": {
+    "background": "#e5e7e0",
+    "color": "#1e1f23",
+    "borderRadius": "4px",
+    "padding": "2px 5px",
+    "fontSize": "0.9em"
+  },
+  "codeBlock": {
+    "background": "#eeefe9",
+    "color": "#1e1f23",
+    "borderRadius": "6px",
+    "padding": "14px 16px",
+    "fontSize": "14px",
+    "lineHeight": "1.6"
+  },
+  "link": {
+    "color": "#ed7b2f",
+    "textDecoration": "underline"
+  },
+  "table": {
+    "borderColor": "#bfc1b7",
+    "headBg": "#eeefe9",
+    "headColor": "#23251d",
+    "fontSize": "15px",
+    "cellPadding": "8px 12px",
+    "style": "minimal"
+  },
+  "hr": {
+    "color": "#bfc1b7",
+    "margin": "28px 0",
+    "style": "glyph",
+    "glyph": "· · ·"
+  },
+  "img": {
+    "borderRadius": "8px",
+    "margin": "16px auto"
+  },
+  "strongColor": "#23251d",
+  "delColor": "#9ea096",
+  "mark": {
+    "background": "#fbe6d6",
+    "color": "#23251d",
+    "borderRadius": "3px",
+    "padding": "1px 4px"
+  },
+  "footnote": {
+    "refColor": "#ed7b2f",
+    "blockBorder": "#bfc1b7",
+    "textColor": "#9ea096",
+    "numColor": "#ed7b2f",
+    "textSize": "12px"
+  },
+  "codePaletteMode": "light",
+  "components": {
+    "frontMatter": true,
+    "cardBg": "#fdfdf8",
+    "ink": "#1e1f23",
+    "border": "#bfc1b7",
+    "sub": "#65675e",
+    "weak": "#9ea096",
+    "olive": "#eeefe9"
+  }
+}

@@ -96,12 +96,14 @@ interface Flow {
   row: number;
   /** Inside a thead (whose rows are never striped) */
   head: boolean;
+  /** Whether the document's single 导语 (intro) card has already been emitted */
+  introDone: boolean;
 }
 
 interface QuoteFrame {
   /** A callout renders on its own terms and ignores quote.style */
   tip: boolean;
-  style: 'bar' | 'card' | 'bracket' | 'pull';
+  style: 'bar' | 'card' | 'bracket' | 'pull' | 'intro';
   /** Font size a pull quote imposes on the paragraphs inside it */
   fontSize?: string;
 }
@@ -116,7 +118,7 @@ interface ListFrame {
   own: boolean;
 }
 
-const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false });
+const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false, introDone: false });
 
 /** The flow state, created on first use so every rule can assume it exists */
 function flow(env: Env): Flow {
@@ -534,6 +536,12 @@ md.renderer.rules.blockquote_open = ((tokens, idx, _o, env) => {
     }
     return s;
   }
+  // Front-matter intro: the first non-callout blockquote becomes the 导语 card.
+  if (th.components?.frontMatter && !flow(env).introDone) {
+    flow(env).introDone = true;
+    flow(env).quotes.push({ tip: false, style: 'intro' });
+    return introCardOpen(th, line);
+  }
   const q = th.quote;
   const style = q.style ?? 'bar';
   const marks = q.markGlyph ?? (style === 'bracket' ? '「」' : '“');
@@ -603,6 +611,7 @@ md.renderer.rules.blockquote_open = ((tokens, idx, _o, env) => {
 md.renderer.rules.blockquote_close = ((_t, _i, _o, env) => {
   const frame = flow(env).quotes.pop();
   const th = env.theme;
+  if (frame?.style === 'intro') return introCardClose();
   if (!frame || frame.tip || frame.style !== 'bracket') return '</blockquote>';
   const marks = th.quote.markGlyph ?? '「」';
   return `<span style="${st({
@@ -1347,6 +1356,189 @@ function colorTasks(html: string, th: Theme): string {
     .replace(/☐/g, `<span style="color:${th.delColor};font-weight:400">☐</span>`);
 }
 
+/* ---------------- Front-matter driven article components ---------------- */
+
+/** Parsed `---` front-matter: every value is a string. */
+type FrontMatter = Record<string, string>;
+
+/**
+ * Pull a leading `---` YAML block out of the source. Returns null when the
+ * document does not open with one, so the renderer can leave ordinary articles
+ * untouched. Only `key: value` (or `key： value`, full-width colon) lines are
+ * read — enough for the hero / intro / signature cards, and exactly what
+ * build_article.py consumed.
+ */
+function parseFrontMatter(src: string): { data: FrontMatter; content: string } | null {
+  const m = src.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+  if (!m) return null;
+  const data: FrontMatter = {};
+  for (const line of m[1].split('\n')) {
+    const idx = line.search(/[:：]/);
+    if (idx <= 0) continue;
+    const k = line.slice(0, idx).trim();
+    const v = line.slice(idx + 1).trim();
+    if (k) data[k] = v;
+  }
+  return { data, content: src.slice(m[0].length) };
+}
+
+/** Resolve the component color overrides, falling back to existing theme fields. */
+function comp(th: Theme) {
+  const c = th.components ?? {};
+  return {
+    cardBg: c.cardBg ?? th.body.bg ?? '#ffffff',
+    ink: c.ink ?? th.heading.color ?? '#1e1f23',
+    border: c.border ?? th.hr.color ?? '#e5e3dc',
+    sub: c.sub ?? th.body.color,
+    weak: c.weak ?? th.delColor ?? '#9a9a9a',
+    olive: c.olive ?? th.accentSoft ?? th.body.bg ?? '#eeeeee',
+  };
+}
+
+/** Hero card: kicker / date / title / subtitle / tags, plus a dark summary bar. */
+function buildHero(fm: FrontMatter, th: Theme): string {
+  const c = comp(th);
+  const kicker = fm.kicker ?? '';
+  const date = fm.date ?? '';
+  const title = fm.title ?? '';
+  const subtitle = fm.subtitle ?? '';
+  const summary = fm.summary ?? '';
+  const tags = (fm.tags ?? '')
+    .split(/[·,，、]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const tagHtml = tags
+    .map(
+      (t) =>
+        `<span style="${st({
+          background: c.olive,
+          color: c.ink,
+          padding: '3px 8px',
+          'border-radius': '4px',
+          'font-size': '12px',
+          'font-weight': '700',
+          border: `1px solid ${c.border}`,
+        })}">${esc(t)}</span>`,
+    )
+    .join('');
+  const barStyle: Record<string, string> = {
+    display: 'flex',
+    'align-items': 'center',
+    gap: '4px',
+  };
+  if (subtitle) barStyle['margin-bottom'] = '12px';
+  return (
+    `<section style="${st({
+      background: c.cardBg,
+      border: `1px solid ${c.border}`,
+      'border-radius': '6px',
+      overflow: 'hidden',
+      'font-family': th.body.font,
+    })}">` +
+    `<section style="padding:28px 24px 22px;">` +
+    `<section style="${st({ display: 'flex', 'align-items': 'center', gap: '8px', 'margin-bottom': '22px' })}">` +
+    `<span style="${st({ width: '8px', height: '8px', background: c.ink, 'border-radius': '50%', display: 'inline-block' })}"></span>` +
+    `<span style="${st({ 'font-size': '11px', 'font-weight': '700', 'letter-spacing': '3px', color: c.sub })}">${esc(kicker)}</span>` +
+    `<span style="${st({ flex: '1', height: '1px', background: c.border, display: 'inline-block' })}"></span>` +
+    `<span style="${st({ 'font-size': '11px', color: c.weak, 'font-weight': '500' })}">${esc(date)}</span>` +
+    `</section>` +
+    `<section style="${st({ display: 'flex', 'align-items': 'stretch', gap: '18px' })}">` +
+    `<section style="flex:1;min-width:0;">` +
+    `<p style="${st({ 'font-size': '24px', 'font-weight': '800', color: c.ink, margin: '0 0 10px', 'line-height': '1.2', 'letter-spacing': '-0.5px' })}">${esc(title)}</p>` +
+    `<section style="${st(barStyle)}">` +
+    `<span style="${st({ width: '22px', height: '3px', background: c.ink, 'border-radius': '2px', display: 'inline-block' })}"></span>` +
+    `<span style="${st({ width: '8px', height: '3px', background: c.border, 'border-radius': '2px', display: 'inline-block' })}"></span>` +
+    `</section>` +
+    (subtitle
+      ? `<p style="${st({ 'font-size': '14px', color: c.sub, margin: '0', 'line-height': '1.7' })}">${esc(subtitle)}</p>`
+      : '') +
+    `</section>` +
+    `<section style="${st({ 'flex-shrink': '0', width: '96px', display: 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center', background: c.olive, border: `1px dashed ${c.border}`, 'border-radius': '6px', padding: '8px' })}">` +
+    `<span style="${st({ 'font-size': '22px', 'font-weight': '800', color: c.ink, 'line-height': '1' })}">空</span>` +
+    `<span style="${st({ 'font-size': '9px', 'font-weight': '700', color: c.weak, 'letter-spacing': '1px', 'margin-top': '4px' })}">${esc('空核域界')}</span>` +
+    `</section>` +
+    `</section>` +
+    `</section>` +
+    `<section style="${st({ background: c.ink, padding: '11px 24px', display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', gap: '10px', 'flex-wrap': 'wrap' })}">` +
+    `<p style="${st({ 'font-size': '13px', color: 'rgba(255,255,255,0.92)', margin: '0', 'font-weight': '600' })}">${esc(summary)}</p>` +
+    `<section style="${st({ display: 'flex', gap: '6px', 'flex-wrap': 'wrap' })}">${tagHtml}</section>` +
+    `</section>` +
+    `</section>`
+  );
+}
+
+/** Opening of the 导语 (intro) card: dark header bar + olive body well. */
+function introCardOpen(th: Theme, line?: number): string {
+  const c = comp(th);
+  const dl = line != null ? ` data-line="${line}"` : '';
+  return (
+    `<section${dl} style="${st({
+      'margin-top': '24px',
+      background: c.cardBg,
+      border: `1px solid ${c.border}`,
+      'border-radius': '6px',
+      overflow: 'hidden',
+      'font-family': th.body.font,
+    })}">` +
+    `<section style="${st({ padding: '10px 16px', background: c.ink, display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', gap: '10px' })}">` +
+    `<p style="${st({ margin: '0', 'font-size': '11px', 'font-weight': '800', 'letter-spacing': '2px', color: '#ffffff' })}">${esc('导语')}</p>` +
+    `<span style="${st({ 'font-size': '10px', color: 'rgba(255,255,255,0.65)' })}">${esc('INTRO')}</span>` +
+    `</section>` +
+    `<section style="${st({ padding: '16px 18px 18px', background: c.olive, color: c.sub })}">`
+  );
+}
+
+/** Closing of the 导语 card. */
+function introCardClose(): string {
+  return '</section></section>';
+}
+
+/** Standalone intro card for an explicit `intro:` front-matter field. */
+function buildIntroCard(text: string, th: Theme): string {
+  return (
+    introCardOpen(th) +
+    `<p style="${st({ margin: '0', 'font-size': '14px', 'line-height': '1.9', color: comp(th).sub, 'text-align': 'justify' })}">${esc(text)}</p>` +
+    introCardClose()
+  );
+}
+
+/** Signature + engagement card: author line, 点赞/在看/收藏, sign-off. */
+function buildSignature(author: string, th: Theme): string {
+  const c = comp(th);
+  const a = author && author.trim() ? author.trim() : '空核域界';
+  const icon = (glyph: string, label: string, fill: string, txt: string) =>
+    `<section style="${st({ 'text-align': 'center', color: txt })}">` +
+    `<section style="${st({ width: '40px', height: '40px', display: 'flex', 'align-items': 'center', 'justify-content': 'center', margin: '0 auto 6px', background: fill, 'border-radius': '6px', border: `1px solid ${c.border}` })}">` +
+    `<span style="${st({ 'font-size': '18px', 'line-height': '1' })}">${esc(glyph)}</span>` +
+    `</section>` +
+    `<span style="${st({ 'font-size': '11px', 'font-weight': '600' })}">${esc(label)}</span>` +
+    `</section>`;
+  return (
+    `<section style="margin-top:24px;">` +
+    `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '18px 20px', 'font-family': th.body.font })}">` +
+    `<p style="${st({ margin: '0 0 10px', 'font-size': '14px', 'font-weight': '700', color: c.ink, 'line-height': '1.8' })}">${esc(
+      `我是 ${a}，以国际航空货运为核心，合纵连横且围绕着包括但不仅限于物流、航空、科技、AI、新媒体等横向思维相关内容，为你开启全新视角。`,
+    )}</p>` +
+    `</section>` +
+    `</section>` +
+    `<section style="margin-top:18px;">` +
+    `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '22px 16px', 'text-align': 'center', 'font-family': th.body.font })}">` +
+    `<p style="${st({ 'font-size': '13px', 'font-weight': '700', color: c.ink, 'line-height': '1.6', margin: '0 0 14px' })}">${esc(
+      '如果你觉得今天这篇有收获，欢迎点赞、在看、转发三连，我们下篇见',
+    )}</p>` +
+    `<section style="${st({ display: 'flex', 'justify-content': 'center', gap: '18px', 'margin-bottom': '14px', 'flex-wrap': 'wrap' })}">` +
+    icon('👍', '赞', c.olive, c.sub) +
+    icon('👁', '在看', c.olive, c.sub) +
+    icon('⭐', '收藏', c.olive, c.ink) +
+    `</section>` +
+    `<p style="${st({ 'line-height': '1.6', 'font-size': '10px', color: c.weak, 'letter-spacing': '2px', margin: '0', 'font-weight': '500' })}">${esc(
+      'THANKS FOR READING',
+    )}</p>` +
+    `</section>` +
+    `</section>`
+  );
+}
+
 /* ---------------- Render entry point ---------------- */
 
 /** Render switches (body processing that has nothing to do with the theme) */
@@ -1363,6 +1555,8 @@ export interface RenderResult {
   html: string;
   /** Whether the body contains any images */
   hasImage: boolean;
+  /** Article title: a front-matter `title`, else the first H1 (may be empty) */
+  title: string;
 }
 
 export function renderArticle(
@@ -1373,13 +1567,37 @@ export function renderArticle(
   options?: RenderOptions,
 ): RenderResult {
   const th = density ? applyDensity(theme ?? getTheme(), density) : theme ?? getTheme();
+
+  // Front-matter → hero / intro / signature cards. Only when the theme opts in
+  // (components.frontMatter) and the document actually opens with `---`, so
+  // ordinary articles render exactly as before.
+  let content = markdown;
+  let fm: FrontMatter | null = null;
+  if (th.components?.frontMatter) {
+    const parsed = parseFrontMatter(markdown);
+    if (parsed) {
+      fm = parsed.data;
+      content = parsed.content;
+    }
+  }
+
   // The footnote conversion has to run before preprocess: it scans the raw
   // Markdown line by line, and the callout comments preprocess introduces would
   // shift the lines its links sit on
-  const src = options?.linkFootnotes ? convertLinkFootnotes(markdown) : markdown;
+  const src = options?.linkFootnotes ? convertLinkFootnotes(content) : content;
   // A fresh flow per render: section numbers, row stripes and the quote stack
   // all count from the top of the document (see Env.flow)
-  const body = colorTasks(md.render(preprocess(src), { theme: th, images, flow: newFlow() }), th);
+  const flow0 = newFlow();
+  // An explicit `intro:` field renders its own card; don't also turn the first
+  // blockquote into one.
+  if (fm?.intro) flow0.introDone = true;
+  const body = colorTasks(md.render(preprocess(src), { theme: th, images, flow: flow0 }), th);
+
+  const heroHtml = fm ? buildHero(fm, th) : '';
+  const introHtml = fm?.intro ? buildIntroCard(fm.intro, th) : '';
+  const sigHtml = fm ? buildSignature(fm.author ?? '', th) : '';
+  const title = fm?.title ?? extractTitle(body);
+
   const html = `<section style="${st({
     'font-family': th.body.font,
     'font-size': th.body.fontSize,
@@ -1387,11 +1605,12 @@ export function renderArticle(
     color: th.body.color,
     'word-break': 'break-word',
     ...(th.body.bg ? { background: th.body.bg } : {}),
-  })}">${body}</section>`;
+  })}">${heroHtml}${introHtml}${body}${sigHtml}</section>`;
   return {
     body,
     html,
     hasImage: /<img\s/i.test(body),
+    title,
   };
 }
 
