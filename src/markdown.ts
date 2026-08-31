@@ -11,6 +11,7 @@ import markdownItFootnote from 'markdown-it-footnote';
 import markdownItMark from 'markdown-it-mark';
 import type { HLJSApi } from 'highlight.js';
 import { applyDensity, getTheme, type DensityScale, type Theme, st } from './theme';
+import { parseFrontMatter, type FrontMatter } from './frontMatter';
 
 /**
  * Lazy-loaded highlight.js.
@@ -1368,30 +1369,6 @@ function colorTasks(html: string, th: Theme): string {
 }
 
 /* ---------------- Front-matter driven article components ---------------- */
-
-/** Parsed `---` front-matter: every value is a string. */
-type FrontMatter = Record<string, string>;
-
-/**
- * Pull a leading `---` YAML block out of the source. Returns null when the
- * document does not open with one, so the renderer can leave ordinary articles
- * untouched. Only `key: value` (or `key： value`, full-width colon) lines are
- * read — enough for the hero / intro / signature cards, and exactly what
- * build_article.py consumed.
- */
-function parseFrontMatter(src: string): { data: FrontMatter; content: string } | null {
-  const m = src.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
-  if (!m) return null;
-  const data: FrontMatter = {};
-  for (const line of m[1].split('\n')) {
-    const idx = line.search(/[:：]/);
-    if (idx <= 0) continue;
-    const k = line.slice(0, idx).trim();
-    const v = line.slice(idx + 1).trim();
-    if (k) data[k] = v;
-  }
-  return { data, content: src.slice(m[0].length) };
-}
 
 /** Resolve the component color overrides, falling back to existing theme fields. */
 function comp(th: Theme) {

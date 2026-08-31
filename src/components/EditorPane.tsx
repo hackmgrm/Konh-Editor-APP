@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowCounterClockwise, Code, CodeBlock, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Code, CodeBlock, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from '@codemirror/commands';
@@ -11,6 +11,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import { registerImageFiles } from '../images';
 import type { ScrollSyncChannel } from '../scrollSync';
+import { parseFrontMatter, setFrontMatterField } from '../frontMatter';
 
 /* One size for every Phosphor icon; the H1–H4 menu items each use the glyph
    that matches their level. */
@@ -418,6 +419,8 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   const [headingOpen, setHeadingOpen] = useState(false);
   /** Outline drawer open state */
   const [outlineOpen, setOutlineOpen] = useState(false);
+  /** Visual editor for the metadata stored at the top of the Markdown file. */
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const headingWrapRef = useRef<HTMLDivElement>(null);
   // Click outside to close
   useEffect(() => {
@@ -447,6 +450,18 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     });
     return items;
   }, [value, outlineOpen]);
+
+  const frontMatter = useMemo(() => parseFrontMatter(value)?.data ?? {}, [value]);
+  const propertyFields = [
+    { key: 'title', label: '标题', placeholder: '文章标题' },
+    { key: 'kicker', label: '眉题', placeholder: '空核域界 · 第三周' },
+    { key: 'date', label: '日期', placeholder: '2026-09-18', type: 'date' },
+    { key: 'summary', label: '摘要', placeholder: '底部摘要条文字', wide: true },
+    { key: 'subtitle', label: '副标题', placeholder: '头图副标题', wide: true },
+    { key: 'tags', label: '标签', placeholder: '物流 · 航空 · AI', wide: true },
+    { key: 'intro', label: '导语', placeholder: '不填则使用正文第一个引用', wide: true },
+    { key: 'author', label: '作者', placeholder: '空核域界' },
+  ] as const;
 
   /** Click an outline entry: jump the editor to that line */
   const jumpToLine = (line: number) =>
@@ -500,6 +515,15 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
         </span>
         <div className="pane-head-right">
           <button
+            className={`ghost-btn ${propertiesOpen ? 'on' : ''}`}
+            title="文章属性"
+            aria-label="文章属性"
+            aria-expanded={propertiesOpen}
+            onClick={() => setPropertiesOpen((open) => !open)}
+          >
+            <IdentificationCard size={16} weight="bold" />
+          </button>
+          <button
             className={`ghost-btn ${outlineOpen ? 'on' : ''}`}
             title="大纲"
             aria-label="大纲"
@@ -519,6 +543,32 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
           </span>
         </div>
       </div>
+      {propertiesOpen && (
+        <div className="properties-drawer">
+          <div className="properties-title">
+            <div>
+              <strong>文章属性</strong>
+              <span>修改会同步到文首 Front Matter</span>
+            </div>
+            <button className="ghost-btn" title="关闭文章属性" aria-label="关闭文章属性" onClick={() => setPropertiesOpen(false)}>
+              <X size={15} />
+            </button>
+          </div>
+          <div className="properties-grid">
+            {propertyFields.map((field) => (
+              <label key={field.key} className={'wide' in field && field.wide ? 'property-field wide' : 'property-field'}>
+                <span>{field.label}</span>
+                <input
+                  type={'type' in field ? field.type : 'text'}
+                  value={frontMatter[field.key] ?? ''}
+                  placeholder={field.placeholder}
+                  onChange={(event) => onChange(setFrontMatterField(value, field.key, event.target.value))}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       {outlineOpen && (
         <div className="outline-drawer scroll-thin">
           {outline.length === 0 ? (

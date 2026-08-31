@@ -70,6 +70,64 @@
 
 /* ---------------- Outline drawer ---------------- */
 
+.properties-drawer {
+  flex: none;
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid var(--line-hair);
+  background: var(--surface-2);
+  animation: drawer-open var(--t-base) var(--ease);
+}
+
+.properties-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.properties-title strong,
+.properties-title span {
+  display: block;
+}
+
+.properties-title strong { color: var(--text-1); font-size: 12px; }
+.properties-title span { margin-top: 2px; color: var(--text-3); font-size: 10.5px; }
+
+.properties-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.property-field { min-width: 0; }
+.property-field.wide { grid-column: 1 / -1; }
+.property-field > span {
+  display: block;
+  margin: 0 0 4px 2px;
+  color: var(--text-2);
+  font-size: 10.5px;
+}
+
+.property-field input {
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  outline: none;
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: 12px var(--sans);
+}
+
+.property-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.property-field input::placeholder { color: var(--text-3); }
+
 .outline-drawer {
   flex: none;
   max-height: 190px;
