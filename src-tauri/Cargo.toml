@@ -1,6 +1,6 @@
 [package]
 name = "konh-editor"
-version = "1.0.2"
+version = "1.0.3"
 description = "空核编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
