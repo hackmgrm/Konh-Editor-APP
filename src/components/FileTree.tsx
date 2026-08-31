@@ -48,8 +48,8 @@ interface Props {
   onImportUrl: (parent: string) => void;
   onRename: (path: string, name: string) => void;
   onDelete: (path: string) => void;
-  /** Drag-move: put `path` inside the `toParent` directory (empty = root) */
-  onMove: (path: string, toParent: string) => void;
+  /** Drag-move one or more entries into `toParent` (empty = root). */
+  onMove: (paths: string[], toParent: string) => void;
   /** Sweep every image that no body references */
   onCleanupImages: () => void;
 }
@@ -119,6 +119,14 @@ function toRows(
   return out;
 }
 
+function textPaths(entries: Entry[], out: string[] = []): string[] {
+  for (const entry of entries) {
+    if (entry.isDir) textPaths(entry.children ?? [], out);
+    else if (isTextPath(entry.path)) out.push(entry.path);
+  }
+  return out;
+}
+
 /** Where the context menu is, and what it targets */
 interface Menu {
   x: number;
@@ -167,12 +175,15 @@ export default function FileTree({
   const renameInputRef = useRef<HTMLInputElement>(null);
   /** The item currently being dragged */
   const [dragPath, setDragPath] = useState<string | null>(null);
+  const [dragPaths, setDragPaths] = useState<string[]>([]);
   /** Which directory it is over (empty = root, null = not over a valid target) */
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   /** Read the clock once at mount rather than on every render */
   const [now] = useState(() => Date.now());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const lastSelected = useRef<string | null>(null);
 
   /** The open draft has to be visible: expand every directory above it */
   useEffect(() => {
@@ -226,6 +237,16 @@ export default function FileTree({
   }, [menu]);
 
   const rows = useMemo(() => toRows(tree, expanded), [tree, expanded]);
+  const allTextPaths = useMemo(() => textPaths(tree), [tree]);
+  const visibleTextPaths = useMemo(
+    () => rows.map(({ entry }) => entry.path).filter(isTextPath),
+    [rows],
+  );
+
+  useEffect(() => {
+    const existing = new Set(allTextPaths);
+    setSelected((prev) => new Set([...prev].filter((path) => existing.has(path))));
+  }, [allTextPaths]);
   const draftById = useMemo(
     () => new Map(drafts.map((d) => [d.id, d])),
     [drafts],
@@ -316,24 +337,22 @@ export default function FileTree({
     entry.isDir ? entry.path : parentOf(entry.path);
 
   const finishDrop = (toParent: string) => {
-    const from = dragPath;
+    const paths = dragPaths.length ? dragPaths : dragPath ? [dragPath] : [];
     setDragPath(null);
+    setDragPaths([]);
     setDropTarget(null);
-    if (!from) return;
-    // Neither a no-op move nor dragging a directory into itself (which would
-    // take the whole subtree with it) needs to bother the disk
-    if (
-      parentOf(from) === toParent ||
-      toParent === from ||
-      toParent.startsWith(`${from}/`)
-    )
-      return;
-    onMove(from, toParent);
+    const movable = paths.filter((from) =>
+      parentOf(from) !== toParent && toParent !== from && !toParent.startsWith(`${from}/`),
+    );
+    if (!movable.length) return;
+    setSelected(new Set());
+    onMove(movable, toParent);
   };
 
   const renderRow = ({ entry, depth }: Row) => {
     const { path, name, isDir } = entry;
     const active = path === activeId;
+    const isSelected = selected.has(path);
     const indent = { paddingLeft: 6 + depth * 11 };
 
     if (renamingPath === path) {
@@ -395,6 +414,7 @@ export default function FileTree({
         className={[
           "tree-file",
           active ? "active" : "",
+          isSelected ? "selected" : "",
           unusedImage ? "unused" : "",
           dragPath === path ? "dragging" : "",
           // Highlight only the folder that would actually catch it, or every
@@ -404,16 +424,19 @@ export default function FileTree({
           .filter(Boolean)
           .join(" ")}
         role="treeitem"
-        aria-selected={active}
+        aria-selected={active || isSelected}
         aria-expanded={isDir ? expanded.has(path) : undefined}
         draggable
         onDragStart={(e) => {
           setDragPath(path);
+          const paths = isTextPath(path) && selected.has(path) ? [...selected] : [path];
+          setDragPaths(paths);
           e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", path);
+          e.dataTransfer.setData("text/plain", paths.join("\n"));
         }}
         onDragEnd={() => {
           setDragPath(null);
+          setDragPaths([]);
           setDropTarget(null);
         }}
         onDragOver={(e) => {
@@ -437,7 +460,31 @@ export default function FileTree({
         <button
           className="tree-file-main"
           style={indent}
-          onClick={() => activate(entry)}
+          onClick={(event) => {
+            if (!isTextPath(path) || (!event.metaKey && !event.ctrlKey && !event.shiftKey)) {
+              setSelected(new Set());
+              lastSelected.current = isTextPath(path) ? path : null;
+              activate(entry);
+              return;
+            }
+            event.preventDefault();
+            if (event.shiftKey && lastSelected.current) {
+              const from = visibleTextPaths.indexOf(lastSelected.current);
+              const to = visibleTextPaths.indexOf(path);
+              if (from >= 0 && to >= 0) {
+                const range = visibleTextPaths.slice(Math.min(from, to), Math.max(from, to) + 1);
+                setSelected((prev) => new Set(event.metaKey || event.ctrlKey ? [...prev, ...range] : range));
+              }
+            } else {
+              setSelected((prev) => {
+                const next = new Set(prev);
+                if (next.has(path)) next.delete(path);
+                else next.add(path);
+                return next;
+              });
+            }
+            lastSelected.current = path;
+          }}
           title={full}
         >
           {isDir ? (
@@ -527,6 +574,15 @@ export default function FileTree({
         className={`tree-body scroll-thin ${dropTarget === "" && dragPath ? "drop-into" : ""}`}
         role="tree"
         aria-label="文件"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+            event.preventDefault();
+            setSelected(new Set(allTextPaths));
+          } else if (event.key === "Escape" && selected.size) {
+            setSelected(new Set());
+          }
+        }}
         onDragOver={(e) => {
           if (!dragPath) return;
           e.preventDefault();

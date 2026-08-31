@@ -423,13 +423,18 @@ function Workspace({ vault }: { vault: VaultApi }) {
   };
 
   /** Drag-move into another directory */
-  const handleMove = (path: string, toParent: string) => {
+  const handleMove = (paths: string[], toParent: string) => {
     void (async () => {
       try {
-        const next = await vault.moveEntry(path, toParent);
-        if (next && (path === activeId || activeId.startsWith(`${path}/`))) {
-          setActiveDraft(activeId === path ? next : next + activeId.slice(path.length));
+        let nextActive = activeId;
+        for (const path of paths) {
+          const next = await vault.moveEntry(path, toParent);
+          if (next && (path === nextActive || nextActive.startsWith(`${path}/`))) {
+            nextActive = nextActive === path ? next : next + nextActive.slice(path.length);
+          }
         }
+        if (nextActive !== activeId) setActiveDraft(nextActive);
+        if (paths.length > 1) flash(`已移动 ${paths.length} 篇文章`);
       } catch (err) {
         flash(err instanceof Error ? err.message : '移动失败');
       }

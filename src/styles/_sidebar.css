@@ -110,6 +110,11 @@
   background: var(--accent-soft);
 }
 
+.tree-file.selected {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px var(--accent-ring);
+}
+
 /* The short bar down the left of the selected row: lighter than recoloring
    the whole row, and more definite about what is selected */
 .tree-file.active::before {

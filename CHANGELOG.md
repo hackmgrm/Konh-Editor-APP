@@ -46,6 +46,7 @@
 - Agent 面板移除 Claude/Codex 切换，只保留 API 工作方式，并提供醒目的“API 配置”入口。
 - API 请求不再显式传递 `tool_choice`，兼容 DeepSeek 思考模型的工具调用限制。
 - Agent 输入框左下角改为模型快速切换菜单，无需返回设置中心。
+- 文章列表支持 Command/Ctrl 多选、Shift 连选和 Command/Ctrl+A 全选，可整组拖动到目标目录。
 
 ### 更新渠道
 
