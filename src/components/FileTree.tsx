@@ -571,7 +571,7 @@ export default function FileTree({
         </a>
         <a
           className="ghost-btn"
-          href="https://github.com/whyubel1eve"
+          href="https://github.com/hackmgrm"
           title="作者的 GitHub"
           aria-label="作者的 GitHub"
         >

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "KonhEditor",
-  "version": "0.1.2",
+  "version": "1.0.1",
   "identifier": "com.konheditor.app",
   "build": {
     "frontendDist": "../dist",
@@ -64,9 +64,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/whyubel1eve/Mars-Editor-APP/releases/latest/download/latest.json"
+        "https://github.com/hackmgrm/Mars-Editor-APP/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2NUQzNkY2MzQ1MzU4MTUKUldRVldGTTA5alpkMXZLRXhUOU1mTGpWWWlzK1VXMlJFYkZoZjVyN2x2RSsvQkdSeGhZVVl1aG4K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY0NUJBNDBFNzRFRkNGMzMKUldRenorOTBEcVJiOUxnTEE2RzlpL20vYm53ZzlHMzJ0cnV1bkI5MmhrUHUwTEdhT2NvSmNOc3AK",
       "windows": {
         "installMode": "passive"
       }
