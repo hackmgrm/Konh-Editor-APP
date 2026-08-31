@@ -30,7 +30,7 @@ macOS / Windows / Linux 桌面应用。
 | 预览设备 | 按面板宽度自动判断，状态文字不可点击 | 右上角可手动切换手机 / 桌面并记住选择 |
 | 应用外观 | 浅色 / 深色 | 默认跟随系统并实时自动切换，也可手动选择 |
 | 图标 | 火星编辑器图标 | 简约“笔记页 + 空心核心 + 编辑笔划”品牌图标 |
-| 更新来源 | 原作者 GitHub Releases | `hackmgrm/Mars-Editor-APP` 自有 Release、更新公钥和签名体系 |
+| 更新来源 | 原作者 GitHub Releases | `hackmgrm/Konh-Editor-APP` 自有 Release、更新公钥和签名体系 |
 
 ## 工作区就是一个普通文件夹
 

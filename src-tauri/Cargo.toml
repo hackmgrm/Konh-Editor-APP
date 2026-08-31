@@ -4,8 +4,8 @@ version = "1.0.2"
 description = "空核编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
-repository = "https://github.com/hackmgrm/Mars-Editor-APP"
-homepage = "https://github.com/hackmgrm/Mars-Editor-APP"
+repository = "https://github.com/hackmgrm/Konh-Editor-APP"
+homepage = "https://github.com/hackmgrm/Konh-Editor-APP"
 edition = "2021"
 rust-version = "1.85"
 

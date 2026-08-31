@@ -64,7 +64,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/hackmgrm/Mars-Editor-APP/releases/latest/download/latest.json"
+        "https://github.com/hackmgrm/Konh-Editor-APP/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY0NUJBNDBFNzRFRkNGMzMKUldRenorOTBEcVJiOUxnTEE2RzlpL20vYm53ZzlHMzJ0cnV1bkI5MmhrUHUwTEdhT2NvSmNOc3AK",
       "windows": {

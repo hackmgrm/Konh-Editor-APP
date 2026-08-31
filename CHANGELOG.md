@@ -49,7 +49,7 @@
 
 ### 更新渠道
 
-- 应用内更新检测、下载页和 `latest.json` 更新源切换到 `hackmgrm/Mars-Editor-APP`。
+- 应用内更新检测、下载页和 `latest.json` 更新源切换到 `hackmgrm/Konh-Editor-APP`。
 - Release 标题、Windows 构建产物名称及项目链接同步为空核编辑器归属。
 - 更新签名公钥替换为空核编辑器自有密钥，后续安装包不再信任原作者的更新签名。
 - Release 工作流增加 macOS 构建，与 Windows、Linux 一并生成自有更新包。
