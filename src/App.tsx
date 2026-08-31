@@ -107,7 +107,13 @@ function Workspace({ vault }: { vault: VaultApi }) {
   };
   const setActiveDraft = (id: string) => vault.setPrefs({ activeId: id });
 
-  const themeId = prefs.themeId;
+  const themeId = prefs.themeByDraft[activeId] ?? prefs.themeId;
+  const setArticleTheme = (id: string) => {
+    if (!activeId) return;
+    vault.setPrefs({
+      themeByDraft: { ...prefs.themeByDraft, [activeId]: id },
+    });
+  };
   const densityId = prefs.densityId;
   const linkFootnotes = prefs.linkFootnotes;
 
@@ -277,7 +283,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
     knownThemes.current = new Set(loadedThemes.map((t) => t.id));
     if (!before) return;
     const fresh = loadedThemes.find((t) => !before.has(t.id));
-    if (fresh) vault.setPrefs({ themeId: fresh.id });
+    if (fresh) setArticleTheme(fresh.id);
     // vault.setPrefs is stable enough for this; the list is the real trigger
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedThemes]);
@@ -322,7 +328,13 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const dropTheme = (id: string) => {
     void deleteCustomTheme(id)
       .then(() => {
-        if (themeId === id) vault.setPrefs({ themeId: 'classic' });
+        const themeByDraft = Object.fromEntries(
+          Object.entries(prefs.themeByDraft).filter(([, usedThemeId]) => usedThemeId !== id),
+        );
+        vault.setPrefs({
+          themeId: prefs.themeId === id ? 'classic' : prefs.themeId,
+          themeByDraft,
+        });
         flash('主题已删掉');
       })
       .catch((err) => flash(err instanceof Error ? err.message : '删不掉主题'));
@@ -710,7 +722,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         typeset={(close) => (
           <TypesetPopover
             themeId={themeId}
-            onThemeChange={(id) => vault.setPrefs({ themeId: id })}
+            onThemeChange={setArticleTheme}
             customThemes={customThemes}
             onDeleteTheme={dropTheme}
             onAskAgent={() => {
@@ -799,6 +811,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             vaultDir={vault.dir ?? ''}
             activeId={activeId}
             onClose={() => setAgentOpen(false)}
+            onOpenSettings={() => setSettingsOpen(true)}
             onBeforeRun={vault.flush}
             seed={agentSeed}
           />

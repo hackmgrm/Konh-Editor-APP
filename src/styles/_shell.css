@@ -352,6 +352,32 @@
   font-weight: 600;
 }
 
+.device-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+}
+
+.device-switch button {
+  border: 0;
+  border-radius: var(--r-full);
+  padding: 2px 7px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 10.5px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.device-switch button.active {
+  background: var(--surface-1);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+}
+
 /* "contains images" notice: needs to be seen, but is still just a line of text */
 .pane-stat.warn {
   display: inline-flex;

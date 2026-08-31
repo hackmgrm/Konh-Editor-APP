@@ -31,6 +31,7 @@ export type { Draft, Entry, Prefs } from './vault';
 /** Used for a fresh vault, or when the prefs file fails to parse */
 const DEFAULT_PREFS: Prefs = {
   themeId: 'classic',
+  themeByDraft: {},
   densityId: 'standard',
   linkFootnotes: false,
   activeId: null,
@@ -230,6 +231,18 @@ export function useVault() {
     setConflicts((prev) =>
       Object.fromEntries(Object.entries(prev).map(([p, c]) => [remap(p), { ...c, id: remap(p) }])),
     );
+    setPrefsState((prev) => {
+      const next = {
+        ...prev,
+        activeId: prev.activeId ? remap(prev.activeId) : null,
+        themeByDraft: Object.fromEntries(
+          Object.entries(prev.themeByDraft).map(([p, themeId]) => [remap(p), themeId]),
+        ),
+      };
+      const target = dirRef.current;
+      if (target) void api.writePrefs(target, next).catch(() => undefined);
+      return next;
+    });
   }, []);
 
   /** Rename (files and folders alike). Returns the new relative path */
@@ -278,6 +291,19 @@ export function useVault() {
       setDrafts((prev) => prev.filter((d) => !inside(d.id)));
       setImages((prev) => Object.fromEntries(Object.entries(prev).filter(([p]) => !inside(p))));
       setConflicts((prev) => Object.fromEntries(Object.entries(prev).filter(([p]) => !inside(p))));
+      setPrefsState((prev) => {
+        const themeByDraft = Object.fromEntries(
+          Object.entries(prev.themeByDraft).filter(([p]) => !inside(p)),
+        );
+        const next = {
+          ...prev,
+          activeId: prev.activeId && inside(prev.activeId) ? null : prev.activeId,
+          themeByDraft,
+        };
+        const target = dirRef.current;
+        if (target) void api.writePrefs(target, next).catch(() => undefined);
+        return next;
+      });
       await refreshTree();
     },
     [refreshTree],

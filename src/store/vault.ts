@@ -51,7 +51,10 @@ export interface Entry {
  * look at this on this machine", not part of the draft.
  */
 export interface Prefs {
+  /** Default for old drafts and drafts that have not chosen their own theme yet */
   themeId: string;
+  /** Draft path → theme id. Keeps theme selection local to each article. */
+  themeByDraft: Record<string, string>;
   densityId: string;
   linkFootnotes: boolean;
   activeId: string | null;

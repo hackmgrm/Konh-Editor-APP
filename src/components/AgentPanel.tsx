@@ -21,20 +21,16 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import {
-  agentModels,
-  EFFORTS,
   interpret,
+  listApiModels,
   onAgentEvent,
-  probeAgents,
   readSessions,
-  runAgent,
+  runApiAgent,
   stderrGist,
   stopAgent,
   writeSessions,
-  type AgentInfo,
   type AgentKind,
   type Beat,
-  type ModelChoice,
   type Session,
   type ToolAct,
 } from '../store/agent';
@@ -49,6 +45,8 @@ interface Props {
   /** The open draft (workspace-relative path), used to give the agent context */
   activeId: string;
   onClose: () => void;
+  /** Open the API credentials section in the app settings. */
+  onOpenSettings: () => void;
   /** Flush unsaved edits before starting; see the comment further down */
   onBeforeRun: () => Promise<void>;
   /** A request written for you elsewhere in the app (currently: "make me a
@@ -58,7 +56,6 @@ interface Props {
   seed?: { text: string; at: number } | null;
 }
 
-const KINDS: AgentKind[] = ['claude', 'codex'];
 /** One icon per kind of tool call. Not decoration — a run of a dozen calls is
  *  read by shape long before it is read by name */
 const TOOL_ICONS: Record<ToolAct, Icon> = {
@@ -71,13 +68,6 @@ const TOOL_ICONS: Record<ToolAct, Icon> = {
   task: TreeStructure,
   other: Wrench,
 };
-/** Which CLI to use is a property of this machine, not of the workspace, so it
- *  lives in the app config */
-const KIND_KEY = 'agent.kind';
-/** Model and effort are per-CLI: `opus` means nothing to codex, and the two
- *  keep separate conversations anyway */
-const modelKey = (k: AgentKind) => `agent.model.${k}`;
-const effortKey = (k: AgentKind) => `agent.effort.${k}`;
 /** How many sessions to keep. You will not scroll further back than this, and
  *  the CLI has most likely forgotten those ids anyway */
 const KEEP = 40;
@@ -105,108 +95,6 @@ function whenText(ts: number): string {
   yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return `昨天 ${hhmm}`;
   return `${d.getMonth() + 1}月${d.getDate()}日`;
-}
-
-interface TuneItem {
-  id: string;
-  label: string;
-  /** The second line in the menu — what picking this actually means */
-  note?: string;
-}
-
-/**
- * One of the three composer settings: a chip that says what is currently
- * chosen, and a menu that opens upward off it.
- *
- * Upward because the composer is pinned to the bottom of the panel; the shared
- * `.popover` is built for the toolbar and drops down from a top-right origin,
- * so the class here flips both.
- *
- * Every menu carries a "默认" entry that sends nothing at all. That is not the
- * same as picking the value the CLI happens to be set to today: it means this
- * panel does not have an opinion, so whatever ~/.codex/config.toml or
- * ~/.claude/settings.json says keeps applying, including after you change it.
- */
-function TuneMenu({
-  items,
-  value,
-  onPick,
-  chip,
-  title,
-  wide,
-  inherited,
-}: {
-  items: TuneItem[];
-  /** '' = the default entry */
-  value: string;
-  onPick: (id: string) => void;
-  /** What the chip reads when closed */
-  chip: string;
-  title: string;
-  /** This is the chip that may have to give up width */
-  wide?: boolean;
-  /** The chip is naming the CLI's own setting rather than a choice made here */
-  inherited?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('click', onDocClick);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className={`agent-tune ${wide ? 'wide' : ''}`} ref={ref}>
-      <button
-        type="button"
-        className={`agent-chip ${open ? 'on' : ''} ${inherited ? 'inherited' : ''}`}
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="agent-chip-text">{chip}</span>
-        <CaretDown size={9} weight="bold" />
-      </button>
-      {open && (
-        <div className="popover agent-tune-menu" role="menu">
-          {items.map((it) => (
-            <button
-              key={it.id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={it.id === value}
-              className="menu-item agent-tune-item"
-              onClick={() => {
-                onPick(it.id);
-                setOpen(false);
-              }}
-            >
-              <span className="agent-tune-lines">
-                <span className="agent-tune-label">{it.label}</span>
-                {it.note && <span className="agent-tune-note">{it.note}</span>}
-              </span>
-              <span className="menu-check" aria-hidden="true">
-                <Check size={11} weight="bold" />
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -260,37 +148,24 @@ function ToolBeat({ beat }: { beat: Beat }) {
  * still show the last exchange. Only a real unmount (switching workspaces,
  * closing the window) kills it.
  */
-export default function AgentPanel({ open, vaultDir, activeId, onClose, onBeforeRun, seed }: Props) {
-  const [infos, setInfos] = useState<AgentInfo[]>([]);
-  const [kind, setKind] = useState<AgentKind>(
-    () => (KINDS.find((k) => k === getConfig(KIND_KEY)) ?? 'claude'),
-  );
+export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSettings, onBeforeRun, seed }: Props) {
+  const kind: AgentKind = 'api';
   /** Every conversation held in this workspace, both CLIs in one list, each
    *  entry carrying its own kind */
   const [sessions, setSessions] = useState<Session[]>([]);
   /** Which session each CLI currently has open. null = none yet; it is only
    *  really created when the first message is sent */
   const [activeKey, setActiveKey] = useState<Record<AgentKind, string | null>>({
+    api: null,
     claude: null,
     codex: null,
   });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
-  /** Hand-entered CLI path (the way out when it is not on PATH) */
-  const [binDraft, setBinDraft] = useState('');
-  /** Still looking for the CLIs. Normally over before this renders, since the
-   *  slow part of it is warmed at startup — but on the launch where it is not,
-   *  saying so beats an empty panel that ignores the keyboard */
-  const [probing, setProbing] = useState(true);
-  /** What this machine's CLI can be pointed at. Read per CLI, since codex's
-   *  list comes off disk and changes when a switcher rewrites it */
-  const [models, setModels] = useState<ModelChoice[]>([]);
-  /** The model that CLI's own config already names */
-  const [configModel, setConfigModel] = useState<string | null>(null);
-  /** '' on either of these means "no opinion, leave the CLI's config alone" */
-  const [model, setModel] = useState('');
-  const [effort, setEffort] = useState('');
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [apiModels, setApiModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState(() => getConfig('agent.api.model') ?? '');
 
   /** Events are claimed by run_id. The callback cannot see the latest state,
    *  so this goes through a ref */
@@ -304,6 +179,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   const seq = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
   /** The trailing agent beat is unfinished — streamed tokens land on it */
   const writing = useRef(false);
   /** Text not painted yet. append = add to the end, set = the beat is exactly this */
@@ -315,13 +191,46 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   /** An IME candidate window is open — Enter belongs to it, not to us */
   const composing = useRef(false);
 
-  const info = infos.find((i) => i.kind === kind);
-  /** Do not rush to say "not found" while the probe is still running */
-  const missing = infos.length > 0 && !info?.bin;
+  const apiBaseUrl = getConfig('agent.api.baseUrl') ?? '';
+  const apiKey = getConfig('agent.api.key') ?? '';
+  const apiModel = selectedModel;
+  const apiReady = !!(apiBaseUrl.trim() && apiKey.trim() && apiModel.trim());
 
   const current = sessions.find((s) => s.key === activeKey[kind]) ?? null;
   const lines = current?.lines ?? [];
   const continuing = !!current?.cliId;
+
+  useEffect(() => {
+    const configured = getConfig('agent.api.model') ?? '';
+    if (configured !== selectedModel) setSelectedModel(configured);
+  });
+
+  useEffect(() => {
+    if (!apiBaseUrl.trim() || !apiKey.trim()) {
+      setApiModels([]);
+      return;
+    }
+    let alive = true;
+    void listApiModels(apiBaseUrl, apiKey)
+      .then((models) => {
+        if (alive) setApiModels(models);
+      })
+      .catch(() => {
+        if (alive) setApiModels(apiModel ? [apiModel] : []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [apiBaseUrl, apiKey]);
+
+  useEffect(() => {
+    if (!modelMenuOpen) return;
+    const closeMenu = (event: MouseEvent) => {
+      if (!modelMenuRef.current?.contains(event.target as Node)) setModelMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
+  }, [modelMenuOpen]);
 
   /** Patch one conversation by key, pushing its timestamp to now */
   const patch = (key: string, fn: (s: Session) => Session) => {
@@ -410,48 +319,6 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
     flush(key);
     writing.current = false;
   };
-
-  const probe = () => {
-    setProbing(true);
-    void probeAgents()
-      .then((list) => {
-        setInfos(list);
-        // First run: if the stored choice is not on this machine, use one that is
-        if (!getConfig(KIND_KEY)) {
-          const usable = list.find((i) => i.bin)?.kind;
-          if (usable) setKind(usable);
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => setProbing(false));
-  };
-  useEffect(probe, []);
-
-  // The remembered choices are per CLI, so they are re-read on every switch
-  // rather than held in one place. A model that is no longer in the list (the
-  // catalog was swapped out from under us) falls back to the default entry —
-  // passing a slug the CLI does not know only earns an error at send time.
-  useEffect(() => {
-    setEffort(EFFORTS[kind].find((e) => e === getConfig(effortKey(kind))) ?? '');
-    let alive = true;
-    void agentModels(kind)
-      .then((list) => {
-        if (!alive) return;
-        setModels(list.models);
-        setConfigModel(list.current);
-        const saved = getConfig(modelKey(kind)) ?? '';
-        setModel(list.models.some((m) => m.id === saved) ? saved : '');
-      })
-      .catch(() => {
-        if (!alive) return;
-        setModels([]);
-        setConfigModel(null);
-        setModel('');
-      });
-    return () => {
-      alive = false;
-    };
-  }, [kind]);
 
   /* ---------- Session log, to and from disk ---------- */
 
@@ -588,10 +455,8 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
       // Create the session now if none is open: empty conversations are never
       // written to disk, so creating one early would only clutter the list
       let key = activeKey[kind];
-      let resume: string | null = current?.cliId ?? null;
       if (!key) {
         key = `s${(seq.current += 1)}-${Date.now()}`;
-        resume = null;
         setSessions((prev) => [
           { key: key!, kind, cliId: null, title: '', updatedAt: Date.now(), lines: [] },
           ...prev,
@@ -599,7 +464,6 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
         setActiveKey((prev) => ({ ...prev, [kind]: key }));
       }
 
-      const context = activeId ? `（我正在编辑器里看着「${activeId}」这篇。）\n\n` : '';
       pushTo(key, [{ role: 'you', text }]);
       setInput('');
       saidOnce.current.clear();
@@ -610,15 +474,23 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
       setRunning(true);
       runKeyRef.current = key;
       try {
-        const id = await runAgent({
-          dir: vaultDir,
-          kind,
-          prompt: context + text,
-          resume,
-          model,
-          effort,
-        });
-        runIdRef.current = id;
+        const history = (current?.lines ?? [])
+          .filter((line) => line.role === 'you' || line.role === 'agent')
+          .map((line) => ({
+            role: line.role === 'you' ? 'user' as const : 'assistant' as const,
+            content: line.text,
+          }));
+        const result = await runApiAgent({ dir: vaultDir, activeId, prompt: text, history });
+        pushTo(key, [
+          ...result.tools.map((tool) => ({
+            role: 'tool' as const,
+            act: tool.name === 'write_file' ? 'edit' as const : tool.name === 'search_files' ? 'search' as const : 'read' as const,
+            verb: tool.name,
+            text: tool.target,
+          })),
+          { role: 'agent', text: result.reply },
+        ]);
+        setRunning(false);
       } catch (err) {
         setRunning(false);
         pushTo(key, [
@@ -642,40 +514,25 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
     setHistoryOpen(false);
   };
 
-  /** Open one from the history, switching to the CLI it belongs to */
+  /** Open an API conversation from history. Legacy CLI sessions stay hidden. */
   const openSession = (s: Session) => {
-    setKind(s.kind);
-    setConfig(KIND_KEY, s.kind);
-    setActiveKey((prev) => ({ ...prev, [s.kind]: s.key }));
+    if (s.kind !== 'api') return;
+    setActiveKey((prev) => ({ ...prev, api: s.key }));
     setHistoryOpen(false);
   };
 
   const dropSession = (key: string) => {
     setSessions((prev) => prev.filter((s) => s.key !== key));
     setActiveKey((prev) => ({
+      api: prev.api === key ? null : prev.api,
       claude: prev.claude === key ? null : prev.claude,
       codex: prev.codex === key ? null : prev.codex,
     }));
   };
 
-  const switchKind = (next: AgentKind) => {
-    if (next === kind) return;
-    setKind(next);
-    setConfig(KIND_KEY, next);
-    setBinDraft('');
-    setHistoryOpen(false);
-  };
-
-  const saveBin = () => {
-    const path = binDraft.trim();
-    if (!path) return;
-    setConfig(`agent.bin.${kind}`, path);
-    probe();
-  };
-
-  /** History list: both CLIs interleaved, newest first */
+  /** History list: API conversations only, newest first. */
   const history = useMemo(
-    () => sessions.filter((s) => s.lines.length).sort((a, b) => b.updatedAt - a.updatedAt),
+    () => sessions.filter((s) => s.kind === 'api' && s.lines.length).sort((a, b) => b.updatedAt - a.updatedAt),
     [sessions],
   );
 
@@ -686,25 +543,9 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
           <Sparkle size={13} weight="fill" />
           Agent
         </span>
-        <div
-          className="segmented agent-kinds"
-          role="tablist"
-          aria-label="用哪个 agent"
-          style={{ '--seg-n': KINDS.length, '--seg-i': KINDS.indexOf(kind) } as React.CSSProperties}
-        >
-          {KINDS.map((k) => (
-            <button
-              key={k}
-              role="tab"
-              aria-selected={kind === k}
-              className={`seg-btn ${kind === k ? 'active' : ''}`}
-              disabled={running}
-              onClick={() => switchKind(k)}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
+        <button type="button" className="agent-api-config" onClick={onOpenSettings} disabled={running}>
+          API 配置
+        </button>
         <button
           className={`ghost-btn ${historyOpen ? 'on' : ''}`}
           onClick={() => setHistoryOpen((v) => !v)}
@@ -721,23 +562,12 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
         </button>
       </div>
 
-      {missing && !historyOpen && (
-        <div className="agent-missing">
-          <p>
-            没找到 <code>{kind}</code>。终端里跑一下 <code>which {kind}</code>，把路径填这儿：
-          </p>
-          <div className="agent-bin-row">
-            <input
-              type="text"
-              value={binDraft}
-              placeholder={`/usr/local/bin/${kind}`}
-              onChange={(e) => setBinDraft(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && saveBin()}
-            />
-            <button type="button" onClick={saveBin}>
-              记住
-            </button>
-          </div>
+      {!apiReady && !historyOpen && (
+        <div className="agent-missing agent-api-missing">
+          <p>先配置 OpenAI 兼容接口、API Key 和模型，测试通过后即可让 Agent 直接处理文章。</p>
+          <button type="button" className="btn primary" onClick={onOpenSettings}>
+            配置 API
+          </button>
         </div>
       )}
 
@@ -765,22 +595,12 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             </div>
           ))}
           <p className="agent-history-note">
-            只收录从这个面板发起的对话。终端里开的那些在 <code>{kind}</code> 自己那儿。
+            只收录从这个面板发起的 API 对话。
           </p>
         </div>
       ) : (
         <div className="agent-log scroll-thin" ref={logRef}>
-          {lines.length === 0 && !missing && probing && (
-            <div className="agent-waking" aria-live="polite">
-              <span className="agent-dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              正在找本机的 claude / codex
-            </div>
-          )}
-          {lines.length === 0 && !missing && !probing && (
+          {lines.length === 0 && (
             <div className="agent-empty" aria-hidden="true">
               <Terminal size={44} weight="duotone" />
             </div>
@@ -814,8 +634,8 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             ref={inputRef}
             value={input}
             rows={3}
-            placeholder={probing ? '正在找本机的 claude / codex…' : continuing ? '接着说…' : `让 ${kind} 做点什么`}
-            disabled={missing || probing}
+            placeholder={continuing ? '接着说…' : '让 API Agent 处理文章或主题…'}
+            disabled={!apiReady}
             onChange={(e) => setInput(e.target.value)}
             onCompositionStart={() => {
               composing.current = true;
@@ -836,44 +656,54 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             }}
           />
           <div className="agent-composer-foot">
-            <TuneMenu
-              title="用哪个模型"
-              wide
-              inherited={!model}
-              chip={model || configModel || '默认模型'}
-              value={model}
-              items={[
-                {
-                  id: '',
-                  label: '默认',
-                  note: configModel ? `${kind} 现在配的是 ${configModel}` : `跟着 ${kind} 自己的配置走`,
-                },
-                ...models.map((m) => ({ id: m.id, label: m.label, note: m.id })),
-              ]}
-              onPick={(id) => {
-                setModel(id);
-                setConfig(modelKey(kind), id);
-              }}
-            />
-            <TuneMenu
-              title="思考程度"
-              chip={effort || '思考'}
-              value={effort}
-              items={[
-                { id: '', label: '默认', note: `跟着 ${kind} 自己的配置走` },
-                ...EFFORTS[kind].map((e) => ({ id: e, label: e })),
-              ]}
-              onPick={(id) => {
-                setEffort(id);
-                setConfig(effortKey(kind), id);
-              }}
-            />
+            <div className="agent-tune wide" ref={modelMenuRef}>
+              <button
+                type="button"
+                className={`agent-chip ${modelMenuOpen ? 'on' : ''}`}
+                onClick={() => setModelMenuOpen((value) => !value)}
+                title="切换 API 模型"
+                aria-haspopup="menu"
+                aria-expanded={modelMenuOpen}
+              >
+                <span className="agent-chip-text">{apiModel || '选择模型'}</span>
+                <CaretDown size={9} weight="bold" />
+              </button>
+              {modelMenuOpen && (
+                <div className="popover agent-tune-menu" role="menu">
+                  {apiModels.map((model) => (
+                    <button
+                      key={model}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={model === apiModel}
+                      className="menu-item agent-tune-item"
+                      onClick={() => {
+                        setSelectedModel(model);
+                        setConfig('agent.api.model', model);
+                        setModelMenuOpen(false);
+                      }}
+                    >
+                      <span className="agent-tune-label">{model}</span>
+                      <span className="menu-check" aria-hidden="true">
+                        <Check size={11} weight="bold" />
+                      </span>
+                    </button>
+                  ))}
+                  {apiModels.length === 0 && (
+                    <button type="button" className="menu-item agent-tune-item" onClick={onOpenSettings}>
+                      <span className="agent-tune-label">尚未获取模型，打开 API 配置</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <span className="agent-foot-gap" />
             {running ? (
               <button
                 type="button"
                 className="agent-send stop"
                 onClick={stop}
+                disabled={kind === 'api'}
                 title="停下"
                 aria-label="停下"
               >
@@ -884,7 +714,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
                 type="button"
                 className="agent-send"
                 onClick={send}
-                disabled={!input.trim() || missing || probing}
+                disabled={!input.trim() || !apiReady}
                 title="发送（Enter，Shift + Enter 换行）"
                 aria-label="发送"
               >

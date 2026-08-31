@@ -7,6 +7,31 @@ macOS / Windows / Linux 桌面应用。
 
 ![空核编辑器：左边文件树，中间 Markdown 编辑区，右边公众号预览与 Agent 面板](example.webp)
 
+## 致谢与项目来源
+
+空核编辑器基于 [whyubel1eve/Mars-Editor-APP](https://github.com/whyubel1eve/Mars-Editor-APP)
+（火星编辑器）二次开发，并继续采用 MIT 协议。
+
+首先感谢原作者完成了工作区文件管理、Markdown 排版、公众号预览、图片处理、草稿箱推送、
+本地 Claude Code / Codex 集成以及 Tauri 多平台客户端等核心能力。空核编辑器是在这些扎实基础上，
+面向「空核域界」内容品牌和不依赖本地终端的使用方式继续定制，不冒充原作，也不抹去上游贡献。
+
+### 与原版火星编辑器的主要区别
+
+| 项目 | 原版火星编辑器 | 空核编辑器 KonhEditor |
+| --- | --- | --- |
+| 品牌 | 火星编辑器 | 空核编辑器；预览署名为空核域界 |
+| 内置主题 | 原版主题库 | 扩展为 23 套，并加入空核域界品牌版式 |
+| 主题作用范围 | 一个工作区共用一个主题 | 每篇文章独立记住主题，切换文章自动恢复 |
+| 品牌文章组件 | 普通 Markdown 排版 | 空核域界主题支持 front-matter 头图、导语、标签和签名卡 |
+| Agent 默认方式 | 调用本机 Claude Code / Codex CLI | 仅使用可配置的 OpenAI 兼容 API Agent，不需要本地终端 |
+| Agent 工作权限 | CLI 自己的工具与权限 | API Agent 仅可列出、搜索、读取和写入当前工作区文件，无 Shell 权限 |
+| API 配置 | 跟随本地 CLI 配置 | 自定义 Base URL、API Key、模型名，并检测标准工具调用能力 |
+| 预览设备 | 按面板宽度自动判断，状态文字不可点击 | 右上角可手动切换手机 / 桌面并记住选择 |
+| 应用外观 | 浅色 / 深色 | 默认跟随系统并实时自动切换，也可手动选择 |
+| 图标 | 火星编辑器图标 | 简约“笔记页 + 空心核心 + 编辑笔划”品牌图标 |
+| 更新来源 | 原作者 GitHub Releases | `hackmgrm/Mars-Editor-APP` 自有 Release、更新公钥和签名体系 |
+
 ## 工作区就是一个普通文件夹
 
 草稿不藏在应用里面，就是磁盘上的文件：
@@ -22,22 +47,26 @@ macOS / Windows / Linux 桌面应用。
 目录结构由你自己定，应用不规定 —— 左侧文件树如实显示文件夹里的东西，新建、改名、删除、
 拖拽移动都是直接落到磁盘上的真操作。
 
-## 和命令行 agent 一起改稿
+## 用 API Agent 直接改稿
 
-顶栏的「Agent」直接对接你本机装好的 Claude Code / Codex —— 用的是你自己的账号和配置，
-不填 key、不选模型、不做任何额外配置。它把进程起在当前工作区里，agent 直接改那些 `.md`，
-编辑器监听到改动实时跟着变。
+在顶栏「设置 → API Agent」填写一个支持标准 Tool Calling 的 OpenAI 兼容接口：
 
-这里指的是**命令行版本** —— 终端里敲 `claude` 或 `codex` 能跑起来的那个。应用是去 PATH 和
-若干常见安装目录（npm 全局 bin、Homebrew、`~/.local/bin`、nvm / volta / fnm / pnpm / bun /
-cargo / scoop 的 bin）里找这两个可执行文件的。桌面 GUI 版不会往 PATH 里放可执行文件，装了也
-检测不到，得另外装一份 CLI。
+- Base URL，例如 `https://api.openai.com/v1`
+- API Key（只保存在本机应用配置目录）
+- 模型名（可从接口自动获取并选择；不支持 `/models` 的服务仍可手动填写）
+
+「测试 API」不仅检查能否聊天，还会验证接口是否返回标准 `tool_calls`。测试通过后，它就能列出、
+搜索、读取、创建和修改当前工作区里的文本文件；输入框左下角可以直接切换接口返回的模型。API Agent 没有终端和 Shell
+权限，绝对路径、`..` 以及任何越出工作区的路径都会被拒绝。
 
 ## 功能
 
 - Markdown 实时预览，编辑区与预览区滚动同步
-- 23 套内置主题（浅色 / 深色纸底）、三档排版密度；也可以让 agent 按你的口味写一套
+- 23 套内置主题（浅色 / 深色纸底）、三档排版密度；每篇文章可独立选择主题
+- 空核域界品牌主题支持 front-matter 自动头图、导语、标签和签名卡
+- OpenAI 兼容 API Agent，可直接在当前工作区读写文章，不依赖本地终端
 - 编辑器界面自身有浅色 / 深色两套外观，默认跟随系统
+- 公众号预览可手动切换手机 / 桌面并记住选择
 - 一键复制为公众号可用的富文本
 - 图片拖拽 / 粘贴上传，落到工作区 `images/`
 - 代码高亮、脚注、`==高亮==` 等扩展语法
@@ -94,6 +123,31 @@ cd src-tauri && cargo test
 ```
 
 工具链由 `src-tauri/rust-toolchain.toml` pin 在 1.95 —— 依赖树里有 crate 用 edition2024。
+
+### 同步原作者更新
+
+本仓库是长期维护的 fork。建议把原作者仓库固定为 `upstream`，自己的仓库继续使用 `origin`：
+
+```bash
+git remote add upstream https://github.com/whyubel1eve/Mars-Editor-APP.git
+git fetch upstream
+git switch main
+git merge upstream/main
+```
+
+首次添加后，后续只需执行 `git fetch upstream` 和 `git merge upstream/main`。合并前先新建分支并完成备份，
+解决冲突后至少运行 `npm run build` 与 `cd src-tauri && cargo test`，再分别检查 macOS、Windows 的打包任务。
+
+同步上游时需要重点保留的空核定制边界：
+
+- 品牌、图标、应用标识及自有更新渠道：`src-tauri/tauri.conf.json`、`src-tauri/icons/`、更新配置。
+- 主题库、空核域界品牌版式及每篇文章独立主题：主题定义、`src/App.tsx`、vault 偏好结构。
+- 纯 API Agent：`src-tauri/src/agent_api.rs`、`src/components/AgentPanel.tsx`、`SettingsDialog.tsx`。
+- 手动切换预览设备与跟随系统夜间模式：`PreviewPane.tsx` 和对应样式、偏好设置。
+- 发布签名：只使用本仓库自己的 Tauri 公钥和 GitHub Secrets；私钥与密码绝不能提交到 Git。
+
+如果上游再次修改同一区域，优先保留其缺陷修复和通用能力，再把上述定制行为重新适配进去。每次同步后把
+上游版本、冲突处理和保留的定制功能写入 `CHANGELOG.md`，这样后续维护者可以追溯来源。
 
 ## 技术栈
 

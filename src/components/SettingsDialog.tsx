@@ -11,6 +11,8 @@ import {
 import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
 import { getReaderKey, setReaderKey } from '../reader';
 import { RELEASES_URL, appVersion, checkForUpdate, dismissVerdict, useUpdate } from '../store/updater';
+import { getConfig, setConfig } from '../store/appConfig';
+import { listApiModels, testApiAgent } from '../store/agent';
 
 /** Where a free key comes from, for the one link in the 网页导入 section */
 const READER_HOME = 'https://jina.ai/reader/';
@@ -42,6 +44,14 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   const update = useUpdate();
   const [version, setVersion] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState(() => getConfig('agent.api.baseUrl') ?? 'https://api.openai.com/v1');
+  const [apiKey, setApiKey] = useState(() => getConfig('agent.api.key') ?? '');
+  const [apiModel, setApiModel] = useState(() => getConfig('agent.api.model') ?? '');
+  const [apiModels, setApiModels] = useState<string[]>([]);
+  const [apiModelsLoading, setApiModelsLoading] = useState(false);
+  const [apiTesting, setApiTesting] = useState(false);
+  const [apiProbe, setApiProbe] = useState<{ ok: boolean; message: string } | null>(null);
   /** Optional, and stored the moment it is typed — there is nothing to verify
    *  it against short of spending a request */
   const [readerKey, setKey] = useState(getReaderKey);
@@ -63,6 +73,12 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
       setProbe(null);
       setCopied(false);
       setShowSecret(false);
+      setShowApiKey(false);
+      setApiProbe(null);
+      setApiModels([]);
+      setApiBaseUrl(getConfig('agent.api.baseUrl') ?? 'https://api.openai.com/v1');
+      setApiKey(getConfig('agent.api.key') ?? '');
+      setApiModel(getConfig('agent.api.model') ?? '');
       setKey(getReaderKey());
       // Same for 已是最新 / 检查失败 — both are answers to a question asked
       // during some earlier visit
@@ -135,6 +151,42 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
     }
   };
 
+  const saveApi = (key: string, value: string) => {
+    setApiProbe(null);
+    setConfig(key, value.trim());
+  };
+
+  const runApiTest = async () => {
+    setApiTesting(true);
+    setApiProbe(null);
+    try {
+      setApiProbe({ ok: true, message: await testApiAgent() });
+    } catch (err) {
+      setApiProbe({ ok: false, message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setApiTesting(false);
+    }
+  };
+
+  const loadApiModels = async () => {
+    setApiModelsLoading(true);
+    setApiProbe(null);
+    try {
+      const models = await listApiModels(apiBaseUrl, apiKey);
+      setApiModels(models);
+      if (!apiModel.trim() && models[0]) {
+        setApiModel(models[0]);
+        saveApi('agent.api.model', models[0]);
+      }
+      setApiProbe({ ok: true, message: `已获取 ${models.length} 个模型` });
+    } catch (err) {
+      setApiModels([]);
+      setApiProbe({ ok: false, message: `${err instanceof Error ? err.message : String(err)}；仍可手动填写` });
+    } finally {
+      setApiModelsLoading(false);
+    }
+  };
+
   return (
     <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
       <div
@@ -152,6 +204,90 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
         </header>
 
         <div className="modal-body">
+          <section className="form-section">
+            <div className="form-section-label">API Agent</div>
+            <p className="form-note">
+              使用 OpenAI 兼容的 <code>Chat Completions</code> 接口。Agent 只获得当前工作区内的
+              列出、搜索、读取和写入权限，不会启动本地终端。API Key 只保存在这台电脑上。
+            </p>
+            <label className="field">
+              <span>Base URL</span>
+              <input
+                value={apiBaseUrl}
+                onChange={(e) => {
+                  setApiBaseUrl(e.target.value);
+                  saveApi('agent.api.baseUrl', e.target.value);
+                }}
+                placeholder="https://api.openai.com/v1"
+                spellCheck={false}
+              />
+            </label>
+            <label className="field">
+              <span>API Key</span>
+              <span className="field-with-action">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value);
+                    saveApi('agent.api.key', e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (apiBaseUrl.trim() && apiKey.trim() && apiModels.length === 0) void loadApiModels();
+                  }}
+                  placeholder="sk-…"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="field-action"
+                  onClick={() => setShowApiKey((v) => !v)}
+                  aria-label={showApiKey ? '隐藏' : '显示'}
+                >
+                  {showApiKey ? <EyeSlash size={15} /> : <Eye size={15} />}
+                </button>
+              </span>
+            </label>
+            <label className="field">
+              <span>模型名</span>
+              <input
+                list="api-agent-models"
+                value={apiModel}
+                onChange={(e) => {
+                  setApiModel(e.target.value);
+                  saveApi('agent.api.model', e.target.value);
+                }}
+                placeholder="例如 gpt-5-mini"
+                spellCheck={false}
+              />
+              <datalist id="api-agent-models">
+                {apiModels.map((model) => <option key={model} value={model} />)}
+              </datalist>
+            </label>
+            <div className="form-row">
+              <button
+                className="btn"
+                onClick={() => void loadApiModels()}
+                disabled={apiModelsLoading || !apiBaseUrl.trim() || !apiKey.trim()}
+              >
+                {apiModelsLoading ? '获取中…' : '获取模型'}
+              </button>
+              <button
+                className="btn"
+                onClick={() => void runApiTest()}
+                disabled={apiTesting || !apiBaseUrl.trim() || !apiKey.trim() || !apiModel.trim()}
+              >
+                {apiTesting ? '测试中…' : '测试 API'}
+              </button>
+              {apiProbe && (
+                <span className={apiProbe.ok ? 'form-ok' : 'form-error'}>
+                  {apiProbe.ok && <CheckCircle size={13} weight="fill" />}
+                  {apiProbe.message}
+                </span>
+              )}
+            </div>
+          </section>
+
           <section className="form-section">
             <div className="form-section-label">公众号凭据</div>
             <p className="form-note">

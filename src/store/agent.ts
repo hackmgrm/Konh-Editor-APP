@@ -28,13 +28,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export type AgentKind = 'claude' | 'codex';
+export type AgentKind = 'api' | 'claude' | 'codex';
 
 /**
  * Reasoning effort. Both CLIs take the same four words; claude has one more
  * above them, and calls it a flag where codex calls it a config key.
  */
 export const EFFORTS: Record<AgentKind, string[]> = {
+  api: [],
   claude: ['low', 'medium', 'high', 'xhigh', 'max'],
   codex: ['low', 'medium', 'high', 'xhigh'],
 };
@@ -190,6 +191,33 @@ export function stopAgent(runId: string): Promise<void> {
 
 export function onAgentEvent(cb: (e: RawEvent) => void): Promise<UnlistenFn> {
   return listen<RawEvent>('agent:event', (e) => cb(e.payload));
+}
+
+export interface ApiRunResult {
+  reply: string;
+  tools: Array<{ name: string; target: string }>;
+}
+
+export function testApiAgent(): Promise<string> {
+  return invoke<string>('agent_api_test');
+}
+
+export function listApiModels(baseUrl: string, apiKey: string): Promise<string[]> {
+  return invoke<string[]>('agent_api_models', { baseUrl, apiKey });
+}
+
+export function runApiAgent(args: {
+  dir: string;
+  activeId: string;
+  prompt: string;
+  history: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<ApiRunResult> {
+  return invoke<ApiRunResult>('agent_api_run', {
+    dir: args.dir,
+    activeId: args.activeId,
+    prompt: args.prompt,
+    history: args.history,
+  });
 }
 
 /* ---------------- Translation ---------------- */

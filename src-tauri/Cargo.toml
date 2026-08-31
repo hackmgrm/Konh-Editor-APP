@@ -1,6 +1,6 @@
 [package]
 name = "konh-editor"
-version = "1.0.1"
+version = "1.0.2"
 description = "空核编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
@@ -31,6 +31,7 @@ tauri-plugin-process = "2.3.0"
 base64 = "0.23.1"
 notify = "8.2.0"
 tauri-plugin-clipboard-manager = "2.3.2"
+reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

@@ -3,6 +3,7 @@ import { BatteryFull, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
 import { stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
 import type { Theme } from '../theme';
+import { getConfig, setConfig } from '../store/appConfig';
 
 interface Props {
   body: string;
@@ -108,7 +109,12 @@ export default function PreviewPane({ body, title, hasHero, theme, hasImage, den
   const paneRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [widthMode, setWidthMode] = useState<'phone' | 'desktop'>('phone');
+  const [autoMode, setAutoMode] = useState<'phone' | 'desktop'>('phone');
+  const [deviceMode, setDeviceMode] = useState<'auto' | 'phone' | 'desktop'>(() => {
+    const saved = getConfig('preview.device');
+    return saved === 'phone' || saved === 'desktop' ? saved : 'auto';
+  });
+  const widthMode = deviceMode === 'auto' ? autoMode : deviceMode;
   /** Body used for the preview (duplicate h1 removed; exports still use the full body) */
   const previewBody = useMemo(
     () => (!hasHero && title ? stripFirstH1(body) : body),
@@ -121,7 +127,7 @@ export default function PreviewPane({ body, title, hasHero, theme, hasImage, den
   useEffect(() => {
     const el = paneRef.current;
     if (!el) return;
-    const update = () => setWidthMode(el.getBoundingClientRect().width >= 860 ? 'desktop' : 'phone');
+    const update = () => setAutoMode(el.getBoundingClientRect().width >= 860 ? 'desktop' : 'phone');
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -132,7 +138,7 @@ export default function PreviewPane({ body, title, hasHero, theme, hasImage, den
   useEffect(() => {
     const el = paneRef.current;
     if (!el) return;
-    setWidthMode(el.getBoundingClientRect().width >= 860 ? 'desktop' : 'phone');
+    setAutoMode(el.getBoundingClientRect().width >= 860 ? 'desktop' : 'phone');
   }, [resizeKey]);
 
   /** Anchor cache (null means it needs rebuilding) */
@@ -259,8 +265,21 @@ export default function PreviewPane({ body, title, hasHero, theme, hasImage, den
         </span>
         <div className="pane-head-right">
           {hasImage && <span className="pane-stat warn">含图片 · 建议公众号内单独上传</span>}
-          <span className="pane-stat" title={widthMode === 'phone' ? '面板加宽会切到桌面版式' : '面板收窄会切回手机版式'}>
-            {widthMode === 'phone' ? '手机' : '桌面'}
+          <span className="device-switch" aria-label="预览设备">
+            {(['phone', 'desktop'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={widthMode === mode ? 'active' : ''}
+                aria-pressed={widthMode === mode}
+                onClick={() => {
+                  setDeviceMode(mode);
+                  setConfig('preview.device', mode);
+                }}
+              >
+                {mode === 'phone' ? '手机' : '桌面'}
+              </button>
+            ))}
           </span>
         </div>
       </div>

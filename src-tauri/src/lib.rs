@@ -1,4 +1,5 @@
 mod agent;
+mod agent_api;
 mod config;
 mod themes;
 mod vault;
@@ -22,7 +23,6 @@ pub fn run() {
         // in-app update; the frontend calls it from the update dialog
         .plugin(tauri_plugin_process::init())
         .manage(vault::WatchState::default())
-        .manage(agent::AgentState::default())
         .manage(themes::ThemeWatch::default())
         .invoke_handler(tauri::generate_handler![
             vault::vault_load,
@@ -46,12 +46,11 @@ pub fn run() {
             config::config_write,
             config::config_remove,
             config::file_save,
-            agent::agent_probe,
-            agent::agent_models,
-            agent::agent_run,
-            agent::agent_stop,
             agent::agent_sessions_read,
             agent::agent_sessions_write,
+            agent_api::agent_api_test,
+            agent_api::agent_api_models,
+            agent_api::agent_api_run,
             themes::themes_read,
             themes::themes_guide_write,
             themes::theme_delete,
@@ -61,12 +60,6 @@ pub fn run() {
             // In-app update. Desktop only — see Cargo.toml
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
-            // Find out where the user's CLIs live before anyone asks. It means
-            // starting a login shell, which takes seconds on a machine with a
-            // furnished .zshrc — time better spent now, while the window is
-            // still being drawn, than at the moment the Agent panel opens
-            let handle = app.handle().clone();
-            std::thread::spawn(move || agent::warm_path(&handle));
             // Custom themes are files the agent edits while you watch; the
             // watcher is what makes the preview follow along
             themes::start_watch(app.handle());
