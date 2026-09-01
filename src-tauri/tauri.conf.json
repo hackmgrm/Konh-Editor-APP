@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "KonhEditor",
-  "version": "1.0.3",
+  "version": "0.3.0",
   "identifier": "com.konheditor.app",
   "build": {
     "frontendDist": "../dist",
