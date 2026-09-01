@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowCounterClockwise, Code, CodeBlock, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Code, CodeBlock, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Sparkle, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from '@codemirror/commands';
@@ -12,6 +12,8 @@ import { tags as t } from '@lezer/highlight';
 import { registerImageFiles } from '../images';
 import type { ScrollSyncChannel } from '../scrollSync';
 import { parseFrontMatter, setFrontMatterField } from '../frontMatter';
+import { cleanPlainPaste, richHtmlToMarkdown } from '../smartPaste';
+import { runApiAgent } from '../store/agent';
 
 /* One size for every Phosphor icon; the H1–H4 menu items each use the glyph
    that matches their level. */
@@ -120,10 +122,12 @@ interface Props {
    * without it, clicking the same image twice would not re-run the effect.
    */
   jumpRequest: { line: number; nonce: number } | null;
+  vaultDir: string;
+  typewriterMode: boolean;
 }
 
 const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
-  { value, onChange, onAddImage, imageNames, draftId, sync, collapsed, widthPct, saving, jumpRequest },
+  { value, onChange, onAddImage, imageNames, draftId, sync, collapsed, widthPct, saving, jumpRequest, vaultDir, typewriterMode },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -211,10 +215,15 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
           editorTheme,
           syntaxHighlighting(markdownHighlight),
           EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
-            const next = update.state.doc.toString();
-            lastEmittedRef.current = next;
-            onChangeRef.current(next);
+            if (update.docChanged) {
+              const next = update.state.doc.toString();
+              lastEmittedRef.current = next;
+              onChangeRef.current(next);
+            }
+            if (update.selectionSet && viewRef.current?.dom.dataset.typewriter === 'true') {
+              const pos = update.state.selection.main.head;
+              viewRef.current.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+            }
           }),
         ],
       }),
@@ -261,6 +270,10 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (viewRef.current) viewRef.current.dom.dataset.typewriter = String(typewriterMode);
+  }, [typewriterMode]);
 
   // Content sync: when the draft changes (draftId) or value changes from the
   // outside (import, cleanup), replace the doc wholesale if it differs and keep
@@ -323,6 +336,18 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       e.preventDefault();
       void insertImages(files);
     };
+    const onRichPaste = (e: ClipboardEvent) => {
+      const hasImage = Array.from(e.clipboardData?.items ?? []).some((item) => item.type.startsWith('image/'));
+      if (hasImage) return;
+      const html = e.clipboardData?.getData('text/html') ?? '';
+      const plain = e.clipboardData?.getData('text/plain') ?? '';
+      const cleaned = html ? richHtmlToMarkdown(html) : cleanPlainPaste(plain);
+      if (!cleaned || cleaned === plain) return;
+      e.preventDefault();
+      const { from, to } = view.state.selection.main;
+      view.dispatch({ changes: { from, to, insert: cleaned }, selection: { anchor: from + cleaned.length } });
+    };
+    dom.addEventListener('paste', onRichPaste);
     const onDrop = (e: DragEvent) => {
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
       if (!files.length) return;
@@ -335,6 +360,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     dom.addEventListener('dragover', onDragover);
     return () => {
       dom.removeEventListener('paste', onPaste);
+      dom.removeEventListener('paste', onRichPaste);
       dom.removeEventListener('drop', onDrop);
       dom.removeEventListener('dragover', onDragover);
     };
@@ -421,6 +447,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   const [outlineOpen, setOutlineOpen] = useState(false);
   /** Visual editor for the metadata stored at the top of the Markdown file. */
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [agentEdit, setAgentEdit] = useState<{ from: number; to: number; original: string; instruction: string; result: string; busy: boolean; error: string } | null>(null);
   const headingWrapRef = useRef<HTMLDivElement>(null);
   // Click outside to close
   useEffect(() => {
@@ -482,6 +509,12 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   ];
 
   const toolbarBtns: { key: string; title: string; icon: React.ReactNode; onClick: () => void }[] = [
+    { key: 'ai', title: 'AI 修改选中文字', icon: <Sparkle size={ICON} />, onClick: () => withView((view) => {
+      const { from, to } = view.state.selection.main;
+      const original = view.state.doc.sliceString(from, to);
+      if (!original.trim()) return;
+      setAgentEdit({ from, to, original, instruction: '润色，使表达更清晰自然', result: '', busy: false, error: '' });
+    }) },
     { key: 'bold', title: '加粗', icon: <TextB size={ICON} />, onClick: () => wrapSelection('**', '**') },
     { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} />, onClick: () => wrapSelection('*', '*') },
     { key: 'code', title: '行内代码', icon: <Code size={ICON} />, onClick: () => wrapSelection('`', '`') },
@@ -494,6 +527,38 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     { key: 'hr', title: '分割线', icon: <Minus size={ICON} />, onClick: () => insertBlock('\n---\n') },
     { key: 'undo', title: '撤销', icon: <ArrowCounterClockwise size={ICON} />, onClick: undoEdit },
   ];
+
+  const runSelectionAgent = async () => {
+    if (!agentEdit || agentEdit.busy) return;
+    setAgentEdit({ ...agentEdit, busy: true, error: '' });
+    try {
+      const response = await runApiAgent({
+        dir: vaultDir,
+        activeId: draftId,
+        history: [],
+        prompt: `你是中文编辑。按要求修改选中文本。只返回修改后的正文，不要解释，不要 Markdown 代码围栏。\n\n要求：${agentEdit.instruction}\n\n原文：\n${agentEdit.original}`,
+      });
+      const result = response.reply.trim().replace(/^```(?:markdown)?\s*/i, '').replace(/\s*```$/, '');
+      setAgentEdit({ ...agentEdit, result, busy: false, error: result ? '' : '模型没有返回文字' });
+    } catch (error) {
+      setAgentEdit({ ...agentEdit, busy: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  const applySelectionAgent = () => {
+    if (!agentEdit?.result) return;
+    withView((view) => {
+      // The document may have changed while the model worked. Refuse to replace
+      // an unrelated range instead of silently destroying newer text.
+      if (view.state.doc.sliceString(agentEdit.from, agentEdit.to) !== agentEdit.original) {
+        setAgentEdit({ ...agentEdit, error: '等待期间原文发生了变化，请重新选择后再试' });
+        return;
+      }
+      view.dispatch({ changes: { from: agentEdit.from, to: agentEdit.to, insert: agentEdit.result }, selection: { anchor: agentEdit.from, head: agentEdit.from + agentEdit.result.length } });
+      view.focus();
+      setAgentEdit(null);
+    });
+  };
 
   return (
     <section
@@ -639,6 +704,15 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
         }, [])}
       </div>
       <div className="code-edit" ref={hostRef}></div>
+      {agentEdit && (
+        <div className="selection-agent" role="dialog" aria-label="AI 修改选区">
+          <div className="selection-agent-head"><strong>选区 Agent</strong><button className="ghost-btn" onClick={() => setAgentEdit(null)}><X size={15} /></button></div>
+          <label><span>修改要求</span><input value={agentEdit.instruction} onChange={(event) => setAgentEdit({ ...agentEdit, instruction: event.target.value })} /></label>
+          <div className="selection-diff"><div><span>原文</span><pre>{agentEdit.original}</pre></div><div><span>AI 建议</span><pre>{agentEdit.result || '等待生成…'}</pre></div></div>
+          {agentEdit.error && <p className="form-error">{agentEdit.error}</p>}
+          <div className="dialog-actions"><button className="btn" onClick={() => setAgentEdit(null)}>取消</button><button className="btn" disabled={agentEdit.busy || !agentEdit.instruction.trim()} onClick={() => void runSelectionAgent()}>{agentEdit.busy ? '生成中…' : agentEdit.result ? '重新生成' : '生成修改'}</button><button className="btn primary" disabled={!agentEdit.result || agentEdit.busy} onClick={applySelectionAgent}>确认替换</button></div>
+        </div>
+      )}
     </section>
   );
 });

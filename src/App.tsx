@@ -12,6 +12,7 @@ import UpdateDialog from './components/UpdateDialog';
 import PreflightDialog from './components/PreflightDialog';
 import ConflictBar from './components/ConflictBar';
 import AgentPanel from './components/AgentPanel';
+import ArticleCenterDialog from './components/ArticleCenterDialog';
 import VaultGate from './components/VaultGate';
 import {
   collectImageRefs,
@@ -37,6 +38,8 @@ import { useUpdate } from './store/updater';
 import type { DraftTarget } from './publish';
 import type { Entry } from './store/vault';
 import { checkArticle, type PreflightIssue } from './preflight';
+import { getWechatConfig } from './store/wechatConfig';
+import { addPublishRecord, addVersion, articleKey as makeArticleKey, loadContentState, saveContentState, type ContentState } from './store/contentState';
 import './styles.css';
 
 /** Minimum editor width, preserved while dragging — which is what lets the preview reach desktop width */
@@ -165,6 +168,27 @@ function Workspace({ vault }: { vault: VaultApi }) {
    *  rather than a section of the push dialog */
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [articleCenterOpen, setArticleCenterOpen] = useState(false);
+  const [contentState, setContentStateValue] = useState<ContentState>(loadContentState);
+  const currentArticleKey = makeArticleKey(vault.dir ?? '', activeId);
+  const setContentState = (next: ContentState) => {
+    setContentStateValue(next);
+    saveContentState(next);
+  };
+
+  // A quiet snapshot after a burst of editing. Identical bodies are ignored and
+  // each article keeps its newest 30 versions.
+  useEffect(() => {
+    if (!activeId || !markdown.trim()) return;
+    const timer = window.setTimeout(() => {
+      setContentStateValue((prev) => {
+        const next = addVersion(prev, currentArticleKey, markdown);
+        if (next !== prev) saveContentState(next);
+        return next;
+      });
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [activeId, currentArticleKey, markdown]);
 
   /** The toolbar pill is the whole announcement — see store/updater.ts */
   const update = useUpdate();
@@ -181,7 +205,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /** An export is running (long images and backup archives both take a while) */
   const [exporting, setExporting] = useState(false);
   /** Side-by-side / preview-only */
-  const [viewMode, setViewMode] = useState<'split' | 'preview'>('split');
+  const [viewMode, setViewMode] = useState<'split' | 'preview' | 'focus'>('split');
+  const [typewriterMode, setTypewriterMode] = useState(false);
   /** Editor width as a percentage; defaults to the preview's minimum */
   const [editorPct, setEditorPct] = useState<number>(() => {
     const w = window.innerWidth;
@@ -634,6 +659,18 @@ function Workspace({ vault }: { vault: VaultApi }) {
     setPublishTargetDigest('');
   };
 
+  const openPublish = () => {
+    const binding = contentState.bindings[currentArticleKey];
+    const currentAccount = getWechatConfig();
+    if (binding && binding.accountId === currentAccount.appid) {
+      setPublishTarget({ mediaId: binding.mediaId, index: binding.articleIndex, thumbMediaId: '', title: binding.title });
+    } else {
+      setPublishTarget(null);
+    }
+    setPublishTargetDigest('');
+    setPublishOpen(true);
+  };
+
   /** Body HTML for the push: the preview runs off a deferred value and the
    *  highlighter may still be loading, so re-render from the current body */
   const buildArticleHtml = async (): Promise<string> => {
@@ -727,12 +764,15 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const scrollSync = useRef(createScrollSyncChannel()).current;
 
   const isPreviewOnly = viewMode === 'preview';
+  const isFocus = viewMode === 'focus';
 
   return (
-    <div className="app">
+    <div className={`app ${isFocus ? 'focus-mode' : ''} ${typewriterMode ? 'typewriter-mode' : ''}`}>
       <Toolbar
         viewMode={viewMode}
         onViewMode={setViewMode}
+        typewriterMode={typewriterMode}
+        onToggleTypewriter={() => setTypewriterMode((on) => !on)}
         status={status}
         docName={activeDraft?.name ?? ''}
         saving={saving}
@@ -740,8 +780,9 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onExportImage={() => void handleExportImage()}
         exporting={exporting}
         copying={copying}
-        onPublish={() => setPublishOpen(true)}
+        onPublish={openPublish}
         onOpenDraftBox={() => setDraftBoxOpen(true)}
+        onOpenArticleCenter={() => setArticleCenterOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         hasUpdate={hasUpdate}
         onOpenUpdate={() => setUpdateOpen(true)}
@@ -811,6 +852,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
             collapsed={isPreviewOnly}
             widthPct={editorPct}
             saving={saving}
+            vaultDir={vault.dir ?? ''}
+            typewriterMode={typewriterMode}
           />
           <div
             className="split-bar"
@@ -825,7 +868,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             }}
             onDoubleClick={resetSplit}
           />
-          <PreviewPane
+          {!isFocus && <PreviewPane
             body={result.previewBody}
             title={result.title}
             hasHero={result.hasHero}
@@ -834,7 +877,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             densityName={densityName}
             resizeKey={`${viewMode}:${editorPct}`}
             sync={scrollSync}
-          />
+          />}
         </div>
         {agentMounted && (
           <AgentPanel
@@ -854,6 +897,19 @@ function Workspace({ vault }: { vault: VaultApi }) {
         parent={importParent}
         onImport={(url, withImages, onProgress) => runImport(url, importParent, withImages, onProgress)}
       />
+      <ArticleCenterDialog
+        open={articleCenterOpen}
+        onClose={() => setArticleCenterOpen(false)}
+        articleKey={currentArticleKey}
+        content={markdown}
+        state={contentState}
+        onState={setContentState}
+        onRestore={(restored) => {
+          const next = addVersion(contentState, currentArticleKey, markdown, '恢复前');
+          setContentState(next);
+          setMarkdown(restored);
+        }}
+      />
       <PublishDialog
         open={publishOpen}
         onClose={closePublish}
@@ -862,6 +918,18 @@ function Workspace({ vault }: { vault: VaultApi }) {
         articleHasImage={result.hasImage}
         buildHtml={buildArticleHtml}
         onFlash={flash}
+        onPublished={(published) => {
+          const next = addPublishRecord(contentState, {
+            articleKey: currentArticleKey,
+            accountId: published.accountId,
+            mediaId: published.mediaId,
+            articleIndex: published.articleIndex,
+            title: published.title,
+            action: published.updated ? 'updated' : 'created',
+            createdAt: Date.now(),
+          });
+          setContentState(next);
+        }}
         target={publishTarget}
         targetDigest={publishTargetDigest}
         onOpenDraftBox={() => {

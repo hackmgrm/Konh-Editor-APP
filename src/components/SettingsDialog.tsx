@@ -8,7 +8,7 @@ import {
   testConnection,
   type WechatConfig,
 } from '../wechat';
-import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
+import { addWechatAccount, deleteWechatAccount, patchWechatConfig, renameWechatAccount, switchWechatAccount, useWechatAccounts, useWechatConfig } from '../store/wechatConfig';
 import { getReaderKey, setReaderKey } from '../reader';
 import { RELEASES_URL, appVersion, checkForUpdate, dismissVerdict, useUpdate } from '../store/updater';
 import { getConfig, setConfig } from '../store/appConfig';
@@ -41,6 +41,7 @@ interface Props {
  */
 export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   const cfg = useWechatConfig();
+  const accountStore = useWechatAccounts();
   const update = useUpdate();
   const [version, setVersion] = useState('');
   const [showSecret, setShowSecret] = useState(false);
@@ -290,6 +291,19 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
 
           <section className="form-section">
             <div className="form-section-label">公众号凭据</div>
+            <div className="account-manager">
+              <select value={accountStore.activeId} onChange={(event) => switchWechatAccount(event.target.value)} aria-label="当前公众号">
+                {accountStore.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+              <input
+                value={accountStore.accounts.find((account) => account.id === accountStore.activeId)?.name ?? ''}
+                onChange={(event) => renameWechatAccount(event.target.value)}
+                aria-label="公众号名称"
+                placeholder="公众号名称"
+              />
+              <button className="btn" type="button" onClick={() => addWechatAccount()}>新增账户</button>
+              <button className="btn" type="button" disabled={accountStore.accounts.length <= 1} onClick={() => deleteWechatAccount(accountStore.activeId)}>删除</button>
+            </div>
             <p className="form-note">
               在
               <a href={DEV_PROFILE_URL} target="_blank" rel="noopener noreferrer" className="ext-link">

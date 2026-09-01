@@ -258,3 +258,11 @@
 :root:not([data-os='mac']) .code-edit .cm-editor {
   font-synthesis-style: none;
 }
+.selection-agent { position: absolute; z-index: 20; left: 28px; right: 28px; bottom: 28px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-1); box-shadow: var(--shadow-lg); }
+.selection-agent-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.selection-agent label { display: grid; gap: 5px; font-size: 12px; color: var(--text-2); }
+.selection-agent input { border: 1px solid var(--line); border-radius: 7px; padding: 8px; color: var(--text-1); background: var(--surface-2); }
+.selection-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.selection-diff > div { min-width: 0; }
+.selection-diff span { color: var(--text-3); font-size: 11px; }
+.selection-diff pre { min-height: 90px; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 7px; padding: 9px; margin: 4px 0 0; font: 12px/1.6 var(--mono); }

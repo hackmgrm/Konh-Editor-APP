@@ -543,3 +543,9 @@
   opacity: 1;
   color: var(--accent);
 }
+.app.focus-mode .sidebar { display: none; }
+.app.focus-mode .editor-side { width: min(900px, 100%) !important; margin: 0 auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.app.focus-mode .split { justify-content: center; background: var(--surface-2); }
+.app.focus-mode .split-bar { display: none; }
+.app.focus-mode .toolbar .toolbar-right > :not(.segmented):not(.status) { display: none; }
+.app.typewriter-mode .cm-activeLine { background: var(--accent-soft); }

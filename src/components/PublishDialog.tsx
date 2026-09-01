@@ -6,6 +6,7 @@ import { isConfigured } from '../wechat';
 import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
 import { checkArticle, checkPublishFields, hasBlockingIssues, type ArticleCheckInput } from '../preflight';
 import PreflightIssues from './PreflightIssues';
+import CoverWorkbench from './CoverWorkbench';
 
 interface Props {
   open: boolean;
@@ -34,6 +35,7 @@ interface Props {
   onOpenDraftBox: () => void;
   /** Drop the target and go back to creating a new draft */
   onClearTarget: () => void;
+  onPublished?: (result: { mediaId: string; updated: boolean; title: string; accountId: string; articleIndex: number }) => void;
 }
 
 /**
@@ -62,11 +64,13 @@ export default function PublishDialog({
   targetDigest,
   onOpenDraftBox,
   onClearTarget,
+  onPublished,
 }: Props) {
   const cfg = useWechatConfig();
   const [title, setTitle] = useState(defaultTitle);
   const [digest, setDigest] = useState('');
   const [cover, setCover] = useState<{ dataUrl: string; filename: string } | null>(null);
+  const [coverWorkbenchOpen, setCoverWorkbenchOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [probe, setProbe] = useState<{ kind: 'ok' | 'warn' | 'fail'; message: string } | null>(null);
@@ -149,6 +153,7 @@ export default function PublishDialog({
       });
       setProgress('');
       console.info('草稿 media_id', mediaId);
+      onPublished?.({ mediaId, updated, title, accountId: cfg.appid, articleIndex: target?.index ?? 0 });
       onFlash(
         `${updated ? '已更新草稿' : '已推送到草稿箱'}（换图 ${uploaded} 张${smallestEdge ? `，最小长边 ${smallestEdge}px` : ''}）`,
       );
@@ -271,9 +276,7 @@ export default function PublishDialog({
                   {cover ? '换一张' : '选择封面'}
                 </button>
                 {cover ? (
-                  <button type="button" className="link-btn" onClick={() => setCover(null)}>
-                    {target ? '改用草稿原封面' : '改用正文第一张图'}
-                  </button>
+                  <><button type="button" className="btn" onClick={() => setCoverWorkbenchOpen(true)}>封面工作台</button><button type="button" className="link-btn" onClick={() => setCover(null)}>{target ? '改用草稿原封面' : '改用正文第一张图'}</button></>
                 ) : (
                   <span className="form-hint">{target ? '不选则保留草稿原封面' : '不选则用正文第一张图'}</span>
                 )}
@@ -353,6 +356,7 @@ export default function PublishDialog({
             {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
           </button>
         </footer>
+        <CoverWorkbench open={coverWorkbenchOpen} source={cover} onClose={() => setCoverWorkbenchOpen(false)} onApply={(next) => { setCover(next); setCoverWorkbenchOpen(false); }} />
       </div>
     </div>
   );

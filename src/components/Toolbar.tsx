@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, Crosshair, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
 import { chord } from '../platform';
 
 interface Props {
-  viewMode: 'split' | 'preview';
-  onViewMode: (m: 'split' | 'preview') => void;
+  viewMode: 'split' | 'preview' | 'focus';
+  onViewMode: (m: 'split' | 'preview' | 'focus') => void;
+  typewriterMode: boolean;
+  onToggleTypewriter: () => void;
   status: string | null;
   /** Name of the open draft — the toolbar doubles as the window title */
   docName: string;
@@ -28,6 +30,7 @@ interface Props {
   onPublish: () => void;
   /** Open the drafts box: what is already up there, and what to overwrite */
   onOpenDraftBox: () => void;
+  onOpenArticleCenter: () => void;
   /** Open settings (公众号凭据 lives there) */
   onOpenSettings: () => void;
   /**
@@ -51,6 +54,7 @@ interface Props {
 const MODES = [
   { id: 'split', name: '对照' },
   { id: 'preview', name: '预览' },
+  { id: 'focus', name: '专注' },
 ] as const;
 
 /**
@@ -72,6 +76,8 @@ const MODES = [
 export default function Toolbar({
   viewMode,
   onViewMode,
+  typewriterMode,
+  onToggleTypewriter,
   status,
   docName,
   saving,
@@ -81,6 +87,7 @@ export default function Toolbar({
   copying,
   onPublish,
   onOpenDraftBox,
+  onOpenArticleCenter,
   onOpenSettings,
   hasUpdate,
   onOpenUpdate,
@@ -157,6 +164,7 @@ export default function Toolbar({
             </button>
           ))}
         </div>
+        <button className={`btn icon ${typewriterMode ? 'active' : ''}`} onClick={onToggleTypewriter} title="打字机模式：当前行保持在视野中央" aria-pressed={typewriterMode} aria-label="打字机模式"><Crosshair size={15} /></button>
 
         {/* Themes, density, body options and the shell's own light/dark */}
         <div className="menu-wrap" ref={typesetRef}>
@@ -207,6 +215,9 @@ export default function Toolbar({
             where an article is picked to overwrite rather than duplicate. */}
         <button className="btn icon" onClick={onOpenDraftBox} title="草稿箱：看看公众号上已有哪些草稿" aria-label="草稿箱">
           <Stack size={15} weight="bold" />
+        </button>
+        <button className="btn icon" onClick={onOpenArticleCenter} title="文章状态、版本历史与发布记录" aria-label="文章管理">
+          <ClockCounterClockwise size={15} weight="bold" />
         </button>
 
         <button className="btn primary" onClick={onPublish} title="换图后直接推进公众号草稿箱">
