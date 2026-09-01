@@ -4,12 +4,18 @@ import { prepareImage } from '../images';
 import { publishToDraft, type DraftTarget } from '../publish';
 import { isConfigured } from '../wechat';
 import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
+import { checkArticle, checkPublishFields, hasBlockingIssues, type ArticleCheckInput } from '../preflight';
+import PreflightIssues from './PreflightIssues';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   /** Default article title (first H1 in the body, falling back to the draft name) */
   defaultTitle: string;
+  /** Current source-level checks, shared with rich-text copy. */
+  articleCheckInput: ArticleCheckInput;
+  /** The rendered body can supply the default cover from its first image. */
+  articleHasImage: boolean;
   /** Render the body HTML now — the preview runs off a deferred value, and a
    *  push has to re-render from the current body */
   buildHtml: () => Promise<string>;
@@ -47,6 +53,8 @@ export default function PublishDialog({
   open,
   onClose,
   defaultTitle,
+  articleCheckInput,
+  articleHasImage,
   buildHtml,
   onFlash,
   onOpenSettings,
@@ -76,6 +84,9 @@ export default function PublishDialog({
     if (open) {
       setTitle(target?.title || defaultTitle);
       setDigest(targetDigest);
+      // A cover chosen for the previous article must never silently follow the
+      // next one into its preflight result or its published draft.
+      setCover(null);
       setProbe(null);
       setProgress('');
     }
@@ -94,6 +105,18 @@ export default function PublishDialog({
   if (!open) return null;
 
   const configured = isConfigured(cfg);
+  const preflightIssues = [
+    ...checkArticle(articleCheckInput),
+    ...checkPublishFields({
+      title,
+      digest,
+      author: cfg.author,
+      hasCover: !!cover,
+      keepsExistingCover: !!target,
+      articleHasImage,
+    }),
+  ];
+  const publishBlocked = hasBlockingIssues(preflightIssues);
 
   const pickCover = async (file: File) => {
     try {
@@ -104,6 +127,10 @@ export default function PublishDialog({
   };
 
   const handlePublish = async () => {
+    if (publishBlocked) {
+      setProbe({ kind: 'fail', message: '请先处理发布检查中的必改问题' });
+      return;
+    }
     if (!configured) {
       setProbe({ kind: 'fail', message: '还没填公众号凭据 —— 去「设置」里填 AppID 与 AppSecret' });
       return;
@@ -304,6 +331,10 @@ export default function PublishDialog({
               <span>打开留言</span>
             </label>
           </section>
+          <section className="form-section">
+            <div className="form-section-label">发布前检查</div>
+            <PreflightIssues issues={preflightIssues} />
+          </section>
         </div>
 
         <footer className="modal-foot">
@@ -317,7 +348,7 @@ export default function PublishDialog({
           <button className="btn" onClick={onClose} disabled={busy}>
             取消
           </button>
-          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy}>
+          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy || publishBlocked}>
             <PaperPlaneTilt size={15} weight="bold" />
             {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
           </button>

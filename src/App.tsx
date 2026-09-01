@@ -9,6 +9,7 @@ import PublishDialog from './components/PublishDialog';
 import ImportUrlDialog from './components/ImportUrlDialog';
 import SettingsDialog from './components/SettingsDialog';
 import UpdateDialog from './components/UpdateDialog';
+import PreflightDialog from './components/PreflightDialog';
 import ConflictBar from './components/ConflictBar';
 import AgentPanel from './components/AgentPanel';
 import VaultGate from './components/VaultGate';
@@ -35,6 +36,7 @@ import { chord } from './platform';
 import { useUpdate } from './store/updater';
 import type { DraftTarget } from './publish';
 import type { Entry } from './store/vault';
+import { checkArticle, type PreflightIssue } from './preflight';
 import './styles.css';
 
 /** Minimum editor width, preserved while dragging — which is what lets the preview reach desktop width */
@@ -139,6 +141,9 @@ function Workspace({ vault }: { vault: VaultApi }) {
 
   /** A copy is running (remote images have to be fetched first) */
   const [copying, setCopying] = useState(false);
+  /** Copy warnings wait here until the user decides whether to continue. */
+  const [copyIssues, setCopyIssues] = useState<PreflightIssue[]>([]);
+  const [copyCheckOpen, setCopyCheckOpen] = useState(false);
   /** "From a link": the dialog, and the folder the new draft should land in */
   const [importOpen, setImportOpen] = useState(false);
   const [importParent, setImportParent] = useState('');
@@ -550,7 +555,18 @@ function Workspace({ vault }: { vault: VaultApi }) {
     void vault.addImage(name, dataUrl).catch(() => flash('图片保存失败'));
   };
 
-  const handleCopy = async () => {
+  const articleCheckInput = useMemo(
+    () => ({
+      markdown,
+      availableImages: new Set(Object.keys(imageIndex)),
+      referencedImages: collectImageRefs(markdown),
+      frontMatterEnabled: !!theme.components?.frontMatter,
+      linkFootnotes,
+    }),
+    [markdown, imageIndex, theme.components?.frontMatter, linkFootnotes],
+  );
+
+  const performCopy = async () => {
     if (copying) return;
     setCopying(true);
     try {
@@ -577,6 +593,16 @@ function Workspace({ vault }: { vault: VaultApi }) {
     } finally {
       setCopying(false);
     }
+  };
+
+  const handleCopy = () => {
+    const issues = checkArticle(articleCheckInput);
+    if (issues.length) {
+      setCopyIssues(issues);
+      setCopyCheckOpen(true);
+      return;
+    }
+    void performCopy();
   };
 
   /* ---------------- Export ---------------- */
@@ -832,6 +858,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
         open={publishOpen}
         onClose={closePublish}
         defaultTitle={defaultTitle}
+        articleCheckInput={articleCheckInput}
+        articleHasImage={result.hasImage}
         buildHtml={buildArticleHtml}
         onFlash={flash}
         target={publishTarget}
@@ -849,6 +877,15 @@ function Workspace({ vault }: { vault: VaultApi }) {
           // 推草稿 again afterwards comes back with the new credentials
           setPublishOpen(false);
           setSettingsOpen(true);
+        }}
+      />
+      <PreflightDialog
+        open={copyCheckOpen}
+        issues={copyIssues}
+        onClose={() => setCopyCheckOpen(false)}
+        onContinue={() => {
+          setCopyCheckOpen(false);
+          void performCopy();
         }}
       />
       <DraftBoxDialog

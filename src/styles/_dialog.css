@@ -372,6 +372,49 @@
   word-break: break-word;
 }
 
+/* Publishing checks are compact enough to live inside the existing push
+   dialog; copy uses the same list only when there is something to review. */
+.preflight-modal { width: min(580px, 100%); }
+
+.preflight-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 2px;
+}
+
+.preflight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.preflight-item.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.preflight-item > svg { flex: none; margin-top: 1px; }
+.preflight-item strong,
+.preflight-item span { display: block; }
+.preflight-item strong { font-size: 11.5px; line-height: 1.4; }
+.preflight-item span { margin-top: 2px; font-size: 10.5px; line-height: 1.55; color: var(--text-2); word-break: break-word; }
+
+.preflight-clear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px;
+  margin: 8px 0 2px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--ok);
+  font-size: 11.5px;
+}
+
 /* ---------------- Vault gate ---------------- */
 
 /* The blank frame while the vault opens. No skeleton screen — reading a

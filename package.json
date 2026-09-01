@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test:preflight": "node --experimental-strip-types --test src/preflight.test.ts",
     "preview": "vite preview",
     "app": "tauri dev",
     "app:build": "tauri build --no-sign",
