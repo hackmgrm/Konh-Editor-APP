@@ -476,7 +476,12 @@ export async function uploadArticleImages(
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const imgs = Array.from(doc.querySelectorAll('img'));
   const targets = imgs
-    .map((img, i) => ({ img, src: img.getAttribute('src') ?? '', name: imageName(img.getAttribute('alt') ?? '', i) }))
+    .map((img, i) => ({
+      img,
+      src: img.getAttribute('src') ?? '',
+      name: imageName(img.getAttribute('alt') ?? '', i),
+      coverEligible: img.getAttribute('data-no-cover') !== 'true',
+    }))
     .filter((t) => t.src && !isWechatCdn(t.src));
   if (!targets.length)
     return { html, uploaded: 0, smallestEdge: null, firstMediaId: null, roundTrip: null };
@@ -503,7 +508,7 @@ export async function uploadArticleImages(
         const source: ImageSource = t.src.startsWith('data:') ? { dataUrl: t.src } : { url: t.src };
         const { url, mediaId, measured } = await uploadOne(cfg, token, source, t.name);
         resolved.set(t.src, url);
-        if (!firstMediaId && mediaId) firstMediaId = mediaId;
+        if (!firstMediaId && mediaId && t.coverEligible) firstMediaId = mediaId;
         // Checking the first image is enough to settle it; no need to fetch
         // every one back
         if (measured && !roundTrip) {

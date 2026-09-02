@@ -109,6 +109,7 @@ export async function publishMinimalTest(cfg: WechatConfig): Promise<string> {
 function firstImage(html: string): { source: ImageSourceInput; filename: string } | null {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   for (const img of Array.from(doc.querySelectorAll('img'))) {
+    if (img.getAttribute('data-no-cover') === 'true') continue;
     const src = img.getAttribute('src') ?? '';
     if (!src) continue;
     const name = (img.getAttribute('alt') ?? '').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 40) || 'cover';

@@ -12,7 +12,7 @@ import markdownItMark from 'markdown-it-mark';
 import type { HLJSApi } from 'highlight.js';
 import { applyDensity, getTheme, type DensityScale, type Theme, st } from './theme';
 import { parseFrontMatter, type FrontMatter } from './frontMatter';
-import { BRAND_LOGO_DATA_URL } from './brandLogo';
+import { BRAND_FOLLOW_GUIDE_DATA_URL, BRAND_WECHAT_PROFILE_URL } from './brandFollowGuide';
 
 /**
  * Lazy-loaded highlight.js.
@@ -1442,8 +1442,11 @@ function buildHero(fm: FrontMatter, th: Theme): string {
       ? `<p style="${st({ 'font-size': '14px', color: c.sub, margin: '0', 'line-height': '1.7' })}">${esc(subtitle)}</p>`
       : '') +
     `</section>` +
-    `<section style="${st({ 'flex-shrink': '0', width: '96px', display: 'flex', 'align-items': 'center', 'justify-content': 'center' })}">` +
-    `<img src="${BRAND_LOGO_DATA_URL}" alt="${esc('空核域界')}" style="${st({ width: '80px', height: '80px', display: 'block', 'border-radius': '18px' })}" />` +
+    `<section style="${st({ 'flex-shrink': '0', width: '104px', 'align-self': 'flex-start', background: c.ink, 'border-radius': '7px', padding: '11px 10px 10px', 'box-sizing': 'border-box' })}">` +
+    `<span style="${st({ width: '18px', height: '3px', display: 'block', background: '#ed7b2f', 'border-radius': '2px', 'margin-bottom': '9px' })}"></span>` +
+    `<span style="${st({ display: 'block', color: '#ffffff', 'font-size': '12px', 'font-weight': '800', 'letter-spacing': '1px', 'line-height': '1.2', 'margin-bottom': '7px' })}">${esc('空核域界')}</span>` +
+    `<span style="${st({ display: 'block', color: 'rgba(255,255,255,0.92)', 'font-size': '14px', 'font-weight': '700', 'line-height': '1.35', 'margin-bottom': '9px' })}">${esc('全球货运')}<br />${esc('新视角')}</span>` +
+    `<span style="${st({ display: 'block', color: '#ed7b2f', 'font-size': '8px', 'font-weight': '700', 'letter-spacing': '0.6px', 'line-height': '1.2' })}">${esc('AIR CARGO × AI')}</span>` +
     `</section>` +
     `</section>` +
     `</section>` +
@@ -1491,12 +1494,8 @@ function buildIntroCard(text: string, th: Theme): string {
 }
 
 /** Signature + engagement card: author line, 点赞/在看/收藏, sign-off. */
-function buildSignature(author: string, th: Theme): string {
+function buildSignature(_author: string, th: Theme): string {
   const c = comp(th);
-  const requestedAuthor = author.trim();
-  // Existing 空运新视角 drafts belong to the renamed brand. Preserve any
-  // other explicit byline so guest-authored articles still work.
-  const a = !requestedAuthor || requestedAuthor === '空运新视角' ? '空核域界' : requestedAuthor;
   const icon = (glyph: string, label: string, fill: string, txt: string) =>
     `<section style="${st({ 'text-align': 'center', color: txt })}">` +
     `<section style="${st({ width: '40px', height: '40px', display: 'flex', 'align-items': 'center', 'justify-content': 'center', margin: '0 auto 6px', background: fill, 'border-radius': '6px', border: `1px solid ${c.border}` })}">` +
@@ -1506,11 +1505,9 @@ function buildSignature(author: string, th: Theme): string {
     `</section>`;
   return (
     `<section style="margin-top:24px;">` +
-    `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '18px 20px', 'font-family': th.body.font })}">` +
-    `<p style="${st({ margin: '0 0 10px', 'font-size': '14px', 'font-weight': '700', color: c.ink, 'line-height': '1.8' })}">${esc(
-      `我是 ${a}，以国际航空货运为核心，合纵连横且围绕着包括但不仅限于物流、航空、科技、AI、新媒体等横向思维相关内容，为你开启全新视角。`,
-    )}</p>` +
-    `</section>` +
+    `<a href="${BRAND_WECHAT_PROFILE_URL}" target="_blank" rel="noopener noreferrer" style="${st({ display: 'block', color: 'inherit', 'text-decoration': 'none' })}">` +
+    `<img src="${BRAND_FOLLOW_GUIDE_DATA_URL}" alt="${esc('关注并星标空核域界')}" data-no-cover="true" style="${st({ 'max-width': '100%', height: 'auto', display: 'block', margin: '0 auto', 'border-radius': '8px' })}" />` +
+    `</a>` +
     `</section>` +
     `<section style="margin-top:18px;">` +
     `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '22px 16px', 'text-align': 'center', 'font-family': th.body.font })}">` +
@@ -1610,7 +1607,7 @@ export function renderArticle(
     body,
     previewBody,
     html,
-    hasImage: /<img\s/i.test(previewBody),
+    hasImage: /<img\b(?![^>]*\bdata-no-cover="true")[^>]*>/i.test(previewBody),
     title,
     hasHero: fm !== null,
   };
