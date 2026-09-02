@@ -12,6 +12,7 @@ import markdownItMark from 'markdown-it-mark';
 import type { HLJSApi } from 'highlight.js';
 import { applyDensity, getTheme, type DensityScale, type Theme, st } from './theme';
 import { parseFrontMatter, type FrontMatter } from './frontMatter';
+import { BRAND_LOGO_DATA_URL } from './brandLogo';
 
 /**
  * Lazy-loaded highlight.js.
@@ -1441,9 +1442,8 @@ function buildHero(fm: FrontMatter, th: Theme): string {
       ? `<p style="${st({ 'font-size': '14px', color: c.sub, margin: '0', 'line-height': '1.7' })}">${esc(subtitle)}</p>`
       : '') +
     `</section>` +
-    `<section style="${st({ 'flex-shrink': '0', width: '96px', display: 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center', background: c.olive, border: `1px dashed ${c.border}`, 'border-radius': '6px', padding: '8px' })}">` +
-    `<span style="${st({ 'font-size': '22px', 'font-weight': '800', color: c.ink, 'line-height': '1' })}">空</span>` +
-    `<span style="${st({ 'font-size': '9px', 'font-weight': '700', color: c.weak, 'letter-spacing': '1px', 'margin-top': '4px' })}">${esc('空核域界')}</span>` +
+    `<section style="${st({ 'flex-shrink': '0', width: '96px', display: 'flex', 'align-items': 'center', 'justify-content': 'center' })}">` +
+    `<img src="${BRAND_LOGO_DATA_URL}" alt="${esc('空核域界')}" style="${st({ width: '80px', height: '80px', display: 'block', 'border-radius': '18px' })}" />` +
     `</section>` +
     `</section>` +
     `</section>` +
