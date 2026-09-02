@@ -140,7 +140,9 @@ export interface Article {
 function explainStatus(status: number, hasKey: boolean): string {
   switch (status) {
     case 401:
-      return 'Jina 的 key 不对，去设置里改一下，或者干脆清空 —— 不填 key 也能用。';
+      return hasKey
+        ? 'Jina 的 key 不对，去设置里改一下，或者清空后改用匿名访问。'
+        : '你没有填 Jina key。Jina 拒绝了当前网络的匿名请求（通常是出口 IP 信誉限制）；换个网络，或填入 key 后再试。';
     case 402:
       return 'Jina 这个 key 的额度用完了。清空 key 就回到免费额度，或者去 jina.ai 充值。';
     case 429:
@@ -205,6 +207,18 @@ export async function fetchArticle(url: string, signal?: AbortSignal): Promise<A
       body: `url=${encodeURIComponent(url)}`,
       signal: guard.signal,
     });
+    // Jina's anonymous edge occasionally rejects one request on network
+    // reputation and accepts the documented prefix form immediately after.
+    // Keep keyless Reader useful without changing the normal POST path.
+    if (res.status === 401 && !key) {
+      const retryHeaders = { ...headers };
+      delete retryHeaders['Content-Type'];
+      res = await fetch(`${ENDPOINT}${url}`, {
+        method: 'GET',
+        headers: retryHeaders,
+        signal: guard.signal,
+      });
+    }
   } catch (err) {
     if (signal?.aborted) throw new Error('已取消');
     if (guard.signal.aborted) throw new Error('抓取超时了，这个页面可能加载太慢。');

@@ -846,6 +846,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             onChange={setMarkdown}
             onAddImage={handleAddImage}
             imageNames={imageNames}
+            imageIndex={imageIndex}
             draftId={activeId}
             sync={scrollSync}
             jumpRequest={jumpRequest}
@@ -854,6 +855,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             saving={saving}
             vaultDir={vault.dir ?? ''}
             typewriterMode={typewriterMode}
+            focusMode={isFocus}
           />
           <div
             className="split-bar"

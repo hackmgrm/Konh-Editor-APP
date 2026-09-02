@@ -1600,7 +1600,11 @@ export function renderArticle(
     'line-height': th.body.lineHeight,
     color: th.body.color,
     'word-break': 'break-word',
-    ...(th.body.bg ? { background: th.body.bg } : {}),
+    // A light article already sits on WeChat's own paper. Pinning a nearly
+    // white background here makes WeChat's dark-mode converter turn the whole
+    // article into a second, slightly different dark rectangle. Dark themes
+    // still need their canvas or their light text disappears in light mode.
+    ...(th.appearance === 'dark' && th.body.bg ? { background: th.body.bg } : {}),
   })}">${previewBody}</section>`;
   return {
     body,

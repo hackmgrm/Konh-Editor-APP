@@ -381,7 +381,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
               <a href={READER_HOME} target="_blank" rel="noopener noreferrer" className="ext-link">
                 Jina Reader <ArrowSquareOut size={11} weight="bold" />
               </a>
-              —— 不填 key 也能用，每分钟 20 次。填一个免费 key 可以提到每分钟 500 次。
+              —— 通常不填 key 也能用，每分钟 20 次；部分被 Jina 限制的网络需要 key。填一个免费 key 可以提到每分钟 500 次。
               这是本应用里唯一一处会经过第三方的请求，发过去的只有你要导入的那个网址。
             </p>
             <label className="field">

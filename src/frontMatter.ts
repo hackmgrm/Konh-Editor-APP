@@ -1,6 +1,9 @@
 export type FrontMatter = Record<string, string>;
 
-const BLOCK_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+// Accept a longer closing rule as well. Some writing tools visually extend the
+// delimiter (`-------------`); it still belongs to the metadata block rather
+// than to the article body.
+const BLOCK_RE = /^-{3,}[ \t]*\r?\n([\s\S]*?)\r?\n-{3,}[ \t]*(?:\r?\n|$)/;
 
 /** Read the simple string-valued front matter used by article themes. */
 export function parseFrontMatter(src: string): { data: FrontMatter; content: string } | null {

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowCounterClockwise, Code, CodeBlock, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Sparkle, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { Decoration, EditorView, keymap, lineNumbers, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from '@codemirror/commands';
 import { searchKeymap } from '@codemirror/search';
 import { autocompletion } from '@codemirror/autocomplete';
@@ -106,6 +106,8 @@ interface Props {
   onAddImage: (name: string, dataUrl: string) => void;
   /** Names of imported images, for ![[ completion */
   imageNames: string[];
+  /** Resolved local image URLs used by focus-mode image widgets. */
+  imageIndex: Record<string, string>;
   /** Id of the open draft: switching drafts forces a doc sync */
   draftId: string;
   /** Scroll-sync channel: publishes the source position at the editor's top edge */
@@ -124,10 +126,149 @@ interface Props {
   jumpRequest: { line: number; nonce: number } | null;
   vaultDir: string;
   typewriterMode: boolean;
+  /** Focus mode turns the source pane into a Typora-like immediate preview. */
+  focusMode: boolean;
+}
+
+class FocusSymbolWidget extends WidgetType {
+  constructor(private text: string, private className: string) { super(); }
+  eq(other: FocusSymbolWidget) { return other.text === this.text && other.className === this.className; }
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = this.className;
+    span.textContent = this.text;
+    return span;
+  }
+}
+
+class FocusImageWidget extends WidgetType {
+  constructor(private src: string, private alt: string) { super(); }
+  eq(other: FocusImageWidget) { return other.src === this.src && other.alt === this.alt; }
+  toDOM() {
+    const wrap = document.createElement('span');
+    wrap.className = 'focus-image';
+    const image = document.createElement('img');
+    image.src = this.src;
+    image.alt = this.alt;
+    image.loading = 'lazy';
+    wrap.appendChild(image);
+    return wrap;
+  }
+}
+
+/**
+ * Typora-like presentation for focus mode. Only inactive lines are decorated:
+ * moving the caret into a line reveals its exact Markdown, so editing never
+ * needs a lossy HTML → Markdown round trip.
+ */
+function focusDecorations(view: EditorView, images: Record<string, string>): DecorationSet {
+  const ranges: { from: number; to: number; value: Decoration }[] = [];
+  const active = view.state.doc.lineAt(view.state.selection.main.head).number;
+  let fenced = false;
+  let frontMatter = /^-{3,}$/.test(view.state.doc.line(1).text.trim());
+
+  const replace = (from: number, to: number, text = '', className = 'focus-symbol') => {
+    ranges.push({ from, to, value: text
+      ? Decoration.replace({ widget: new FocusSymbolWidget(text, className) })
+      : Decoration.replace({}) });
+  };
+  const mark = (from: number, to: number, className: string) => {
+    if (to > from) ranges.push({ from, to, value: Decoration.mark({ class: className }) });
+  };
+
+  for (let number = 1; number <= view.state.doc.lines; number++) {
+    const line = view.state.doc.line(number);
+    const text = line.text;
+    const trim = text.trim();
+    if (trim.startsWith('```') || trim.startsWith('~~~')) {
+      if (number !== active) mark(line.from, line.to, 'focus-code-fence');
+      fenced = !fenced;
+      continue;
+    }
+    if (frontMatter) {
+      ranges.push({ from: line.from, to: line.from, value: Decoration.line({ class: 'focus-front-matter-hidden' }) });
+      if (number > 1 && /^-{3,}$/.test(trim)) frontMatter = false;
+      continue;
+    }
+    if (fenced || number === active || !text) continue;
+
+    const heading = text.match(/^(#{1,6})\s+/);
+    if (heading) {
+      replace(line.from, line.from + heading[0].length);
+      ranges.push({ from: line.from, to: line.from, value: Decoration.line({ class: `focus-heading-line focus-h${heading[1].length}` }) });
+    } else if (/^\s{0,3}((\*|_|-)\s*){3,}$/.test(text)) {
+      ranges.push({ from: line.from, to: line.to, value: Decoration.replace({ widget: new FocusSymbolWidget('', 'focus-rule') }) });
+      continue;
+    } else {
+      const quote = text.match(/^\s*>\s?/);
+      if (quote) {
+        replace(line.from, line.from + quote[0].length, '“', 'focus-quote-mark');
+        ranges.push({ from: line.from, to: line.from, value: Decoration.line({ class: 'focus-quote-line' }) });
+      }
+      const task = text.match(/^(\s*)[-*+]\s+\[([ xX])\]\s+/);
+      const bullet = text.match(/^(\s*)[-*+]\s+/);
+      const ordered = text.match(/^(\s*)\d+[.)]\s+/);
+      if (task) replace(line.from + task[1].length, line.from + task[0].length, task[2] === ' ' ? '☐' : '☑', 'focus-task-mark');
+      else if (bullet) replace(line.from + bullet[1].length, line.from + bullet[0].length, '•', 'focus-list-mark');
+      else if (ordered) mark(line.from + ordered[1].length, line.from + ordered[0].length, 'focus-list-mark');
+    }
+
+    const occupied: [number, number][] = [];
+    const addPattern = (regex: RegExp, contentClass: string, openOffset: number, closeOffset: number) => {
+      for (const match of text.matchAll(regex)) {
+        const start = match.index ?? 0;
+        const end = start + match[0].length;
+        if (occupied.some(([a, b]) => start < b && end > a)) continue;
+        const contentStart = start + openOffset;
+        const contentEnd = end - closeOffset;
+        replace(line.from + start, line.from + contentStart);
+        mark(line.from + contentStart, line.from + contentEnd, contentClass);
+        replace(line.from + contentEnd, line.from + end);
+        occupied.push([start, end]);
+      }
+    };
+
+    for (const match of text.matchAll(/!\[([^\]]*)\]\(([^)]+)\)|!\[\[([^\]]+)\]\]/g)) {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      const name = (match[3] ?? match[1] ?? '').trim();
+      const source = match[3] ? images[name] : (images[match[2]] ?? match[2]);
+      if (!source) continue;
+      ranges.push({ from: line.from + start, to: line.from + end, value: Decoration.replace({ widget: new FocusImageWidget(source, name) }) });
+      occupied.push([start, end]);
+    }
+    addPattern(/\*\*([^*\n]+)\*\*/g, 'focus-strong', 2, 2);
+    addPattern(/__([^_\n]+)__/g, 'focus-strong', 2, 2);
+    addPattern(/~~([^~\n]+)~~/g, 'focus-strike', 2, 2);
+    addPattern(/`([^`\n]+)`/g, 'focus-inline-code', 1, 1);
+    addPattern(/\*([^*\n]+)\*/g, 'focus-em', 1, 1);
+    addPattern(/_([^_\n]+)_/g, 'focus-em', 1, 1);
+    for (const match of text.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      if (occupied.some(([a, b]) => start < b && end > a)) continue;
+      replace(line.from + start, line.from + start + 1);
+      mark(line.from + start + 1, line.from + start + 1 + match[1].length, 'focus-link');
+      replace(line.from + start + 1 + match[1].length, line.from + end);
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
+function focusModePlugin(images: React.MutableRefObject<Record<string, string>>) {
+  return ViewPlugin.fromClass(class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = focusDecorations(view, images.current); }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged) {
+        this.decorations = focusDecorations(update.view, images.current);
+      }
+    }
+  }, { decorations: (plugin) => plugin.decorations });
 }
 
 const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
-  { value, onChange, onAddImage, imageNames, draftId, sync, collapsed, widthPct, saving, jumpRequest, vaultDir, typewriterMode },
+  { value, onChange, onAddImage, imageNames, imageIndex, draftId, sync, collapsed, widthPct, saving, jumpRequest, vaultDir, typewriterMode, focusMode },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -140,6 +281,9 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   // once at mount, so a direct closure would be stuck on the empty list forever
   const imageNamesRef = useRef(imageNames);
   imageNamesRef.current = imageNames;
+  const focusImagesRef = useRef<Record<string, string>>({});
+  focusImagesRef.current = imageIndex;
+  const focusCompartmentRef = useRef(new Compartment());
   /** The text last reported upward — tells "I typed that" from "someone else did" */
   const lastEmittedRef = useRef(value);
 
@@ -214,6 +358,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
           }),
           editorTheme,
           syntaxHighlighting(markdownHighlight),
+          focusCompartmentRef.current.of(focusMode ? focusModePlugin(focusImagesRef) : []),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const next = update.state.doc.toString();
@@ -274,6 +419,14 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   useEffect(() => {
     if (viewRef.current) viewRef.current.dom.dataset.typewriter = String(typewriterMode);
   }, [typewriterMode]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: focusCompartmentRef.current.reconfigure(focusMode ? focusModePlugin(focusImagesRef) : []),
+    });
+  }, [focusMode, imageIndex]);
 
   // Content sync: when the draft changes (draftId) or value changes from the
   // outside (import, cleanup), replace the doc wholesale if it differs and keep
@@ -563,7 +716,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   return (
     <section
       ref={ref}
-      className={`split-pane surface editor-side ${collapsed ? 'collapsed' : ''}`}
+      className={`split-pane surface editor-side ${collapsed ? 'collapsed' : ''} ${focusMode ? 'typora-focus' : ''}`}
       style={{ width: `${widthPct}%` }}
     >
       <div className="pane-head">

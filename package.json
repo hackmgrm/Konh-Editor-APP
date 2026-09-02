@@ -1,12 +1,13 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:preflight": "node --experimental-strip-types --test src/preflight.test.ts",
+    "test:front-matter": "node --experimental-strip-types --test src/frontMatter.test.ts",
     "test:content-state": "node --experimental-strip-types --test src/store/contentState.test.ts",
     "preview": "vite preview",
     "app": "tauri dev",
