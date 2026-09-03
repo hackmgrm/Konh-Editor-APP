@@ -40,6 +40,7 @@ import type { Entry } from './store/vault';
 import { checkArticle, type PreflightIssue } from './preflight';
 import { getWechatConfig } from './store/wechatConfig';
 import { addPublishRecord, addVersion, articleKey as makeArticleKey, loadContentState, saveContentState, type ContentState } from './store/contentState';
+import { draftTitle, syncedDraftFileName } from './draftNaming';
 import './styles.css';
 
 /** Minimum editor width, preserved while dragging — which is what lets the preview reach desktop width */
@@ -107,6 +108,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const activeDraft = drafts.find((d) => d.id === prefs.activeId) ?? drafts[0];
   const activeId = activeDraft?.id ?? '';
   const markdown = activeDraft?.content ?? '';
+  const draftPathsRef = useRef<string[]>([]);
+  draftPathsRef.current = drafts.map((draft) => draft.id);
   const setMarkdown = (v: string) => {
     if (activeId) vault.setDraftContent(activeId, v);
   };
@@ -250,6 +253,23 @@ function Workspace({ vault }: { vault: VaultApi }) {
     () => customThemes.find((t) => t.id === themeId) ?? getTheme(themeId),
     [themeId, customThemes],
   );
+
+  // The article title is the source of truth for its filename. Wait for a quiet
+  // typing window so a title is renamed once, not once per keystroke.
+  useEffect(() => {
+    if (!activeId) return;
+    const title = draftTitle(markdown, theme.id === 'olive-journal');
+    if (!title) return;
+
+    const timer = window.setTimeout(() => {
+      const nextName = syncedDraftFileName(title, activeId, draftPathsRef.current);
+      if (baseName(activeId) === nextName) return;
+      void vault.renameEntry(activeId, nextName).catch((error) => {
+        console.warn('标题同步文件名失败', error);
+      });
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [activeId, markdown, theme.id, vault.renameEntry]);
   const density = useMemo(() => getDensity(densityId), [densityId]);
   const densityName = useMemo(
     () => DENSITIES.find((d) => d.id === densityId)?.name ?? '标准',
@@ -846,7 +866,6 @@ function Workspace({ vault }: { vault: VaultApi }) {
             onChange={setMarkdown}
             onAddImage={handleAddImage}
             imageNames={imageNames}
-            imageIndex={imageIndex}
             draftId={activeId}
             sync={scrollSync}
             jumpRequest={jumpRequest}

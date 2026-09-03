@@ -39,6 +39,11 @@
   color: var(--accent-hi);
 }
 
+.md-toolbar-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
 .md-toolbar-btn:active {
   transform: scale(0.88);
 }
@@ -202,6 +207,37 @@
   outline: none;
 }
 
+/* Instant-render mode keeps Markdown underneath, but lets the editing surface
+   read like the article. Moving the caret onto a line reveals its markers. */
+.code-edit .cm-editor[data-instant-render='true'] .cm-scroller {
+  font-family: var(--sans);
+}
+
+.code-edit .cm-editor[data-instant-render='true'] .instant-heading {
+  color: var(--text-1);
+  line-height: 1.4;
+}
+
+.code-edit .cm-editor[data-instant-render='true'] .instant-heading-1 {
+  font-size: 1.65em;
+  font-weight: 750;
+}
+
+.code-edit .cm-editor[data-instant-render='true'] .instant-heading-2 {
+  font-size: 1.35em;
+  font-weight: 700;
+}
+
+.code-edit .cm-editor[data-instant-render='true'] .instant-heading-3 {
+  font-size: 1.17em;
+  font-weight: 700;
+}
+
+.code-edit .cm-editor[data-instant-render='true'] .instant-heading-4 {
+  font-size: 1.05em;
+  font-weight: 700;
+}
+
 /* The autocomplete popup for ![[image names */
 .code-edit .cm-tooltip.cm-tooltip-autocomplete {
   border: 1px solid var(--line);
@@ -259,78 +295,9 @@
   font-synthesis-style: none;
 }
 
-/* ---------------- Focus mode: immediate Markdown rendering ----------------
-   The document remains plain Markdown. Inactive lines hide their punctuation;
-   the caret line deliberately falls back to the ordinary source presentation. */
-.typora-focus .md-toolbar { display: none; }
-.typora-focus .code-edit .cm-gutters { display: none; }
-.typora-focus .code-edit .cm-scroller {
-  font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.9;
-}
-.typora-focus .code-edit .cm-content {
-  width: min(720px, calc(100% - 64px));
-  margin: 0 auto;
-  padding: 42px 0 160px;
-}
-.typora-focus .code-edit .cm-line {
-  padding: 2px 0;
-}
-.typora-focus .code-edit .cm-activeLine {
-  background: var(--accent-softer);
-  box-shadow: -10px 0 0 var(--accent-softer), 10px 0 0 var(--accent-softer);
-}
-.typora-focus .focus-heading-line { color: var(--text-1); line-height: 1.35; }
-.typora-focus .focus-h1 { font-size: 2em; font-weight: 750; margin-top: .7em; }
-.typora-focus .focus-h2 { font-size: 1.55em; font-weight: 720; margin-top: .55em; }
-.typora-focus .focus-h3 { font-size: 1.28em; font-weight: 700; margin-top: .4em; }
-.typora-focus .focus-h4,
-.typora-focus .focus-h5,
-.typora-focus .focus-h6 { font-size: 1.08em; font-weight: 700; }
-.typora-focus .focus-strong { font-weight: 750; color: var(--text-1); }
-.typora-focus .focus-em { font-style: italic; }
-.typora-focus .focus-strike { text-decoration: line-through; color: var(--text-3); }
-.typora-focus .focus-link { color: var(--accent-hi); text-decoration: underline; text-underline-offset: 3px; }
-.typora-focus .focus-inline-code {
-  padding: 2px 5px;
-  border: 1px solid var(--line-hair);
-  border-radius: 4px;
-  background: var(--surface-3);
-  color: var(--accent-hi);
-  font: .88em/1.5 var(--mono);
-}
-.typora-focus .focus-quote-line {
-  color: var(--text-2);
-  background: var(--accent-softer);
-  box-shadow: -12px 0 0 var(--accent-softer), 12px 0 0 var(--accent-softer);
-}
-.typora-focus .focus-quote-mark { color: var(--accent); font: 700 1.2em Georgia, serif; margin-right: 7px; }
-.typora-focus .focus-list-mark,
-.typora-focus .focus-task-mark { color: var(--accent); font-weight: 700; margin-right: 8px; }
-.typora-focus .focus-code-fence { color: var(--text-3); font-family: var(--mono); font-size: .82em; }
-.typora-focus .cm-line.focus-front-matter-hidden { display: none; }
-.typora-focus .focus-rule {
-  display: inline-block;
-  width: 100%;
-  height: 1px;
-  margin: 12px 0 5px;
-  background: var(--line-strong);
-  vertical-align: middle;
-}
-.typora-focus .focus-image {
-  display: inline-flex;
-  width: 100%;
-  margin: 14px 0;
-  justify-content: center;
-}
-.typora-focus .focus-image img {
-  display: block;
-  max-width: 100%;
-  max-height: 520px;
-  border-radius: var(--r-sm);
-  box-shadow: var(--shadow-1);
-}
+/* Focus stays a stable source editor; only the brand metadata preamble is
+   hidden because it has a dedicated properties form above the document. */
+.focus-source .cm-line.focus-front-matter-hidden { display: none; }
 .selection-agent { position: absolute; z-index: 20; left: 28px; right: 28px; bottom: 28px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-1); box-shadow: var(--shadow-lg); }
 .selection-agent-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .selection-agent label { display: grid; gap: 5px; font-size: 12px; color: var(--text-2); }

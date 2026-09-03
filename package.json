@@ -1,7 +1,7 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "test:preflight": "node --experimental-strip-types --test src/preflight.test.ts",
     "test:front-matter": "node --experimental-strip-types --test src/frontMatter.test.ts",
     "test:content-state": "node --experimental-strip-types --test src/store/contentState.test.ts",
+    "test:draft-naming": "node --experimental-strip-types --test src/draftNaming.test.ts",
     "preview": "vite preview",
     "app": "tauri dev",
     "app:build": "tauri build --no-sign",

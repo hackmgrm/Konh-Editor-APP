@@ -12,7 +12,7 @@ import markdownItMark from 'markdown-it-mark';
 import type { HLJSApi } from 'highlight.js';
 import { applyDensity, getTheme, type DensityScale, type Theme, st } from './theme';
 import { parseFrontMatter, type FrontMatter } from './frontMatter';
-import { BRAND_FOLLOW_GUIDE_DATA_URL, BRAND_WECHAT_PROFILE_URL } from './brandFollowGuide';
+import { BRAND_FOLLOW_GUIDE_DATA_URL } from './brandFollowGuide';
 
 /**
  * Lazy-loaded highlight.js.
@@ -1465,6 +1465,7 @@ function introCardOpen(th: Theme, line?: number): string {
   return (
     `<section${dl} style="${st({
       'margin-top': '24px',
+      'margin-bottom': '24px',
       background: c.cardBg,
       border: `1px solid ${c.border}`,
       'border-radius': '6px',
@@ -1505,9 +1506,7 @@ function buildSignature(_author: string, th: Theme): string {
     `</section>`;
   return (
     `<section style="margin-top:24px;">` +
-    `<a href="${BRAND_WECHAT_PROFILE_URL}" target="_blank" rel="noopener noreferrer" style="${st({ display: 'block', color: 'inherit', 'text-decoration': 'none' })}">` +
     `<img src="${BRAND_FOLLOW_GUIDE_DATA_URL}" alt="${esc('关注并星标空核域界')}" data-no-cover="true" style="${st({ 'max-width': '100%', height: 'auto', display: 'block', margin: '0 auto', 'border-radius': '8px' })}" />` +
-    `</a>` +
     `</section>` +
     `<section style="margin-top:18px;">` +
     `<section style="${st({ background: c.cardBg, border: `1px solid ${c.border}`, 'border-radius': '6px', padding: '22px 16px', 'text-align': 'center', 'font-family': th.body.font })}">` +
