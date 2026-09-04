@@ -1218,6 +1218,105 @@ export const sandGoldJournalTheme: Theme = {
   strongColor: '#4E3822', link: { color: '#9A6A2F', textDecoration: 'underline' },
 };
 
+/** Seven editorial presets adapted from DeepTalk's ISC-licensed design
+ * references. Brand names are intentionally replaced with descriptive Chinese
+ * names; the presets preserve the visual ideas without implying affiliation. */
+export const orbitalBlackTheme: Theme = {
+  ...darkTheme,
+  id: 'orbital-black', name: '航际黑', description: '纯黑航天电影感，大字留白与幽灵白线框，适合航空和航线专题',
+  body: { ...darkTheme.body, color: '#f0f0fa', bg: '#000000', lineHeight: '1.9' },
+  accent: '#f0f0fa', accentSoft: 'rgba(240,240,250,.10)',
+  heading: { ...darkTheme.heading, color: '#f0f0fa', letterSpacing: '0.8px', decor: 'accent-bar' },
+  quote: { ...darkTheme.quote, background: 'rgba(240,240,250,.06)', color: '#d5d5df', borderLeft: '1px solid rgba(240,240,250,.35)', borderRadius: '0' },
+  callout: { ...darkTheme.callout, background: 'rgba(240,240,250,.10)', color: '#f0f0fa', borderLeft: '1px solid rgba(240,240,250,.35)', borderRadius: '18px' },
+  codeBlock: { ...darkTheme.codeBlock, background: '#09090b', color: '#f0f0fa', borderRadius: '0', extra: { border: '1px solid rgba(240,240,250,.22)' } },
+  table: { ...darkTheme.table, borderColor: 'rgba(240,240,250,.25)', headBg: '#111115', headColor: '#f0f0fa', style: 'minimal' },
+  hr: { color: 'rgba(240,240,250,.35)', margin: '38px 0', style: 'line', width: '28%' },
+  img: { borderRadius: '0', margin: '28px auto', caption: true }, strongColor: '#ffffff', link: { color: '#f0f0fa', textDecoration: 'underline' },
+};
+
+export const businessWarmGrayTheme: Theme = {
+  ...creamTheme,
+  id: 'business-warm-gray', name: '商务暖灰', description: '暖灰年报纸张、墨黑正文与信号橙点睛，适合货代服务和企业观察',
+  body: { ...creamTheme.body, color: '#262627', bg: '#F3F0EE', lineHeight: '1.9' },
+  accent: '#CF4500', accentSoft: '#FCFBFA',
+  heading: { ...creamTheme.heading, color: '#141413', letterSpacing: '-0.2px', decor: 'center-rule' },
+  quote: { ...creamTheme.quote, background: '#FCFBFA', color: '#555555', borderLeft: '3px solid #CF4500', borderRadius: '18px', style: 'card' },
+  callout: { ...creamTheme.callout, background: '#FCFBFA', color: '#262627', borderLeft: '4px solid #CF4500', borderRadius: '18px', badgeBg: '#141413', badgeColor: '#F3F0EE' },
+  table: { ...creamTheme.table, borderColor: '#D1CDC7', headBg: '#141413', headColor: '#F3F0EE', style: 'striped', stripeBg: '#FCFBFA' },
+  hr: { color: '#D1CDC7', margin: '36px 0', style: 'glyph', glyph: '●  ●' },
+  mark: { background: '#F8D8C8', color: '#141413', borderRadius: '999px', padding: '1px 6px' }, strongColor: '#141413', link: { color: '#3860BE', textDecoration: 'underline' },
+};
+
+export const crossBorderPurpleTheme: Theme = {
+  ...minimalTheme,
+  id: 'cross-border-purple', name: '跨境紫', description: '深海军蓝配精致紫，技术与金融并重，适合跨境支付和供应链科技',
+  body: { ...minimalTheme.body, color: '#64748d', bg: '#ffffff', lineHeight: '1.85' },
+  accent: '#533afd', accentSoft: '#f1f0ff',
+  heading: { ...minimalTheme.heading, color: '#061b31', fontWeight: '600', decor: 'left-bar' },
+  quote: { ...minimalTheme.quote, background: '#f7f7ff', color: '#273951', borderLeft: '3px solid #533afd', borderRadius: '8px' },
+  callout: { ...minimalTheme.callout, background: '#f1f0ff', color: '#273951', borderLeft: '3px solid #533afd', borderRadius: '8px' },
+  code: { ...minimalTheme.code, background: '#f1f0ff', color: '#2e2b8c' },
+  codeBlock: { ...minimalTheme.codeBlock, background: '#1c1e54', color: '#ffffff', borderRadius: '10px', chrome: 'dots' },
+  table: { ...minimalTheme.table, borderColor: '#d6d9fc', headBg: '#061b31', headColor: '#ffffff', style: 'minimal' },
+  mark: { background: '#ffd7ef', color: '#061b31', borderRadius: '4px', padding: '1px 4px' }, strongColor: '#061b31', link: { color: '#533afd', textDecoration: 'underline' },
+};
+
+export const industryNewspaperTheme: Theme = {
+  ...typewriterTheme,
+  id: 'industry-newspaper', name: '行业报刊', description: '暖色新闻纸、衬线标题与印刷红，适合行业新闻、政策和市场复盘',
+  body: { ...typewriterTheme.body, font: SERIF, color: '#2d2a26', bg: '#f4f1ea', indent: true, align: 'justify', lineHeight: '1.95' },
+  accent: '#8b1a1a', accentSoft: '#f0ebe0',
+  heading: { ...typewriterTheme.heading, font: SERIF, color: '#1a1a1a', decor: 'rule', align: 'center' },
+  quote: { ...typewriterTheme.quote, background: '#f0ebe0', color: '#2d2a26', borderLeft: '3px solid #8b1a1a', borderRadius: '0', style: 'pull', bigMark: true },
+  callout: { ...typewriterTheme.callout, background: '#f5f0e5', color: '#2d2a26', borderLeft: '3px solid #8b1a1a', borderRadius: '0' },
+  table: { ...typewriterTheme.table, borderColor: '#a09a8d', headBg: '#2d2a26', headColor: '#f4f1ea', style: 'minimal' },
+  hr: { color: '#2d2a26', margin: '36px 0', style: 'double' },
+  img: { borderRadius: '0', margin: '24px auto', caption: true, frame: '1px solid #c5c0b5' },
+  mark: { background: '#e8e4d9', color: '#8b1a1a', borderRadius: '0', padding: '1px 3px' }, strongColor: '#1a1a1a', link: { color: '#1a2a4a', textDecoration: 'underline' },
+};
+
+export const productMinimalTheme: Theme = {
+  ...minimalTheme,
+  id: 'product-minimal', name: '产品极简', description: '黑白灰与单一蓝色强调，清晰克制，适合工具介绍和产品评测',
+  body: { ...minimalTheme.body, color: '#1d1d1f', bg: '#ffffff', fontSize: '17px', lineHeight: '1.72' },
+  accent: '#0071e3', accentSoft: '#f5f5f7',
+  heading: { ...minimalTheme.heading, color: '#1d1d1f', letterSpacing: '-0.3px', decor: 'none' },
+  quote: { ...minimalTheme.quote, background: '#f5f5f7', color: '#424245', borderLeft: '0', borderRadius: '14px', style: 'card' },
+  callout: { ...minimalTheme.callout, background: '#f5f5f7', color: '#1d1d1f', borderLeft: '3px solid #0071e3', borderRadius: '14px' },
+  codeBlock: { ...minimalTheme.codeBlock, background: '#1d1d1f', color: '#f5f5f7', borderRadius: '14px', chrome: 'dots' },
+  table: { ...minimalTheme.table, borderColor: '#d2d2d7', headBg: '#f5f5f7', headColor: '#1d1d1f', style: 'minimal' },
+  hr: { color: '#d2d2d7', margin: '42px 0', style: 'line', width: '16%' }, strongColor: '#000000', link: { color: '#0066cc', textDecoration: 'none' },
+};
+
+export const knowledgeCleanTheme: Theme = {
+  ...minimalTheme,
+  id: 'knowledge-clean', name: '知识清简', description: '温润白纸、暖黑文字与轻蓝提示，适合知识教程和操作指南',
+  body: { ...minimalTheme.body, color: '#31302e', bg: '#ffffff', lineHeight: '1.85' },
+  accent: '#0075de', accentSoft: '#f6f5f4',
+  heading: { ...minimalTheme.heading, color: '#000000', decor: 'underline' },
+  quote: { ...minimalTheme.quote, background: '#f6f5f4', color: '#615d59', borderLeft: '3px solid #31302e', borderRadius: '4px' },
+  callout: { ...minimalTheme.callout, background: '#f2f9ff', color: '#31302e', borderLeft: '3px solid #0075de', borderRadius: '6px', badgeColor: '#097fe8' },
+  code: { ...minimalTheme.code, background: '#f6f5f4', color: '#31302e' },
+  codeBlock: { ...minimalTheme.codeBlock, background: '#f6f5f4', color: '#31302e', borderRadius: '6px', extra: { border: '1px solid rgba(0,0,0,.10)' } },
+  table: { ...minimalTheme.table, borderColor: '#dedbd8', headBg: '#f6f5f4', headColor: '#31302e', style: 'minimal' },
+  hr: { color: '#dedbd8', margin: '38px 0', style: 'line' }, strongColor: '#000000', link: { color: '#0075de', textDecoration: 'underline' },
+};
+
+export const businessReportTheme: Theme = {
+  ...classicTheme,
+  id: 'business-report', name: '商业研报', description: '绿金双主色、清晰信息层级和斑马表格，适合运价与市场分析',
+  body: { ...classicTheme.body, color: '#333333', bg: '#ffffff', lineHeight: '1.75' },
+  accent: '#05c15f', accentSoft: '#f0f8f4',
+  heading: { ...classicTheme.heading, color: '#049a4d', decor: 'left-bar' },
+  quote: { ...classicTheme.quote, background: '#fdfbf7', color: '#444444', borderLeft: '5px solid #fdbb2d', borderRadius: '4px' },
+  callout: { ...classicTheme.callout, background: '#f0f4f8', color: '#444444', borderLeft: '5px solid #05c15f', borderRadius: '4px', badgeBg: '#05c15f', badgeColor: '#ffffff' },
+  list: { bullet: '▸', bulletColor: '#05c15f', ordered: 'pill' },
+  table: { ...classicTheme.table, borderColor: '#dfe8e3', headBg: '#049a4d', headColor: '#ffffff', style: 'striped', stripeBg: '#f6fbf8' },
+  hr: { color: '#fdbb2d', margin: '34px 0', style: 'double' },
+  mark: { background: '#fff1bd', color: '#333333', borderRadius: '999px', padding: '1px 6px' }, strongColor: '#049a4d', link: { color: '#05a653', textDecoration: 'underline' },
+};
+
 export const themes: Theme[] = [
   classicTheme,
   oliveJournalTheme,
@@ -1231,6 +1330,13 @@ export const themes: Theme[] = [
   inkBlueEditorialTheme,
   mistPurpleStoryTheme,
   sandGoldJournalTheme,
+  orbitalBlackTheme,
+  businessWarmGrayTheme,
+  crossBorderPurpleTheme,
+  industryNewspaperTheme,
+  productMinimalTheme,
+  knowledgeCleanTheme,
+  businessReportTheme,
   minimalTheme,
   editorialTheme,
   inkTheme,

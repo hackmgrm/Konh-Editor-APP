@@ -13,6 +13,7 @@ import PreflightDialog from './components/PreflightDialog';
 import ConflictBar from './components/ConflictBar';
 import AgentPanel from './components/AgentPanel';
 import ArticleCenterDialog from './components/ArticleCenterDialog';
+import CloudinaryDialog from './components/CloudinaryDialog';
 import VaultGate from './components/VaultGate';
 import {
   collectImageRefs,
@@ -157,6 +158,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const [publishOpen, setPublishOpen] = useState(false);
   /** The drafts box, read back from WeChat */
   const [draftBoxOpen, setDraftBoxOpen] = useState(false);
+  const [cloudinaryOpen, setCloudinaryOpen] = useState(false);
   /**
    * The draft the next push should overwrite, picked in the drafts box.
    *
@@ -438,7 +440,9 @@ function Workspace({ vault }: { vault: VaultApi }) {
     if (created) setActiveDraft(created.id);
     const note = result.saved ? `，存了 ${result.saved} 张图` : '';
     const missed = result.missed ? `（${result.missed} 张没抓到，正文里还是外链）` : '';
-    flash(`已导入「${created?.name ?? result.title}」${note}${missed}`);
+    const author = result.byline ? ` · ${result.byline}` : '';
+    const date = result.publishedTime ? ` · ${result.publishedTime.slice(0, 10)}` : '';
+    flash(`已导入「${created?.name ?? result.title}」${author}${date} · ${result.characterCount} 字 · ${result.imageCount} 张图${note}${missed}`);
   };
 
   /** New folder */
@@ -803,6 +807,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onPublish={openPublish}
         onOpenDraftBox={() => setDraftBoxOpen(true)}
         onOpenArticleCenter={() => setArticleCenterOpen(true)}
+        onOpenCloudinary={() => setCloudinaryOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         hasUpdate={hasUpdate}
         onOpenUpdate={() => setUpdateOpen(true)}
@@ -917,6 +922,14 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onClose={() => setImportOpen(false)}
         parent={importParent}
         onImport={(url, withImages, onProgress) => runImport(url, importParent, withImages, onProgress)}
+      />
+      <CloudinaryDialog
+        open={cloudinaryOpen}
+        onClose={() => setCloudinaryOpen(false)}
+        article={markdown}
+        images={images}
+        onReplace={setMarkdown}
+        onOpenSettings={() => { setCloudinaryOpen(false); setSettingsOpen(true); }}
       />
       <ArticleCenterDialog
         open={articleCenterOpen}

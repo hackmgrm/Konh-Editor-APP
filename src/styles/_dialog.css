@@ -218,6 +218,28 @@
   color: var(--text-3);
 }
 
+.selection-agent select {
+  flex: 1;
+  min-width: 0;
+  height: 31px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.cloudinary-modal { width: min(620px, 100%); }
+.cloudinary-list { max-height: 260px; overflow: auto; margin: 8px 0 12px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.cloudinary-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; color: var(--text-2); }
+.cloudinary-row + .cloudinary-row { border-top: 1px solid var(--line-hair); }
+.cloudinary-row label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.cloudinary-row label span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloudinary-row svg { color: var(--ok); }
+.cloudinary-copy { display: inline-flex; align-items: center; gap: 4px; flex: none; border: 0; background: transparent; color: var(--accent); font-size: 11px; cursor: pointer; }
+.cloudinary-copy svg { color: currentColor; }
+.cloudinary-errors { max-height: 100px; overflow: auto; white-space: pre-wrap; font: 10.5px/1.5 var(--mono); }
+
 .link-btn {
   border: none;
   background: transparent;

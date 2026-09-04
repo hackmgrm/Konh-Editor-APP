@@ -375,6 +375,85 @@
   opacity: 0.55;
 }
 
+.deeptalk-card {
+  margin-bottom: 9px;
+  padding: 10px;
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-md);
+  background: var(--accent-softer);
+}
+
+.deeptalk-head,
+.deeptalk-head > span,
+.deeptalk-destination {
+  display: flex;
+  align-items: center;
+}
+
+.deeptalk-head {
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: var(--accent-hi);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.deeptalk-head > span { gap: 5px; }
+
+.deeptalk-head button {
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.deeptalk-topic,
+.deeptalk-card select {
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: 11.5px var(--sans);
+  outline: none;
+}
+
+.deeptalk-topic {
+  width: 100%;
+  height: 31px;
+  padding: 0 8px;
+  margin-bottom: 7px;
+}
+
+.deeptalk-topic:focus,
+.deeptalk-card select:focus { border-color: var(--accent); }
+
+.deeptalk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.deeptalk-grid label,
+.deeptalk-destination {
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+.deeptalk-grid select,
+.deeptalk-destination select {
+  flex: 1;
+  height: 27px;
+  padding: 0 5px;
+}
+
+.deeptalk-destination { margin-top: 7px; }
+.deeptalk-run { width: 100%; justify-content: center; margin-top: 8px; }
+.deeptalk-trigger { gap: 4px; font-family: var(--sans); }
+
 /* Which draft this turn will mention, sitting above the box rather than beside
    the send button — read there it looks like something attached to the message
    you are about to send, which is exactly what it is */

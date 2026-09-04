@@ -515,6 +515,10 @@ export interface ImportResult {
   saved: number;
   /** Images left as addresses, because their host would not hand them over */
   missed: number;
+  byline: string;
+  publishedTime: string;
+  imageCount: number;
+  characterCount: number;
 }
 
 /**
@@ -533,6 +537,7 @@ export async function importArticle(url: string, opts: ImportOptions): Promise<I
   let body = article.markdown;
   let saved = 0;
   let missed = 0;
+  const imageCount = remoteImagesIn(body).length;
 
   if (opts.withImages) {
     const targets = remoteImagesIn(body);
@@ -571,7 +576,17 @@ export async function importArticle(url: string, opts: ImportOptions): Promise<I
     body = localizeImages(body, stored);
   }
 
-  return { title: article.title, markdown: compose(article, body), saved, missed };
+  const markdown = compose(article, body);
+  return {
+    title: article.title,
+    markdown,
+    saved,
+    missed,
+    byline: article.byline,
+    publishedTime: article.publishedTime,
+    imageCount,
+    characterCount: body.replace(/\s/g, '').length,
+  };
 }
 
 /**

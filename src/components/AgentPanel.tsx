@@ -11,6 +11,7 @@ import {
   Paperclip,
   PencilSimple,
   PlugsConnected,
+  Quotes,
   Sparkle,
   Terminal,
   Stop,
@@ -35,6 +36,14 @@ import {
   type ToolAct,
 } from '../store/agent';
 import { getConfig, setConfig } from '../store/appConfig';
+import {
+  buildDeepTalkPrompt,
+  type DeepTalkCategory,
+  type DeepTalkDestination,
+  type DeepTalkLength,
+  type DeepTalkStyle,
+  type DeepTalkTemplate,
+} from '../deepTalk';
 import AgentMarkdown from './AgentMarkdown';
 
 interface Props {
@@ -166,6 +175,13 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [apiModels, setApiModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState(() => getConfig('agent.api.model') ?? '');
+  const [deepTalkOpen, setDeepTalkOpen] = useState(false);
+  const [deepTalkTopic, setDeepTalkTopic] = useState('');
+  const [deepTalkCategory, setDeepTalkCategory] = useState<DeepTalkCategory>('ai');
+  const [deepTalkStyle, setDeepTalkStyle] = useState<DeepTalkStyle>('professional');
+  const [deepTalkLength, setDeepTalkLength] = useState<DeepTalkLength>('medium');
+  const [deepTalkTemplate, setDeepTalkTemplate] = useState<DeepTalkTemplate>('auto');
+  const [deepTalkDestination, setDeepTalkDestination] = useState<DeepTalkDestination>('new');
 
   /** Events are claimed by run_id. The callback cannot see the latest state,
    *  so this goes through a ref */
@@ -442,8 +458,8 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
     return () => mo.disconnect();
   }, [historyOpen]);
 
-  const send = () => {
-    const text = input.trim();
+  const send = (prompt?: string) => {
+    const text = (prompt ?? input).trim();
     if (!text || running) return;
     void (async () => {
       // Flush unsaved edits first. Otherwise the agent reads a stale body, and
@@ -498,6 +514,20 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
         ]);
       }
     })();
+  };
+
+  const runDeepTalk = () => {
+    const prompt = buildDeepTalkPrompt({
+      topic: deepTalkTopic,
+      category: deepTalkCategory,
+      style: deepTalkStyle,
+      length: deepTalkLength,
+      template: deepTalkTemplate,
+      destination: deepTalkDestination,
+      activeId,
+    });
+    setDeepTalkOpen(false);
+    send(prompt);
   };
 
   const stop = () => {
@@ -624,6 +654,29 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
 
       {!historyOpen && (
         <div className="agent-composer">
+          {deepTalkOpen && (
+            <div className="deeptalk-card">
+              <div className="deeptalk-head">
+                <span><Quotes size={13} weight="fill" /> 深言创作</span>
+                <button type="button" onClick={() => setDeepTalkOpen(false)} aria-label="关闭深言创作"><X size={12} /></button>
+              </div>
+              <input
+                className="deeptalk-topic"
+                value={deepTalkTopic}
+                onChange={(event) => setDeepTalkTopic(event.target.value)}
+                placeholder="这篇文章要讲什么？"
+                autoFocus
+              />
+              <div className="deeptalk-grid">
+                <label>领域<select value={deepTalkCategory} onChange={(event) => setDeepTalkCategory(event.target.value as DeepTalkCategory)}><option value="tech">技术</option><option value="ai">AI</option><option value="freight">货代</option></select></label>
+                <label>结构<select value={deepTalkTemplate} onChange={(event) => setDeepTalkTemplate(event.target.value as DeepTalkTemplate)}><option value="auto">自动判断</option><option value="tutorial">教程</option><option value="analysis">分析</option><option value="news">资讯</option><option value="story">故事</option><option value="listicle">清单</option><option value="review">评测</option></select></label>
+                <label>语气<select value={deepTalkStyle} onChange={(event) => setDeepTalkStyle(event.target.value as DeepTalkStyle)}><option value="professional">专业</option><option value="casual">自然</option><option value="academic">学术</option></select></label>
+                <label>篇幅<select value={deepTalkLength} onChange={(event) => setDeepTalkLength(event.target.value as DeepTalkLength)}><option value="short">短篇</option><option value="medium">中篇</option><option value="long">长篇</option></select></label>
+              </div>
+              <label className="deeptalk-destination">写入<select value={deepTalkDestination} onChange={(event) => setDeepTalkDestination(event.target.value as DeepTalkDestination)}><option value="new">新建文章</option>{activeId && <option value="current">改写当前文章</option>}</select></label>
+              <button type="button" className="btn primary deeptalk-run" disabled={!deepTalkTopic.trim() || !apiReady || running} onClick={runDeepTalk}>生成并写入</button>
+            </div>
+          )}
           {activeId && (
             <div className="agent-context" title={`这轮会告诉它你正在看「${activeId}」`}>
               <Paperclip size={11} weight="bold" />
@@ -656,6 +709,15 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
             }}
           />
           <div className="agent-composer-foot">
+            <button
+              type="button"
+              className={`agent-chip deeptalk-trigger ${deepTalkOpen ? 'on' : ''}`}
+              onClick={() => setDeepTalkOpen((value) => !value)}
+              disabled={!apiReady || running}
+              title="按 DeepTalk 工作流生成公众号文章"
+            >
+              <Quotes size={11} weight="fill" /> 深言
+            </button>
             <div className="agent-tune wide" ref={modelMenuRef}>
               <button
                 type="button"
@@ -713,7 +775,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
               <button
                 type="button"
                 className="agent-send"
-                onClick={send}
+                onClick={() => send()}
                 disabled={!input.trim() || !apiReady}
                 title="发送（Enter，Shift + Enter 换行）"
                 aria-label="发送"

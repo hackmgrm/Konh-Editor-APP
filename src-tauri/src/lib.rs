@@ -1,6 +1,7 @@
 mod agent;
 mod agent_api;
 mod config;
+mod cloudinary;
 mod themes;
 mod vault;
 mod window;
@@ -46,6 +47,8 @@ pub fn run() {
             config::config_write,
             config::config_remove,
             config::file_save,
+            cloudinary::cloudinary_test,
+            cloudinary::cloudinary_upload,
             agent::agent_sessions_read,
             agent::agent_sessions_write,
             agent_api::agent_api_test,

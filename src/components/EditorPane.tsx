@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowCounterClockwise, Code, CodeBlock, Eye, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Sparkle, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Code, CodeBlock, Eye, IdentificationCard, Link, ListBullets, ListChecks, ListDashes, MagicWand, Minus, Quotes, Sparkle, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic, X } from '@phosphor-icons/react';
 import { Decoration, EditorView, keymap, lineNumbers, ViewPlugin, type DecorationSet } from '@codemirror/view';
 import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from '@codemirror/commands';
@@ -14,6 +14,7 @@ import type { ScrollSyncChannel } from '../scrollSync';
 import { parseFrontMatter, setFrontMatterField } from '../frontMatter';
 import { cleanPlainPaste, richHtmlToMarkdown } from '../smartPaste';
 import { runApiAgent } from '../store/agent';
+import { buildHumanizePrompt, type HumanizeStrength } from '../humanizer';
 
 /* One size for every Phosphor icon; the H1–H4 menu items each use the glyph
    that matches their level. */
@@ -539,7 +540,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   const [outlineOpen, setOutlineOpen] = useState(false);
   /** Visual editor for the metadata stored at the top of the Markdown file. */
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [agentEdit, setAgentEdit] = useState<{ from: number; to: number; original: string; instruction: string; result: string; busy: boolean; error: string } | null>(null);
+  const [agentEdit, setAgentEdit] = useState<{ from: number; to: number; original: string; instruction: string; result: string; busy: boolean; error: string; mode: 'edit' | 'humanize'; strength: HumanizeStrength } | null>(null);
   const headingWrapRef = useRef<HTMLDivElement>(null);
   // Click outside to close
   useEffect(() => {
@@ -605,7 +606,16 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       const { from, to } = view.state.selection.main;
       const original = view.state.doc.sliceString(from, to);
       if (!original.trim()) return;
-      setAgentEdit({ from, to, original, instruction: '润色，使表达更清晰自然', result: '', busy: false, error: '' });
+      setAgentEdit({ from, to, original, instruction: '润色，使表达更清晰自然', result: '', busy: false, error: '', mode: 'edit', strength: 'standard' });
+    }) },
+    { key: 'humanize', title: '去除 AI 痕迹（未选中时处理全文）', icon: <MagicWand size={ICON} />, onClick: () => withView((view) => {
+      const selection = view.state.selection.main;
+      const hasSelection = selection.from !== selection.to;
+      const from = hasSelection ? selection.from : 0;
+      const to = hasSelection ? selection.to : view.state.doc.length;
+      const original = view.state.doc.sliceString(from, to);
+      if (!original.trim()) return;
+      setAgentEdit({ from, to, original, instruction: '', result: '', busy: false, error: '', mode: 'humanize', strength: 'standard' });
     }) },
     { key: 'bold', title: '加粗', icon: <TextB size={ICON} />, onClick: () => wrapSelection('**', '**') },
     { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} />, onClick: () => wrapSelection('*', '*') },
@@ -628,7 +638,9 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
         dir: vaultDir,
         activeId: draftId,
         history: [],
-        prompt: `你是中文编辑。按要求修改选中文本。只返回修改后的正文，不要解释，不要 Markdown 代码围栏。\n\n要求：${agentEdit.instruction}\n\n原文：\n${agentEdit.original}`,
+        prompt: agentEdit.mode === 'humanize'
+          ? buildHumanizePrompt(agentEdit.original, agentEdit.strength)
+          : `你是中文编辑。按要求修改选中文本。只返回修改后的正文，不要解释，不要 Markdown 代码围栏。\n\n要求：${agentEdit.instruction}\n\n原文：\n${agentEdit.original}`,
       });
       const result = response.reply.trim().replace(/^```(?:markdown)?\s*/i, '').replace(/\s*```$/, '');
       setAgentEdit({ ...agentEdit, result, busy: false, error: result ? '' : '模型没有返回文字' });
@@ -807,12 +819,16 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       </div>
       <div className="code-edit" ref={hostRef}></div>
       {agentEdit && (
-        <div className="selection-agent" role="dialog" aria-label="AI 修改选区">
-          <div className="selection-agent-head"><strong>选区 Agent</strong><button className="ghost-btn" onClick={() => setAgentEdit(null)}><X size={15} /></button></div>
-          <label><span>修改要求</span><input value={agentEdit.instruction} onChange={(event) => setAgentEdit({ ...agentEdit, instruction: event.target.value })} /></label>
+        <div className="selection-agent" role="dialog" aria-label={agentEdit.mode === 'humanize' ? '去除 AI 痕迹' : 'AI 修改选区'}>
+          <div className="selection-agent-head"><strong>{agentEdit.mode === 'humanize' ? '去除 AI 痕迹' : '选区 Agent'}</strong><button className="ghost-btn" onClick={() => setAgentEdit(null)}><X size={15} /></button></div>
+          {agentEdit.mode === 'humanize' ? (
+            <label><span>处理强度</span><select value={agentEdit.strength} onChange={(event) => setAgentEdit({ ...agentEdit, strength: event.target.value as HumanizeStrength })}><option value="light">轻度</option><option value="standard">标准</option><option value="deep">深度</option></select></label>
+          ) : (
+            <label><span>修改要求</span><input value={agentEdit.instruction} onChange={(event) => setAgentEdit({ ...agentEdit, instruction: event.target.value })} /></label>
+          )}
           <div className="selection-diff"><div><span>原文</span><pre>{agentEdit.original}</pre></div><div><span>AI 建议</span><pre>{agentEdit.result || '等待生成…'}</pre></div></div>
           {agentEdit.error && <p className="form-error">{agentEdit.error}</p>}
-          <div className="dialog-actions"><button className="btn" onClick={() => setAgentEdit(null)}>取消</button><button className="btn" disabled={agentEdit.busy || !agentEdit.instruction.trim()} onClick={() => void runSelectionAgent()}>{agentEdit.busy ? '生成中…' : agentEdit.result ? '重新生成' : '生成修改'}</button><button className="btn primary" disabled={!agentEdit.result || agentEdit.busy} onClick={applySelectionAgent}>确认替换</button></div>
+          <div className="dialog-actions"><button className="btn" onClick={() => setAgentEdit(null)}>取消</button><button className="btn" disabled={agentEdit.busy || (agentEdit.mode === 'edit' && !agentEdit.instruction.trim())} onClick={() => void runSelectionAgent()}>{agentEdit.busy ? '生成中…' : agentEdit.result ? '重新生成' : agentEdit.mode === 'humanize' ? '开始处理' : '生成修改'}</button><button className="btn primary" disabled={!agentEdit.result || agentEdit.busy} onClick={applySelectionAgent}>确认替换</button></div>
         </div>
       )}
     </section>

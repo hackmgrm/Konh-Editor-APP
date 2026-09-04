@@ -13,6 +13,7 @@ import { getReaderKey, setReaderKey } from '../reader';
 import { RELEASES_URL, appVersion, checkForUpdate, dismissVerdict, useUpdate } from '../store/updater';
 import { getConfig, setConfig } from '../store/appConfig';
 import { listApiModels, testApiAgent } from '../store/agent';
+import { getCloudinaryConfig, setCloudinaryConfig, testCloudinary } from '../cloudinary';
 
 /** Where a free key comes from, for the one link in the 网页导入 section */
 const READER_HOME = 'https://jina.ai/reader/';
@@ -46,6 +47,10 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   const [version, setVersion] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showCloudSecret, setShowCloudSecret] = useState(false);
+  const [cloudinary, setCloudinary] = useState(getCloudinaryConfig);
+  const [cloudTesting, setCloudTesting] = useState(false);
+  const [cloudProbe, setCloudProbe] = useState<{ ok: boolean; message: string } | null>(null);
   const [apiBaseUrl, setApiBaseUrl] = useState(() => getConfig('agent.api.baseUrl') ?? 'https://api.openai.com/v1');
   const [apiKey, setApiKey] = useState(() => getConfig('agent.api.key') ?? '');
   const [apiModel, setApiModel] = useState(() => getConfig('agent.api.model') ?? '');
@@ -75,6 +80,9 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
       setCopied(false);
       setShowSecret(false);
       setShowApiKey(false);
+      setShowCloudSecret(false);
+      setCloudinary(getCloudinaryConfig());
+      setCloudProbe(null);
       setApiProbe(null);
       setApiModels([]);
       setApiBaseUrl(getConfig('agent.api.baseUrl') ?? 'https://api.openai.com/v1');
@@ -186,6 +194,20 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
     } finally {
       setApiModelsLoading(false);
     }
+  };
+
+  const patchCloudinary = (patch: Partial<typeof cloudinary>) => {
+    setCloudinary((old) => ({ ...old, ...patch }));
+    setCloudinaryConfig(patch);
+    setCloudProbe(null);
+  };
+
+  const runCloudTest = async () => {
+    setCloudTesting(true);
+    setCloudProbe(null);
+    try { setCloudProbe({ ok: true, message: await testCloudinary() }); }
+    catch (err) { setCloudProbe({ ok: false, message: err instanceof Error ? err.message : String(err) }); }
+    finally { setCloudTesting(false); }
   };
 
   return (
@@ -397,6 +419,16 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 spellCheck={false}
               />
             </label>
+          </section>
+
+          <section className="form-section">
+            <div className="form-section-label">Cloudinary 图床</div>
+            <p className="form-note">可把当前文章的本地图片上传为永久 HTTPS 链接。API Secret 只保存在本机应用配置目录；公众号发布仍可直接使用微信素材，不依赖此功能。</p>
+            <label className="field"><span>Cloud Name</span><input value={cloudinary.cloudName} onChange={(event) => patchCloudinary({ cloudName: event.target.value })} placeholder="your-cloud" spellCheck={false} /></label>
+            <label className="field"><span>API Key</span><input value={cloudinary.apiKey} onChange={(event) => patchCloudinary({ apiKey: event.target.value })} placeholder="123456789…" spellCheck={false} /></label>
+            <label className="field"><span>API Secret</span><span className="field-with-action"><input type={showCloudSecret ? 'text' : 'password'} value={cloudinary.apiSecret} onChange={(event) => patchCloudinary({ apiSecret: event.target.value })} placeholder="••••••••" spellCheck={false} /><button type="button" className="field-action" onClick={() => setShowCloudSecret((value) => !value)} aria-label={showCloudSecret ? '隐藏' : '显示'}>{showCloudSecret ? <EyeSlash size={15} /> : <Eye size={15} />}</button></span></label>
+            <label className="field"><span>远端目录</span><input value={cloudinary.folder} onChange={(event) => patchCloudinary({ folder: event.target.value })} placeholder="konh-editor/articles" spellCheck={false} /></label>
+            <div className="form-row"><button className="btn" onClick={() => void runCloudTest()} disabled={cloudTesting || !cloudinary.cloudName || !cloudinary.apiKey || !cloudinary.apiSecret}>{cloudTesting ? '测试中…' : '测试连接'}</button>{cloudProbe && <span className={cloudProbe.ok ? 'form-ok' : 'form-error'}>{cloudProbe.ok && <CheckCircle size={13} weight="fill" />}{cloudProbe.message}</span>}</div>
           </section>
 
           {/* Version, and the manual way to ask about a new one. The automatic

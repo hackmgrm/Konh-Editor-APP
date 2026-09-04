@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, Crosshair, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, CloudArrowUp, Crosshair, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
 import { chord } from '../platform';
 
 interface Props {
@@ -31,6 +31,7 @@ interface Props {
   /** Open the drafts box: what is already up there, and what to overwrite */
   onOpenDraftBox: () => void;
   onOpenArticleCenter: () => void;
+  onOpenCloudinary: () => void;
   /** Open settings (公众号凭据 lives there) */
   onOpenSettings: () => void;
   /**
@@ -88,6 +89,7 @@ export default function Toolbar({
   onPublish,
   onOpenDraftBox,
   onOpenArticleCenter,
+  onOpenCloudinary,
   onOpenSettings,
   hasUpdate,
   onOpenUpdate,
@@ -165,6 +167,7 @@ export default function Toolbar({
           ))}
         </div>
         <button className={`btn icon ${typewriterMode ? 'active' : ''}`} onClick={onToggleTypewriter} title="打字机模式：当前行保持在视野中央" aria-pressed={typewriterMode} aria-label="打字机模式"><Crosshair size={15} /></button>
+        <button className="btn icon" onClick={onOpenCloudinary} title="将当前文章的本地图片上传到 Cloudinary" aria-label="Cloudinary 图片托管"><CloudArrowUp size={15} /></button>
 
         {/* Themes, density, body options and the shell's own light/dark */}
         <div className="menu-wrap" ref={typesetRef}>

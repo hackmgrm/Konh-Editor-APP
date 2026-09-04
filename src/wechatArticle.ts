@@ -23,9 +23,11 @@
 import { fetch } from '@tauri-apps/plugin-http';
 import type { Article } from './reader';
 
-/** A desktop browser's, because the mobile one gets a different page shape */
+/** WeChat's iPhone client gets the public article shape without desktop-only chrome. */
 const USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.30';
+
+const RETRY_DELAYS = [0, 1000, 2000] as const;
 
 export function isWechatArticle(url: string): boolean {
   try {
@@ -36,15 +38,30 @@ export function isWechatArticle(url: string): boolean {
 }
 
 export async function fetchWechatArticle(url: string, signal?: AbortSignal): Promise<Article> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'zh-CN,zh;q=0.9' },
-      signal,
-    });
-  } catch (err) {
+  let res: Response | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+    if (RETRY_DELAYS[attempt]) await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAYS[attempt]));
     if (signal?.aborted) throw new Error('已取消');
-    throw new Error(`打不开这篇文章：${err instanceof Error ? err.message : String(err)}`);
+    try {
+      const candidate = await fetch(url, {
+        headers: {
+          'User-Agent': USER_AGENT,
+          Referer: 'https://mp.weixin.qq.com/',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        },
+        signal,
+      });
+      res = candidate;
+      if (candidate.status !== 429 && candidate.status < 500) break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!res) {
+    if (signal?.aborted) throw new Error('已取消');
+    throw new Error(`打不开这篇文章：${lastError instanceof Error ? lastError.message : String(lastError)}`);
   }
   if (!res.ok) throw new Error(`打不开这篇文章（HTTP ${res.status}）。`);
 
