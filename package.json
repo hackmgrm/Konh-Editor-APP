@@ -1,11 +1,12 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test:writing": "node --experimental-strip-types --test src/writingCommands.test.ts",
     "test:preflight": "node --experimental-strip-types --test src/preflight.test.ts",
     "test:front-matter": "node --experimental-strip-types --test src/frontMatter.test.ts",
     "test:content-state": "node --experimental-strip-types --test src/store/contentState.test.ts",
@@ -17,7 +18,8 @@
     "preview": "vite preview",
     "app": "tauri dev",
     "app:build": "tauri build --no-sign",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:publishing": "node --experimental-strip-types --test src/uploadCache.test.ts src/publishJournal.test.ts src/store/contentState.test.ts src/preflight.test.ts src/articleIdentity.test.ts src/layoutResults.test.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

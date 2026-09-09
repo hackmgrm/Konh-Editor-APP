@@ -33,13 +33,15 @@ export interface PublishRecord {
 }
 
 export interface ContentState {
+  publishedLinks: Record<string, Array<{ accountId: string; url: string; savedAt: number }>>;
   statuses: Record<string, ContentStatus>;
   versions: Record<string, ArticleVersion[]>;
-  bindings: Record<string, DraftBinding>;
+  bindings: Record<string, Record<string, DraftBinding>>;
   publishRecords: PublishRecord[];
 }
 
 export const EMPTY_CONTENT_STATE: ContentState = {
+  publishedLinks: {},
   statuses: {},
   versions: {},
   bindings: {},
@@ -54,10 +56,24 @@ export function parseContentState(raw: string | null): ContentState {
   if (!raw) return structuredClone(EMPTY_CONTENT_STATE);
   try {
     const value = JSON.parse(raw) as Partial<ContentState>;
+    const bindings: ContentState['bindings'] = {};
+    const keep = (key: string, binding: DraftBinding) => {
+      const accounts = bindings[key] ??= {};
+      if (!accounts[binding.accountId] || accounts[binding.accountId].updatedAt < binding.updatedAt) accounts[binding.accountId] = binding;
+    };
+    for (const [key, entry] of Object.entries(value.bindings ?? {})) {
+      // v1 stored only the last account used for each article.
+      if (typeof entry.accountId === 'string') keep(key, entry as unknown as DraftBinding);
+      else for (const binding of Object.values(entry)) keep(key, binding);
+    }
+    for (const record of value.publishRecords ?? []) {
+      keep(record.articleKey, { accountId: record.accountId, mediaId: record.mediaId, articleIndex: record.articleIndex, title: record.title, updatedAt: record.createdAt });
+    }
     return {
+      publishedLinks: value.publishedLinks ?? {},
       statuses: value.statuses ?? {},
       versions: value.versions ?? {},
-      bindings: value.bindings ?? {},
+      bindings,
       publishRecords: value.publishRecords ?? [],
     };
   } catch {
@@ -97,7 +113,17 @@ export function addPublishRecord(state: ContentState, record: Omit<PublishRecord
   };
   return {
     ...state,
-    bindings: { ...state.bindings, [record.articleKey]: binding },
+    bindings: { ...state.bindings, [record.articleKey]: { ...state.bindings[record.articleKey], [record.accountId]: binding } },
     publishRecords: [next, ...state.publishRecords].slice(0, MAX_PUBLISH_RECORDS),
   };
+}
+
+export function savePublishedLink(state: ContentState, key: string, accountId: string, input: string): ContentState {
+  const url = new URL(input.trim());
+  if (url.protocol !== 'https:' || url.hostname !== 'mp.weixin.qq.com' || url.username || url.password || url.port || !(url.pathname === '/s' || url.pathname.startsWith('/s/'))) {
+    throw new Error('请输入 https://mp.weixin.qq.com/s 开头的正式文章链接');
+  }
+  if (!accountId.trim()) throw new Error('请选择公众号账户');
+  const links = (state.publishedLinks[key] ?? []).filter(item => item.accountId !== accountId);
+  return { ...state, statuses: { ...state.statuses, [key]: 'published' }, publishedLinks: { ...state.publishedLinks, [key]: [...links, { accountId, url: url.href, savedAt: Date.now() }] } };
 }

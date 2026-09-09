@@ -604,7 +604,7 @@ pub fn dir_create(dir: String, parent: String, name: String) -> Result<String, S
 /// the tree is a *title*, and forgetting to type `.md` should not turn the file
 /// into an unrecognized type.
 #[tauri::command]
-pub fn entry_rename(dir: String, path: String, name: String) -> Result<String, String> {
+pub fn entry_rename_target(dir: String, path: String, name: String) -> Result<String, String> {
     let from = resolve(&dir, &path)?;
     if !from.exists() {
         return Err(format!("找不到 {path}"));
@@ -630,14 +630,22 @@ pub fn entry_rename(dir: String, path: String, name: String) -> Result<String, S
     if to.exists() && to.canonicalize().ok() != from.canonicalize().ok() {
         return Err(format!("这个位置已经有「{base}」了"));
     }
-    fs::rename(&from, &to).map_err(|e| format!("改名失败：{e}"))?;
+    Ok(target)
+}
+
+#[tauri::command]
+pub fn entry_rename(dir: String, path: String, name: String) -> Result<String, String> {
+    let target = entry_rename_target(dir.clone(), path.clone(), name)?;
+    if target != path {
+        fs::rename(resolve(&dir, &path)?, resolve(&dir, &target)?).map_err(|e| format!("改名失败：{e}"))?;
+    }
     Ok(target)
 }
 
 /// Move into another directory (used by dragging in the tree). An empty
 /// `to_parent` means the workspace root.
 #[tauri::command]
-pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String, String> {
+pub fn entry_move_target(dir: String, path: String, to_parent: String) -> Result<String, String> {
     let from = resolve(&dir, &path)?;
     if !from.exists() {
         return Err(format!("找不到 {path}"));
@@ -660,7 +668,15 @@ pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String
     if to.exists() {
         return Err(format!("那边已经有「{name}」了"));
     }
-    fs::rename(&from, &to).map_err(|e| format!("移动失败：{e}"))?;
+    Ok(target)
+}
+
+#[tauri::command]
+pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String, String> {
+    let target = entry_move_target(dir.clone(), path.clone(), to_parent)?;
+    if target != path {
+        fs::rename(resolve(&dir, &path)?, resolve(&dir, &target)?).map_err(|e| format!("移动失败：{e}"))?;
+    }
     Ok(target)
 }
 

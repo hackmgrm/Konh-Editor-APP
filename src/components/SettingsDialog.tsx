@@ -228,6 +228,9 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
 
         <div className="modal-body">
           <section className="form-section">
+            <div className="form-section-label">图片生成 API</div>
+            <p className="form-hint">用于 AI 封面，支持 OpenAI 兼容 images/generations 接口。聊天模型需支持视觉输入才能使用图片对话。</p>
+            {[['baseUrl', 'Base URL', 'https://你的服务/v1'], ['key', 'API Key', '图片服务密钥'], ['model', '模型', '图片生成模型名称']].map(([key, label, placeholder]) => <label className="field" key={key}><span>{label}</span><input type={key === 'key' ? 'password' : 'text'} defaultValue={getConfig(`image.api.${key}`) ?? ''} placeholder={placeholder} onChange={e => setConfig(`image.api.${key}`, e.target.value.trim())} /></label>)}
             <div className="form-section-label">API Agent</div>
             <p className="form-note">
               使用 OpenAI 兼容的 <code>Chat Completions</code> 接口。Agent 只获得当前工作区内的

@@ -126,6 +126,8 @@ export interface Beat {
   text: string;
   /** The kind of note that went wrong — a little redder */
   bad?: boolean;
+  images?: string[];
+  references?: string[];
   /** Tool calls only. Absent on sessions written before the split, which is
    *  why the panel still renders a tool beat that has nothing but `text` */
   act?: ToolAct;
@@ -210,13 +212,17 @@ export function runApiAgent(args: {
   dir: string;
   activeId: string;
   prompt: string;
-  history: Array<{ role: 'user' | 'assistant'; content: string }>;
+  history: Array<{ role: 'user' | 'assistant'; content: string; images?: string[] }>;
+  references?: string[];
+  images?: string[];
 }): Promise<ApiRunResult> {
   return invoke<ApiRunResult>('agent_api_run', {
     dir: args.dir,
     activeId: args.activeId,
     prompt: args.prompt,
     history: args.history,
+    references: args.references ?? [],
+    images: args.images ?? [],
   });
 }
 

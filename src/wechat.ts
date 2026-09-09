@@ -19,6 +19,7 @@ import { fitDataUrl, fitKeepingSize, measureDataUrl } from './images';
 import { measureRemoteImage } from './remoteImages';
 import { getConfig, removeConfig, setConfig } from './store/appConfig';
 import { callWechat } from './wechatTransport';
+import { uploadCacheKey } from './uploadCache';
 
 const STORAGE_CONFIG = 'wechat';
 const STORAGE_TOKEN = 'wechat-token';
@@ -307,15 +308,6 @@ export async function getEgressIp(cfg: WechatConfig): Promise<{ ip: string; stab
  */
 const UPLOAD_POLICY_VERSION = 5;
 
-/** Content fingerprint: the same image used across several drafts is still
- *  uploaded once */
-async function fingerprint(source: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`v${UPLOAD_POLICY_VERSION}:${source}`));
-  return Array.from(new Uint8Array(digest).slice(0, 12))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 interface CachedUpload {
   url: string;
   /** Only cover assets have one — body images go through uploadimg, which
@@ -364,7 +356,7 @@ async function uploadOne(
   source: ImageSource,
   filename: string,
 ): Promise<Uploaded> {
-  const key = await fingerprint('dataUrl' in source ? source.dataUrl : source.url);
+  const key = await uploadCacheKey(cfg.appid, 'dataUrl' in source ? source.dataUrl : source.url, UPLOAD_POLICY_VERSION, 'body');
   const cache = readUploadCache();
   const hit = cache[key];
   // The cache may hold an address stored by an earlier version, without
@@ -393,7 +385,7 @@ async function uploadOne(
   const url = articleImageUrl(raw);
   const mediaId = String(data.media_id ?? '');
   cache[key] = { url, mediaId };
-  writeUploadCache(cache);
+  writeUploadCache({ ...readUploadCache(), [key]: cache[key] });
   return { url, mediaId, measured };
 }
 
@@ -595,7 +587,7 @@ export async function uploadCoverMaterial(
    * A previous version uploaded a fresh copy on every push, so ten pushes piled
    * up ten identical images that had to be deleted by hand in the console.
    */
-  const key = `cover:${await fingerprint('dataUrl' in source ? source.dataUrl : source.url)}`;
+  const key = await uploadCacheKey(cfg.appid, 'dataUrl' in source ? source.dataUrl : source.url, UPLOAD_POLICY_VERSION, 'cover');
   const cache = readUploadCache();
   const hit = cache[key];
   if (hit?.mediaId) return hit.mediaId;
@@ -608,7 +600,7 @@ export async function uploadCoverMaterial(
   const mediaId = String(data.media_id ?? '');
   if (!mediaId) throw new Error('封面上传成功但没返回 media_id');
   cache[key] = { url: String(data.url ?? ''), mediaId };
-  writeUploadCache(cache);
+  writeUploadCache({ ...readUploadCache(), [key]: cache[key] });
   return mediaId;
 }
 
@@ -625,7 +617,9 @@ export interface DraftArticle {
 /** Push one draft into the drafts box, returning its media_id */
 export async function addDraft(cfg: WechatConfig, token: string, article: DraftArticle): Promise<string> {
   const data = await call(cfg, 'draft', { access_token: token, articles: [article] });
-  return String(data.media_id ?? '');
+  const mediaId = typeof data.media_id === 'string' ? data.media_id.trim() : '';
+  if (!mediaId) throw new Error('微信未返回草稿编号，创建结果待核对');
+  return mediaId;
 }
 
 /**
@@ -647,7 +641,8 @@ export async function updateDraft(
   index: number,
   article: DraftArticle,
 ): Promise<void> {
-  await call(cfg, 'draftupdate', { access_token: token, media_id: mediaId, index, articles: article });
+  const data = await call(cfg, 'draftupdate', { access_token: token, media_id: mediaId, index, articles: article });
+  if (data.errcode !== 0) throw new Error('微信未返回更新确认，结果待核对');
 }
 
 /* ---------------- Reading the drafts box ---------------- */

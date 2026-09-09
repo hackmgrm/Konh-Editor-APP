@@ -55,6 +55,8 @@ export interface Prefs {
   themeId: string;
   /** Draft path → theme id. Keeps theme selection local to each article. */
   themeByDraft: Record<string, string>;
+  /** Stable article identity → theme id. */
+  themeByArticle?: Record<string, string>;
   densityId: string;
   linkFootnotes: boolean;
   activeId: string | null;
@@ -240,4 +242,11 @@ export function deleteImage(dir: string, path: string): Promise<void> {
 
 export function writePrefs(dir: string, prefs: Prefs): Promise<void> {
   return invoke('prefs_write', { dir, prefs });
+}
+
+export function renameTarget(dir: string, path: string, name: string): Promise<string> {
+  return invoke('entry_rename_target', { dir, path, name });
+}
+export function moveTarget(dir: string, path: string, toParent: string): Promise<string> {
+  return invoke('entry_move_target', { dir, path, toParent });
 }

@@ -20,6 +20,19 @@ import { invoke } from '@tauri-apps/api/core';
 
 let cache: Record<string, string> = {};
 let loaded = false;
+let writes: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite(action: () => Promise<unknown>): Promise<unknown> {
+  const next = writes.then(action, action);
+  writes = next.catch(() => {});
+  return next;
+}
+
+/** Publishing cannot start its remote mutation until its journal is on disk. */
+export async function setConfigDurable(key: string, value: string): Promise<void> {
+  await enqueueWrite(() => invoke('config_write', { key, value }));
+  cache[key] = value;
+}
 
 /** Call once at startup, before rendering — every read afterwards assumes it
  *  is already in memory */
@@ -39,10 +52,10 @@ export function getConfig(key: string): string | null {
 
 export function setConfig(key: string, value: string): void {
   cache[key] = value;
-  void invoke('config_write', { key, value }).catch((e) => console.warn('设置写盘失败', key, e));
+  void enqueueWrite(() => invoke('config_write', { key, value })).catch((e) => console.warn('设置写盘失败', key, e));
 }
 
 export function removeConfig(key: string): void {
   delete cache[key];
-  void invoke('config_remove', { key }).catch((e) => console.warn('设置删除失败', key, e));
+  void enqueueWrite(() => invoke('config_remove', { key })).catch((e) => console.warn('设置删除失败', key, e));
 }

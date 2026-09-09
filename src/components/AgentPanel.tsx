@@ -45,6 +45,9 @@ import {
   type DeepTalkTemplate,
 } from '../deepTalk';
 import AgentMarkdown from './AgentMarkdown';
+import AgentAttachments from './AgentAttachments';
+import { prepareImage } from '../images';
+import { composerQuery } from '../writingCommands';
 
 interface Props {
   /** Collapsed means hidden, not unmounted — see the note on the component */
@@ -53,6 +56,7 @@ interface Props {
   vaultDir: string;
   /** The open draft (workspace-relative path), used to give the agent context */
   activeId: string;
+  files: string[];
   onClose: () => void;
   /** Open the API credentials section in the app settings. */
   onOpenSettings: () => void;
@@ -157,7 +161,7 @@ function ToolBeat({ beat }: { beat: Beat }) {
  * still show the last exchange. Only a real unmount (switching workspaces,
  * closing the window) kills it.
  */
-export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSettings, onBeforeRun, seed }: Props) {
+export default function AgentPanel({ open, vaultDir, activeId, files, onClose, onOpenSettings, onBeforeRun, seed }: Props) {
   const kind: AgentKind = 'api';
   /** Every conversation held in this workspace, both CLIs in one list, each
    *  entry carrying its own kind */
@@ -171,6 +175,23 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
   });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [references, setReferences] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [loadingImages, setLoadingImages] = useState(false);
+  const addImages = async (files: File[]) => {
+    if (loadingImages || running) return;
+    setLoadingImages(true); setAttachmentError('');
+    try {
+      if (files.length + attachments.length > 4) throw new Error('每条消息最多 4 张图片');
+      if (files.some(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > 25 * 1024 * 1024)) throw new Error('请选择 25 MB 以内的 PNG、JPEG、WebP 或 GIF 图片');
+      const images = await Promise.all(files.map(file => prepareImage(file)));
+      if (images.some(image => image.length > 4_000_000)) throw new Error('图片过大，请缩小后重试');
+      setAttachments(previous => [...previous, ...images]);
+    } catch (error) { setAttachmentError(String(error)); }
+    finally { setLoadingImages(false); }
+  };
+
   const [running, setRunning] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [apiModels, setApiModels] = useState<string[]>([]);
@@ -459,14 +480,16 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
   }, [historyOpen]);
 
   const send = (prompt?: string) => {
-    const text = (prompt ?? input).trim();
-    if (!text || running) return;
+    const text = (prompt ?? input).trim() || (attachments.length ? '请分析这些图片。' : '');
+    if (!text || running || loadingImages) return;
+    if (!prompt && composerQuery(input)) { setAttachmentError('请先选择素材或指令，或删除未完成的 @ / 输入'); return; }
+    setRunning(true);
     void (async () => {
       // Flush unsaved edits first. Otherwise the agent reads a stale body, and
       // what it writes back no longer matches the version in our memory — the
       // conflict bar is guaranteed, and that conflict was self-inflicted.
 
-      await onBeforeRun();
+      try { await onBeforeRun(); } catch (error) { setRunning(false); setAttachmentError(String(error)); return; }
 
       // Create the session now if none is open: empty conversations are never
       // written to disk, so creating one early would only clutter the list
@@ -480,8 +503,9 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
         setActiveKey((prev) => ({ ...prev, [kind]: key }));
       }
 
-      pushTo(key, [{ role: 'you', text }]);
+      pushTo(key, [{ role: 'you', text, images: attachments, references }]);
       setInput('');
+      setReferences([]); setAttachments([]); setAttachmentError('');
       saidOnce.current.clear();
       // If the previous run broke off mid-sentence, that sentence ends here:
       // this run's text starts a new beat
@@ -494,9 +518,10 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
           .filter((line) => line.role === 'you' || line.role === 'agent')
           .map((line) => ({
             role: line.role === 'you' ? 'user' as const : 'assistant' as const,
-            content: line.text,
+            content: line.references?.length ? `${line.text}\n此前引用素材：${line.references.join('、')}` : line.text,
+            images: line.images ?? [],
           }));
-        const result = await runApiAgent({ dir: vaultDir, activeId, prompt: text, history });
+        const result = await runApiAgent({ dir: vaultDir, activeId, prompt: text, history, references, images: attachments });
         pushTo(key, [
           ...result.tools.map((tool) => ({
             role: 'tool' as const,
@@ -540,6 +565,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
   /** Start a new one: this only clears the pointer for the current CLI; the
    *  session is really created when the first message is sent */
   const startNew = () => {
+    setReferences([]); setAttachments([]); setAttachmentError('');
     setActiveKey((prev) => ({ ...prev, [kind]: null }));
     setHistoryOpen(false);
   };
@@ -547,6 +573,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
   /** Open an API conversation from history. Legacy CLI sessions stay hidden. */
   const openSession = (s: Session) => {
     if (s.kind !== 'api') return;
+    setReferences([]); setAttachments([]); setAttachmentError('');
     setActiveKey((prev) => ({ ...prev, api: s.key }));
     setHistoryOpen(false);
   };
@@ -573,7 +600,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
           <Sparkle size={13} weight="fill" />
           Agent
         </span>
-        <button type="button" className="agent-api-config" onClick={onOpenSettings} disabled={running}>
+        <button type="button" className="agent-api-config" onClick={onOpenSettings} disabled={running || loadingImages}>
           API 配置
         </button>
         <button
@@ -584,7 +611,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
         >
           <ClockCounterClockwise size={14} weight="bold" />
         </button>
-        <button className="ghost-btn" onClick={startNew} disabled={running} title="新对话">
+        <button className="ghost-btn" onClick={startNew} disabled={running || loadingImages} title="新对话">
           <NotePencil size={14} weight="bold" />
         </button>
         <button className="ghost-btn" onClick={onClose} title="收起">
@@ -641,6 +668,8 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
             ) : (
               <div key={i} className={`agent-beat ${l.role}${l.bad ? ' bad' : ''}`}>
                 {l.role === 'agent' ? <AgentMarkdown text={l.text} /> : l.text}
+                {l.references?.map(file => <small className="message-reference" key={file}>素材：{file}</small>)}
+                <div className="attachment-images">{l.images?.map((src, index) => <img key={index} src={src} alt={`附图 ${index + 1}`} />)}</div>
               </div>
             ),
           )}
@@ -683,12 +712,18 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
               <span>{activeId}</span>
             </div>
           )}
+          <AgentAttachments input={input} onInput={value => { setInput(value); inputRef.current?.focus(); }} files={files} references={references} onReferences={setReferences} images={attachments} onImages={setAttachments} onFiles={files => void addImages(files)} disabled={running || loadingImages || !apiReady} />
+          {attachmentError && <p className="form-error" role="alert">{attachmentError}</p>}
+          {loadingImages && <p className="form-hint">正在处理图片…</p>}
           <textarea
+            onPaste={event => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); void addImages(files); } }}
+            onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }}
+            onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); void addImages(Array.from(event.dataTransfer.files)); } }}
             ref={inputRef}
             value={input}
             rows={3}
             placeholder={continuing ? '接着说…' : '让 API Agent 处理文章或主题…'}
-            disabled={!apiReady}
+            disabled={!apiReady || running || loadingImages}
             onChange={(e) => setInput(e.target.value)}
             onCompositionStart={() => {
               composing.current = true;
@@ -776,7 +811,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onOpenSe
                 type="button"
                 className="agent-send"
                 onClick={() => send()}
-                disabled={!input.trim() || !apiReady}
+                disabled={(!input.trim() && !attachments.length) || !apiReady || loadingImages}
                 title="发送（Enter，Shift + Enter 换行）"
                 aria-label="发送"
               >

@@ -31,6 +31,7 @@ interface Props {
   /** Open the drafts box: what is already up there, and what to overwrite */
   onOpenDraftBox: () => void;
   onOpenArticleCenter: () => void;
+  onOpenLayout: () => void;
   onOpenCloudinary: () => void;
   /** Open settings (公众号凭据 lives there) */
   onOpenSettings: () => void;
@@ -89,6 +90,7 @@ export default function Toolbar({
   onPublish,
   onOpenDraftBox,
   onOpenArticleCenter,
+  onOpenLayout,
   onOpenCloudinary,
   onOpenSettings,
   hasUpdate,
@@ -219,6 +221,7 @@ export default function Toolbar({
         <button className="btn icon" onClick={onOpenDraftBox} title="草稿箱：看看公众号上已有哪些草稿" aria-label="草稿箱">
           <Stack size={15} weight="bold" />
         </button>
+        <button className="btn" onClick={onOpenLayout} title="生成独立候选，对比后采用">AI 排版</button>
         <button className="btn icon" onClick={onOpenArticleCenter} title="文章状态、版本历史与发布记录" aria-label="文章管理">
           <ClockCounterClockwise size={15} weight="bold" />
         </button>

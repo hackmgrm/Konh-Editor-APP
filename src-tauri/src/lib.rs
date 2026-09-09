@@ -1,3 +1,4 @@
+mod artifacts;
 mod agent;
 mod agent_api;
 mod config;
@@ -36,6 +37,8 @@ pub fn run() {
             vault::draft_create,
             vault::dir_create,
             vault::entry_rename,
+            vault::entry_rename_target,
+            vault::entry_move_target,
             vault::entry_move,
             vault::entry_delete,
             vault::entry_reveal,
@@ -43,6 +46,10 @@ pub fn run() {
             vault::image_write,
             vault::image_delete,
             vault::prefs_write,
+            artifacts::artifact_save,
+            artifacts::artifact_read,
+            artifacts::artifact_list,
+            artifacts::artifact_delete,
             config::config_load,
             config::config_write,
             config::config_remove,
@@ -54,6 +61,9 @@ pub fn run() {
             agent_api::agent_api_test,
             agent_api::agent_api_models,
             agent_api::agent_api_run,
+            agent_api::writing_suggest,
+            agent_api::writing_layout,
+            agent_api::writing_cover,
             themes::themes_read,
             themes::themes_guide_write,
             themes::theme_delete,

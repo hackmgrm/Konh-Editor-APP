@@ -130,9 +130,11 @@ export default function DraftBoxDialog({ open, onClose, onPickTarget, onOpenSett
   const pick = (row: Row) => {
     onPickTarget(
       {
+        accountId: cfg.appid,
         mediaId: row.mediaId,
         index: row.index,
         thumbMediaId: row.article.thumb_media_id,
+        thumbUrl: row.article.thumb_url,
         title: row.article.title,
       },
       row.article.digest,

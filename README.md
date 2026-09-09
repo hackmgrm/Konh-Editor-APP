@@ -7,6 +7,23 @@ macOS / Windows / Linux 桌面应用。
 
 ![空核编辑器：左边文件树，中间 Markdown 编辑区，右边公众号预览与 Agent 面板](example.webp)
 
+## 本轮更新（当前源码）
+
+这轮围绕写作、排版和公众号草稿推送补齐了以下能力：
+
+| 能力 | 使用入口与效果 |
+| --- | --- |
+| AI 排版候选 | 顶栏「AI 排版」：对照原稿与候选，确认后采用；保留原稿历史并拦截过期结果 |
+| 稳定文章身份 | 应用内改名或移动后，主题、历史、草稿关联和排版候选继续跟随文章 |
+| 多账号可靠推送 | 「推草稿」：按账号关联草稿、隔离素材缓存，断网后保留待核对记录并阻止重复提交 |
+| 完整离线快照 | 「文章管理 → 本机完整快照」：查看提交版式、导出含图片的 HTML、按份清理 |
+| 标题与素材辅助 | AI 标题候选、Agent `@` 引用素材、图片输入、个人 `/` 快捷指令及 AI 封面 |
+
+本轮已通过 50 项前端测试、51 项 Rust 测试、前端构建及 macOS Apple Silicon 本地打包。
+Windows / Linux 打包流程已加入测试检查；真实公众号操作及 Windows / Linux 实机验收仍待完成。
+安装包发布状态以 [GitHub Releases](https://github.com/hackmgrm/Konh-Editor-APP/releases) 为准。
+详细实现与验收范围见 [发布可靠性实施记录](docs/publishing-reliability.md)。
+
 ## 致谢与项目来源
 
 空核编辑器基于 [whyubel1eve/Mars-Editor-APP](https://github.com/whyubel1eve/Mars-Editor-APP)
@@ -79,6 +96,9 @@ macOS / Windows / Linux 桌面应用。
 - 选区 Agent：选中文字后可按自定义要求改写、扩写、缩写或润色，确认差异后再替换原文
 - 文章管理：构思、写作中、待审核、待发布、已发布五种状态
 - 自动版本快照，保留每篇文章最近 30 个版本，支持逐行对比和一键恢复
+- AI 排版独立候选，支持原稿对照、确认采用与过期结果拦截
+- 应用内改名、移动时，文章主题、历史与草稿关联保持连续
+- 发布完整快照保存 HTML 与图片，可离线查看、导出及清理
 - 保存公众号发布记录，并把本地文章与公众号草稿长期关联；再次发布自动更新原草稿
 - 多公众号账户管理，可新增、命名、切换和删除账户
 - 公众号发布前检查：缺图、超长、标题层级、占位符、外链及发布字段等问题集中提示
@@ -114,6 +134,37 @@ macOS / Windows / Linux 桌面应用。
 文章管理入口是顶栏的时钟图标；选区 Agent 位于 Markdown 格式工具栏最前方的星光图标；封面工作台在
 「推草稿 → 选择封面」后出现。专注模式在顶栏「对照 / 预览 / 专注」中切换，旁边的准星按钮控制
 打字机模式。
+
+## 标题、素材与图片写作
+
+- **推草稿 → AI 标题候选**：根据当前全文生成五个不超过 32 字的标题，支持补充要求、重新生成和点击回填发布标题，不修改正文。
+- **Agent → @ 素材**：输入 `@` 筛选工作区文章，点击添加引用标签，最多 8 个文件。发送前保存当前修改，再读取素材最新内容；合计不超过 240 KB。
+- **Agent → 图片**：可选择、粘贴或拖入 PNG、JPEG、WebP、GIF，每条最多 4 张、原图每张不超过 25 MB。图片会按现有图片处理流程压缩，并随本机对话记录保存；后续追问仍会带上最近消息的图片。当前聊天模型必须支持视觉输入和工具调用。
+- **Agent → / 指令**：快速选择标题、摘要、润色和提纲提示词；“管理指令”可保存、编辑和删除个人提示词。选择后可修改，再手动发送。
+- **推草稿 → AI 生成封面**：先在设置中填写独立的图片生成 Base URL、API Key 和模型名，接口需兼容 `images/generations`，返回 `data[0].b64_json` 或 HTTPS 图片 URL。生成后进入封面工作台，确认裁切后应用；取消会保留原封面。
+- **文章管理 → 正式文章链接**：选择公众号并保存 `https://mp.weixin.qq.com/s/…` 链接，自动标记已发布，按账户保留关联，支持打开和移除。该链接与推草稿时的“阅读原文”字段独立。
+
+标题生成、图片对话和封面生成由你配置的服务处理；相应正文、引用素材或图片会随请求发送给该服务。
+
+## 发布可靠性
+
+- 同一篇文章可分别关联多个公众号草稿，切换账号后继续更新对应草稿；旧数据会从本地历史尽可能恢复关联。
+- 正文和封面素材缓存按 AppID 隔离。自动续接草稿时先读取微信现有封面和摘要，读取失败时不会直接覆盖。
+- 推送时固定正文、图片和发布字段，提交前检查文章及目标账户是否变化。推送期间不能修改发布表单。
+- 推送记录先写入本机，再提交微信请求。提交后断网会标记“结果待核对”，重开应用仍会阻止重复推送。
+- “推草稿”和“文章管理”都能查看推送记录及原文快照。结果不确定时先核对公众号草稿箱，再点击“已核对，解除拦截”；若草稿已经存在，应选择更新已有草稿。
+- 最近 50 次普通推送记录与所有待核对记录保存在本机应用配置中，不包含 AppSecret 或 access_token。
+- 新推送会在独立的 `article-assets` 数据目录保存正文 HTML、原文和图片文件，成功保存后才发送草稿。文章管理中的“本机完整快照”支持离线预览、导出含图片的 HTML，以及按份清理；待核对的推送和当前采用的排版受到保护。旧版文字记录不会自动补出图片快照。
+
+开发验证：`npm run test:publishing`。本轮实施范围与后续规划见 [发布可靠性实施记录](docs/publishing-reliability.md)。
+
+## AI 排版候选与文章身份
+
+顶栏新增“AI 排版”：填写排版要求后，使用已配置的 API Agent 生成独立候选。原稿与候选左右预览，可展开 Markdown 文字对照，检查后点击“采用此排版”。采用前原稿会保留到版本历史，候选、原稿及预览图片也保存在独立快照目录；重开应用可继续查看历史候选。
+
+生成期间更改原文或排版设置、关闭后重新发起请求时，旧结果不会替换新候选。采用前会再次检查原文、图片和版式是否变化；模型仍可能改动表述，请在对照中核对事实。此功能会将正文和排版要求发送到你配置的 API 服务。
+
+文章在本机获得稳定标识。应用内自动改名、手动改名、移动文件夹后，主题、历史、多公众号草稿、待核对记录与排版候选继续关联同一篇文章。新建同名文章使用新标识。应用内路径变更先记录意图，中断后重新打开工作区可恢复；从应用外移动文件目前不会猜测新旧文件的对应关系。
 
 ## 从链接导入
 
@@ -154,10 +205,12 @@ npm run app:build  # 打包，产物在 src-tauri/target/release/bundle/
                    # 带 --no-sign：本地打包不做签名
 npm run build      # 只做前端类型检查 + 构建
 npm run test:preflight      # 公众号发布前检查测试
+npm run test:writing        # 快捷指令与素材输入解析测试
 npm run test:content-state  # 版本、发布记录及草稿关联测试
+npm run test:publishing     # 发布日志、素材缓存、文章身份与排版候选测试
 ```
 
-Rust 侧的测试覆盖了 vault 的核心逻辑（冲突检测、路径越界、图片编解码）：
+Rust 侧的测试覆盖工作区操作、路径边界、图片处理、AI 排版响应解析和完整快照存储：
 
 ```bash
 cd src-tauri && cargo test
@@ -186,6 +239,9 @@ git merge upstream/main
 - 纯 API Agent：`src-tauri/src/agent_api.rs`、`src/components/AgentPanel.tsx`、`SettingsDialog.tsx`。
 - 选区 Agent、智能粘贴与写作模式：`EditorPane.tsx`、`src/smartPaste.ts`、`Toolbar.tsx`。
 - 文章状态、版本、发布记录和草稿关联：`src/store/contentState.ts`、`ArticleCenterDialog.tsx`、`PublishDialog.tsx`。
+- 稳定文章身份与路径恢复：`src/articleIdentity.ts`、`src/store/articleIdentity.ts`、`src/store/useVault.ts`。
+- AI 排版候选和离线资产：`LayoutDialog.tsx`、`src/layoutResults.ts`、`src/artifacts.ts`、`src-tauri/src/artifacts.rs`。
+- 发布日志与素材隔离：`src/publishJournal.ts`、`src/store/publishJournal.ts`、`src/uploadCache.ts`。
 - 多公众号账户：`src/store/wechatConfig.ts` 和 `SettingsDialog.tsx`。
 - 发布前检查与封面工作台：`src/preflight.ts`、`PreflightDialog.tsx`、`CoverWorkbench.tsx`。
 - 手动切换预览设备与跟随系统夜间模式：`PreviewPane.tsx` 和对应样式、偏好设置。

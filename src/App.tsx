@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import LayoutDialog from './components/LayoutDialog';
 import EditorPane from './components/EditorPane';
 import FileTree from './components/FileTree';
 import PreviewPane from './components/PreviewPane';
@@ -39,8 +40,11 @@ import { useUpdate } from './store/updater';
 import type { DraftTarget } from './publish';
 import type { Entry } from './store/vault';
 import { checkArticle, type PreflightIssue } from './preflight';
+import { fetchDraft } from './wechat';
+import { articleIdentity } from './store/articleIdentity';
+import { getPublishAttempts } from './store/publishJournal';
 import { getWechatConfig } from './store/wechatConfig';
-import { addPublishRecord, addVersion, articleKey as makeArticleKey, loadContentState, saveContentState, type ContentState } from './store/contentState';
+import { addPublishRecord, addVersion, loadContentState, saveContentState, type ContentState } from './store/contentState';
 import { draftTitle, syncedDraftFileName } from './draftNaming';
 import './styles.css';
 
@@ -116,11 +120,13 @@ function Workspace({ vault }: { vault: VaultApi }) {
   };
   const setActiveDraft = (id: string) => vault.setPrefs({ activeId: id });
 
-  const themeId = prefs.themeByDraft[activeId] ?? prefs.themeId;
+  const currentArticleKey = articleIdentity(vault.dir ?? '', activeId);
+  const themeId = prefs.themeByArticle?.[currentArticleKey] ?? prefs.themeId;
   const setArticleTheme = (id: string) => {
     if (!activeId) return;
     vault.setPrefs({
       themeByDraft: { ...prefs.themeByDraft, [activeId]: id },
+      themeByArticle: { ...prefs.themeByArticle, [currentArticleKey]: id },
     });
   };
   const densityId = prefs.densityId;
@@ -173,9 +179,12 @@ function Workspace({ vault }: { vault: VaultApi }) {
    *  rather than a section of the push dialog */
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [articleCenterOpen, setArticleCenterOpen] = useState(false);
   const [contentState, setContentStateValue] = useState<ContentState>(loadContentState);
-  const currentArticleKey = makeArticleKey(vault.dir ?? '', activeId);
+  const publishOpenRequest = useRef(0);
+  const currentArticleKeyRef = useRef(currentArticleKey);
+  currentArticleKeyRef.current = currentArticleKey;
   const setContentState = (next: ContentState) => {
     setContentStateValue(next);
     saveContentState(next);
@@ -386,6 +395,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         vault.setPrefs({
           themeId: prefs.themeId === id ? 'classic' : prefs.themeId,
           themeByDraft,
+          themeByArticle: Object.fromEntries(Object.entries(prefs.themeByArticle ?? {}).filter(([, usedThemeId]) => usedThemeId !== id)),
         });
         flash('主题已删掉');
       })
@@ -683,16 +693,33 @@ function Workspace({ vault }: { vault: VaultApi }) {
     setPublishTargetDigest('');
   };
 
-  const openPublish = () => {
-    const binding = contentState.bindings[currentArticleKey];
-    const currentAccount = getWechatConfig();
-    if (binding && binding.accountId === currentAccount.appid) {
-      setPublishTarget({ mediaId: binding.mediaId, index: binding.articleIndex, thumbMediaId: '', title: binding.title });
-    } else {
-      setPublishTarget(null);
+  const openPublish = async () => {
+    const request = ++publishOpenRequest.current;
+    const currentAccount = { ...getWechatConfig() };
+    let binding = contentState.bindings[currentArticleKey]?.[currentAccount.appid];
+    try {
+      // A crash can happen after the durable receipt but before UI history saves.
+      const completed = getPublishAttempts().find(item => item.snapshot.articleKey === currentArticleKey && item.snapshot.accountId === currentAccount.appid && item.state === 'completed' && item.receipt);
+      if (completed?.receipt && (!binding || completed.updatedAt > binding.updatedAt)) {
+        binding = { accountId: currentAccount.appid, mediaId: completed.receipt.mediaId, articleIndex: completed.snapshot.target?.index ?? 0, title: completed.snapshot.title, updatedAt: completed.updatedAt };
+      }
+      let target: DraftTarget | null = null;
+      let digest = '';
+      if (binding) {
+        flash('正在读取已关联草稿…');
+        const articles = await fetchDraft(currentAccount, binding.mediaId);
+        const article = articles[binding.articleIndex];
+        if (!article?.thumb_media_id) throw new Error('关联草稿不存在或缺少封面，请在草稿箱重新选择');
+        target = { accountId: currentAccount.appid, mediaId: binding.mediaId, index: binding.articleIndex, thumbMediaId: article.thumb_media_id, thumbUrl: article.thumb_url, title: article.title };
+        digest = article.digest;
+      }
+      if (request !== publishOpenRequest.current || currentArticleKeyRef.current !== currentArticleKey || getWechatConfig().appid !== currentAccount.appid) return;
+      setPublishTarget(target);
+      setPublishTargetDigest(digest);
+      setPublishOpen(true);
+    } catch (error) {
+      flash(error instanceof Error ? error.message : '读取关联草稿失败');
     }
-    setPublishTargetDigest('');
-    setPublishOpen(true);
   };
 
   /** Body HTML for the push: the preview runs off a deferred value and the
@@ -701,6 +728,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
     await ensureHighlighter();
     return renderArticle(markdown, theme, imageIndex, density, renderOptions).html;
   };
+
+  const publishRevision = useMemo(() => ({}), [markdown, theme, imageIndex, density, renderOptions]);
 
   /** Default title: the first H1 in the body, falling back to the draft name.
    *  Computed only at the moment the dialog opens */
@@ -807,6 +836,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onPublish={openPublish}
         onOpenDraftBox={() => setDraftBoxOpen(true)}
         onOpenArticleCenter={() => setArticleCenterOpen(true)}
+        onOpenLayout={() => setLayoutOpen(true)}
         onOpenCloudinary={() => setCloudinaryOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         hasUpdate={hasUpdate}
@@ -907,6 +937,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
         </div>
         {agentMounted && (
           <AgentPanel
+            key={vault.dir ?? ''}
+            files={drafts.map(draft => draft.id)}
             open={agentOpen}
             vaultDir={vault.dir ?? ''}
             activeId={activeId}
@@ -931,6 +963,19 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onReplace={setMarkdown}
         onOpenSettings={() => { setCloudinaryOpen(false); setSettingsOpen(true); }}
       />
+      <LayoutDialog
+        open={layoutOpen}
+        articleKey={currentArticleKey}
+        markdown={markdown}
+        revision={publishRevision}
+        renderMarkdown={async content => { await ensureHighlighter(); return renderArticle(content, theme, imageIndex, density, renderOptions).html; }}
+        onClose={() => setLayoutOpen(false)}
+        onApply={content => {
+          setContentState(addVersion(loadContentState(), currentArticleKey, markdown, '采用 AI 排版前'));
+          setMarkdown(content);
+          flash('已采用排版，原稿已保存到版本历史');
+        }}
+      />
       <ArticleCenterDialog
         open={articleCenterOpen}
         onClose={() => setArticleCenterOpen(false)}
@@ -947,14 +992,16 @@ function Workspace({ vault }: { vault: VaultApi }) {
       <PublishDialog
         open={publishOpen}
         onClose={closePublish}
+        articleKey={currentArticleKey}
+        contentRevision={publishRevision}
         defaultTitle={defaultTitle}
         articleCheckInput={articleCheckInput}
         articleHasImage={result.hasImage}
         buildHtml={buildArticleHtml}
         onFlash={flash}
         onPublished={(published) => {
-          const next = addPublishRecord(contentState, {
-            articleKey: currentArticleKey,
+          const next = addPublishRecord(loadContentState(), {
+            articleKey: published.articleKey,
             accountId: published.accountId,
             mediaId: published.mediaId,
             articleIndex: published.articleIndex,

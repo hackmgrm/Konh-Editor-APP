@@ -21,6 +21,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { articleIdentity, registerArticlePaths, relocateArticlePaths, forgetArticlePaths, prepareArticleMove, cancelArticleMove, recoverArticlePaths } from './articleIdentity';
 import { SAMPLE_MARKDOWN } from '../sample';
 import * as api from './vault';
 import type { Draft, Entry, Prefs } from './vault';
@@ -32,6 +33,7 @@ export type { Draft, Entry, Prefs } from './vault';
 const DEFAULT_PREFS: Prefs = {
   themeId: 'classic',
   themeByDraft: {},
+  themeByArticle: {},
   densityId: 'standard',
   linkFootnotes: false,
   activeId: null,
@@ -89,6 +91,15 @@ export function useVault() {
         data.drafts = [await api.createDraft(target, '', '未命名草稿', SAMPLE_MARKDOWN)];
         data.tree = await api.readTree(target);
       }
+      await recoverArticlePaths(target, data.drafts.map(draft => draft.id));
+      await registerArticlePaths(target, data.drafts.map(draft => draft.id));
+      const loadedPrefs = { ...DEFAULT_PREFS, ...(data.prefs ?? {}) };
+      const themeByArticle = { ...loadedPrefs.themeByArticle };
+      for (const [path, theme] of Object.entries(data.prefs?.themeByArticle ? {} : loadedPrefs.themeByDraft)) {
+        themeByArticle[articleIdentity(target, path)] ??= theme;
+      }
+      data.prefs = { ...loadedPrefs, themeByArticle };
+      await api.writePrefs(target, data.prefs);
       await api.rememberVault(target);
       dirtyRef.current.clear();
       setConflicts({});
@@ -197,6 +208,7 @@ export function useVault() {
       const target = dirRef.current;
       if (!target) return null;
       const created = await api.createDraft(target, parent, name, content);
+      await registerArticlePaths(target, [created.id], true);
       setDrafts((prev) => [created, ...prev]);
       await refreshTree();
       return created;
@@ -231,6 +243,7 @@ export function useVault() {
     setConflicts((prev) =>
       Object.fromEntries(Object.entries(prev).map(([p, c]) => [remap(p), { ...c, id: remap(p) }])),
     );
+    window.clearTimeout(prefsTimer.current);
     setPrefsState((prev) => {
       const next = {
         ...prev,
@@ -253,7 +266,13 @@ export function useVault() {
       // A rename changes the file name, so flush pending edits first — otherwise
       // the write-back goes looking for a file that no longer exists
       await flush();
-      const next = await api.renameEntry(target, path, name);
+      const planned = await api.renameTarget(target, path, name);
+      if (planned === path) return path;
+      await prepareArticleMove(target, path, planned);
+      let next: string;
+      try { next = await api.renameEntry(target, path, name); }
+      catch (error) { await cancelArticleMove(target); throw error; }
+      await relocateArticlePaths(target, path, next);
       remapPaths(path, next);
       // The display name follows the file name
       setDrafts((prev) =>
@@ -271,7 +290,13 @@ export function useVault() {
       const target = dirRef.current;
       if (!target) return null;
       await flush();
-      const next = await api.moveEntry(target, path, toParent);
+      const planned = await api.moveTarget(target, path, toParent);
+      if (planned === path) return path;
+      await prepareArticleMove(target, path, planned);
+      let next: string;
+      try { next = await api.moveEntry(target, path, toParent); }
+      catch (error) { await cancelArticleMove(target); throw error; }
+      await relocateArticlePaths(target, path, next);
       remapPaths(path, next);
       await refreshTree();
       return next;
@@ -286,6 +311,7 @@ export function useVault() {
       const target = dirRef.current;
       if (!target) return;
       await api.deleteEntry(target, path);
+      await forgetArticlePaths(target, path);
       const inside = (p: string) => p === path || p.startsWith(`${path}/`);
       dirtyRef.current = new Set([...dirtyRef.current].filter((p) => !inside(p)));
       setDrafts((prev) => prev.filter((d) => !inside(d.id)));
@@ -392,6 +418,7 @@ export function useVault() {
           // an md into the directory)
           try {
             const disk = await api.readDraft(target, path);
+            await registerArticlePaths(target, [path]);
             setDrafts((prev) => (prev.some((d) => d.id === path) ? prev : [disk, ...prev]));
           } catch {
             // Created and removed again in the same window; skip

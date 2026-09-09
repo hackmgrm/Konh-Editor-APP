@@ -30,6 +30,8 @@ import {
  * silently swap the cover for the body's first image.
  */
 export interface DraftTarget {
+  accountId: string;
+  thumbUrl?: string;
   mediaId: string;
   index: number;
   thumbMediaId: string;
@@ -50,6 +52,8 @@ export interface PublishOptions {
   onProgress?: (message: string) => void;
   /** Set to overwrite an existing draft rather than create a new one */
   target?: DraftTarget;
+  /** Persist the submission marker before any remote draft mutation. */
+  beforeSubmit?: (article: DraftArticle) => Promise<void>;
 }
 
 export interface PublishResult {
@@ -142,6 +146,7 @@ export async function publishToDraft(cfg: WechatConfig, opts: PublishOptions): P
 }
 
 async function pushOnce(cfg: WechatConfig, opts: PublishOptions): Promise<PublishResult> {
+  if (opts.target && opts.target.accountId !== cfg.appid) throw new Error('目标草稿属于其他公众号，请重新选择');
   const title = opts.title.trim();
   if (!title) throw new Error('标题不能为空');
   // Straight from the documentation: "title, no longer than 32 characters"
@@ -205,6 +210,7 @@ async function pushOnce(cfg: WechatConfig, opts: PublishOptions): Promise<Publis
   };
 
   report(opts.target ? '正在更新草稿…' : '正在推送草稿…');
+  await opts.beforeSubmit?.(article);
   try {
     if (opts.target) {
       // draft/update replaces the article whole, so the same complete object

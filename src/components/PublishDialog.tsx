@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowCounterClockwise, CheckCircle, GearSix, PaperPlaneTilt, Stack, X } from '@phosphor-icons/react';
 import { prepareImage } from '../images';
 import { publishToDraft, type DraftTarget } from '../publish';
-import { isConfigured } from '../wechat';
-import { patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
+import { isConfigured, WechatError } from '../wechat';
+import { contentHash, type PublishSnapshot } from '../publishJournal';
+import { publishJournal } from '../store/publishJournal';
+import { fetchImageAsDataUrl } from '../remoteImages';
+import { freezeArticleHtml, packageArtifact, saveArtifact } from '../artifacts';
+import PublishHistory from './PublishHistory';
+import { getWechatConfig, patchWechatConfig, useWechatConfig } from '../store/wechatConfig';
 import { checkArticle, checkPublishFields, hasBlockingIssues, type ArticleCheckInput } from '../preflight';
 import PreflightIssues from './PreflightIssues';
 import CoverWorkbench from './CoverWorkbench';
+import WritingTools from './WritingTools';
 
 interface Props {
+  articleKey: string;
+  contentRevision: object;
   open: boolean;
   onClose: () => void;
   /** Default article title (first H1 in the body, falling back to the draft name) */
@@ -35,7 +43,7 @@ interface Props {
   onOpenDraftBox: () => void;
   /** Drop the target and go back to creating a new draft */
   onClearTarget: () => void;
-  onPublished?: (result: { mediaId: string; updated: boolean; title: string; accountId: string; articleIndex: number }) => void;
+  onPublished?: (result: { articleKey: string; mediaId: string; updated: boolean; title: string; accountId: string; articleIndex: number }) => void;
 }
 
 /**
@@ -52,6 +60,8 @@ interface Props {
  * defaults but are still worth a look each time.
  */
 export default function PublishDialog({
+  articleKey,
+  contentRevision,
   open,
   onClose,
   defaultTitle,
@@ -70,11 +80,17 @@ export default function PublishDialog({
   const [title, setTitle] = useState(defaultTitle);
   const [digest, setDigest] = useState('');
   const [cover, setCover] = useState<{ dataUrl: string; filename: string } | null>(null);
+  const [generatedCover, setGeneratedCover] = useState<{ dataUrl: string; filename: string } | null>(null);
   const [coverWorkbenchOpen, setCoverWorkbenchOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [generatingTitle, setGeneratingTitle] = useState(false);
+  const [generatingCover, setGeneratingCover] = useState(false);
   const [progress, setProgress] = useState('');
   const [probe, setProbe] = useState<{ kind: 'ok' | 'warn' | 'fail'; message: string } | null>(null);
   const coverRef = useRef<HTMLInputElement>(null);
+  const publishing = useRef(false);
+  const currentContext = useRef({ articleKey, contentRevision });
+  currentContext.current = { articleKey, contentRevision };
 
   /*
    * Follow the open draft's title each time the dialog opens.
@@ -91,6 +107,8 @@ export default function PublishDialog({
       // A cover chosen for the previous article must never silently follow the
       // next one into its preflight result or its published draft.
       setCover(null);
+      setGeneratedCover(null);
+      setCoverWorkbenchOpen(false);
       setProbe(null);
       setProgress('');
     }
@@ -100,11 +118,14 @@ export default function PublishDialog({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       // No closing mid-push, or it looks cancelled while the request is still in flight
-      if (e.key === 'Escape' && !busy) onClose();
+      if (e.key === 'Escape' && !busy) {
+        if (coverWorkbenchOpen) { setCoverWorkbenchOpen(false); setGeneratedCover(null); }
+        else onClose();
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, onClose]);
+  }, [open, busy, coverWorkbenchOpen, onClose]);
 
   if (!open) return null;
 
@@ -131,6 +152,7 @@ export default function PublishDialog({
   };
 
   const handlePublish = async () => {
+    if (publishing.current || generatingTitle || generatingCover) return;
     if (publishBlocked) {
       setProbe({ kind: 'fail', message: '请先处理发布检查中的必改问题' });
       return;
@@ -139,21 +161,56 @@ export default function PublishDialog({
       setProbe({ kind: 'fail', message: '还没填公众号凭据 —— 去「设置」里填 AppID 与 AppSecret' });
       return;
     }
+    publishing.current = true;
     setBusy(true);
     setProbe(null);
+    const account = { ...cfg };
+    const frozenTarget = target ? { ...target } : undefined;
+    const frozenCover = cover ? { ...cover } : undefined;
+    const checkCurrent = () => {
+      if (currentContext.current.articleKey !== articleKey || currentContext.current.contentRevision !== contentRevision) throw new Error('文章或排版已变化，请重新检查后推送');
+      if (getWechatConfig().appid !== account.appid || (frozenTarget && frozenTarget.accountId !== account.appid)) throw new Error('公众号已变化，请重新选择目标草稿');
+    };
     try {
-      const html = await buildHtml();
-      const { mediaId, updated, uploaded, smallestEdge, roundTrip } = await publishToDraft(cfg, {
+      checkCurrent();
+      setProgress('正在固定正文与图片…');
+      const rendered = await buildHtml();
+      const html = await freezeArticleHtml(rendered);
+      let snapshotCover = frozenCover?.dataUrl;
+      if (!snapshotCover && frozenTarget && !frozenTarget.thumbUrl) throw new Error('原草稿没有可读取的封面地址，请选择一张封面后重试');
+      if (!snapshotCover && frozenTarget?.thumbUrl) {
+        snapshotCover = await fetchImageAsDataUrl(frozenTarget.thumbUrl) ?? undefined;
+        if (!snapshotCover) throw new Error('原草稿封面无法保存，请检查网络后重试');
+      }
+      if (!snapshotCover && !frozenTarget) {
+        snapshotCover = new DOMParser().parseFromString(html, 'text/html').querySelector('img:not([data-no-cover="true"])')?.getAttribute('src') ?? undefined;
+      }
+      checkCurrent();
+      const snapshot: PublishSnapshot = {
+        articleKey, accountId: account.appid, title, markdown: articleCheckInput.markdown,
+        htmlHash: await contentHash(html), coverHash: await contentHash(frozenCover?.dataUrl ?? ''), digest,
+        author: account.author, sourceUrl: account.sourceUrl, openComment: account.openComment,
+        target: frozenTarget ? { mediaId: frozenTarget.mediaId, index: frozenTarget.index, thumbMediaId: frozenTarget.thumbMediaId } : null,
+      };
+      const { mediaId, updated, uploaded, smallestEdge, roundTrip } = await publishJournal.run(snapshot, beforeSubmit => publishToDraft(account, {
         title,
         html,
         digest,
-        cover: cover ?? undefined,
+        cover: frozenCover,
         onProgress: setProgress,
-        target: target ?? undefined,
-      });
+        target: frozenTarget,
+        beforeSubmit: async article => {
+          checkCurrent();
+          const artifactId = crypto.randomUUID();
+          const artifact = packageArtifact({ id: artifactId, kind: 'publish', articleKey, title, createdAt: Date.now(), markdown: snapshot.markdown, html: article.content, submittedHtml: article.content }, html, snapshotCover);
+          await saveArtifact(artifact);
+          checkCurrent();
+          await beforeSubmit(artifactId);
+        },
+      }), error => error instanceof WechatError);
       setProgress('');
       console.info('草稿 media_id', mediaId);
-      onPublished?.({ mediaId, updated, title, accountId: cfg.appid, articleIndex: target?.index ?? 0 });
+      onPublished?.({ articleKey, mediaId, updated, title, accountId: account.appid, articleIndex: frozenTarget?.index ?? 0 });
       onFlash(
         `${updated ? '已更新草稿' : '已推送到草稿箱'}（换图 ${uploaded} 张${smallestEdge ? `，最小长边 ${smallestEdge}px` : ''}）`,
       );
@@ -190,6 +247,7 @@ export default function PublishDialog({
       let message = err instanceof Error ? err.message : '推送失败';
       setProbe({ kind: 'fail', message });
     } finally {
+      publishing.current = false;
       setBusy(false);
     }
   };
@@ -217,6 +275,7 @@ export default function PublishDialog({
         </header>
 
         <div className="modal-body">
+          <fieldset className="publish-fields" disabled={busy}>
           <section className="form-section">
             <div className="form-section-label">推到哪里</div>
             {/* Which draft this push lands in. A new one by default; pointed at
@@ -253,10 +312,12 @@ export default function PublishDialog({
               <span>标题</span>
               <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={32} placeholder="必填，最多 32 字" />
             </label>
+            <WritingTools mode="titles" onBusyChange={setGeneratingTitle} article={articleCheckInput.markdown} disabled={busy} onTitle={setTitle} />
             <label className="field">
               <span>摘要</span>
               <input value={digest} onChange={(e) => setDigest(e.target.value)} maxLength={120} placeholder="留空则取正文开头" />
             </label>
+            <WritingTools mode="cover" onBusyChange={setGeneratingCover} article={articleCheckInput.markdown} disabled={busy} onCover={value => { setGeneratedCover(value); setCoverWorkbenchOpen(true); }} />
             <div className="field">
               <span>封面</span>
               <div className="cover-picker">
@@ -338,6 +399,8 @@ export default function PublishDialog({
             <div className="form-section-label">发布前检查</div>
             <PreflightIssues issues={preflightIssues} />
           </section>
+          </fieldset>
+          <PublishHistory articleKey={articleKey} accountId={cfg.appid} busy={busy} onOpenDraftBox={onOpenDraftBox} />
         </div>
 
         <footer className="modal-foot">
@@ -351,12 +414,12 @@ export default function PublishDialog({
           <button className="btn" onClick={onClose} disabled={busy}>
             取消
           </button>
-          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy || publishBlocked}>
+          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy || generatingTitle || generatingCover || publishBlocked}>
             <PaperPlaneTilt size={15} weight="bold" />
             {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
           </button>
         </footer>
-        <CoverWorkbench open={coverWorkbenchOpen} source={cover} onClose={() => setCoverWorkbenchOpen(false)} onApply={(next) => { setCover(next); setCoverWorkbenchOpen(false); }} />
+        <CoverWorkbench open={coverWorkbenchOpen} source={generatedCover ?? cover} onClose={() => { setCoverWorkbenchOpen(false); setGeneratedCover(null); }} onApply={(next) => { setCover(next); setGeneratedCover(null); setCoverWorkbenchOpen(false); }} />
       </div>
     </div>
   );
