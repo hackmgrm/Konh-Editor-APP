@@ -275,6 +275,21 @@
   opacity: 0.5;
 }
 
+/* Preview device switch: the shared segmented control, shrunk to the head's
+   quiet 11px scale so it sits beside the stats instead of shouting over them */
+.pane-head .device-switch {
+  flex: none;
+  /* Equal columns, each as wide as the longest label: the sliding thumb is
+     1/n of the width, so the slots must be too, or it drifts off its label */
+  display: inline-grid;
+  grid-template-columns: repeat(var(--seg-n), 1fr);
+}
+
+.pane-head .device-switch .seg-btn {
+  padding: 2px 9px;
+  font-size: 11px;
+}
+
 /* ---------------- Pane-head breadcrumb ----------------
    The left side of a pane head used to read "source" and "preview" — two words
    that name what you are already looking at. It carries something you cannot

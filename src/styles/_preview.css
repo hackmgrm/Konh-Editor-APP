@@ -290,7 +290,410 @@
   background: var(--accent-softer);
 }
 
-/* ---------------- Desktop mode (pane ≥ 860px) ----------------
+/* ---------------- iPhone Duo ----------------
+   Apple's book-style foldable (announced 2026-09-09). Screen sizes follow
+   Apple's spec sheet; the point sizes are derived at @3x, since Apple
+   publishes none. Everything else — bezel, radii, the camera plateau, the
+   button positions — is measured off Apple's product photos: close, not exact.
+
+   "Duo 外屏" lays the device open, outside up, the way Apple photographs it:
+   the back half on the left, the outer screen on the right. Both Duo views are
+   landscape objects with fixed proportions; PreviewPane zooms the whole frame
+   to fit the stage. Keep the frame
+   sizes in step with DUO_FRAMES there. */
+
+/* Star White: near-uniform matte white glass in a thin, neutral steel rim */
+.preview-side[data-device^='duo'] {
+  --duo-rim: linear-gradient(148deg, #f4f4f2 0%, #8e8d89 12%, #e4e3df 26%, #6e6d69 44%, #d6d5d1 60%, #7f7e7a 78%, #f0efec 100%);
+  --duo-glass: linear-gradient(170deg, #f6f6f5 0%, #f1f1ef 50%, #ebebe9 100%);
+  --duo-key: rgba(255, 255, 255, 0.5); /* a gentle brightening toward the top */
+  --duo-falloff: rgba(0, 0, 0, 0.035); /* neutral shade toward the bottom-right */
+  --duo-seam: rgba(0, 0, 0, 0.22); /* hairline where glass meets metal */
+  --duo-plateau: linear-gradient(180deg, #fbfbfa 0%, #f6f6f5 60%, #f0f0ee 100%);
+  --duo-plateau-lip: rgba(255, 255, 255, 1);
+  --duo-ring: conic-gradient(from 205deg, #ffffff, #9d9c98 12%, #f4f4f2 25%, #6a6965 40%, #e7e7e4 55%, #86857f 72%, #fafaf9 88%, #ffffff);
+  --duo-logo-a: #e4e4e2;
+  --duo-logo-b: #dad9d7;
+  --duo-logo-sheen: #e9e9e7;
+  --duo-logo-lip: rgba(255, 255, 255, 0.6);
+}
+
+/* Night Sky on a dark shell: deep navy glass, a darker polished rim */
+:root[data-appearance='dark'] .preview-side[data-device^='duo'] {
+  --duo-rim: linear-gradient(148deg, #a9b2c2 0%, #3b4250 12%, #7e8797 26%, #1b1f28 44%, #6d7686 60%, #2a303c 78%, #9aa3b3 100%);
+  --duo-glass: linear-gradient(170deg, #4b5871 0%, #3e4a62 45%, #323d52 100%);
+  --duo-key: rgba(205, 218, 245, 0.18);
+  --duo-falloff: rgba(0, 4, 18, 0.26);
+  --duo-seam: rgba(0, 0, 0, 0.45);
+  --duo-plateau: linear-gradient(180deg, #53607a 0%, #46526b 55%, #3c475e 100%);
+  --duo-plateau-lip: rgba(200, 214, 242, 0.35);
+  --duo-ring: conic-gradient(from 205deg, #dde4f0, #58637a 10%, #b8c2d4 22%, #262d3d 38%, #a2adc2 52%, #3a4459 70%, #d0d8e6 86%, #dde4f0);
+  --duo-logo-a: #4f5b73;
+  --duo-logo-b: #44506a;
+  --duo-logo-sheen: #56627a;
+  --duo-logo-lip: rgba(200, 214, 242, 0.22);
+}
+
+.preview-side[data-device^='duo'] .phone-stage {
+  align-items: center;
+}
+
+.preview-side[data-device^='duo'] .phone-frame {
+  flex: none;
+  max-width: none;
+  display: flex;
+  gap: 2px; /* the hinge seam: the rim shows through between the halves */
+  padding: 4px; /* the polished rim */
+  background: var(--duo-rim);
+  box-shadow:
+    var(--shadow-4),
+    0 0 0 0.75px rgba(0, 0, 0, 0.35), /* where the metal meets the air */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45); /* the polished lip */
+}
+
+/* The screen sits in a black bezel, inside the rim */
+.preview-side[data-device^='duo'] .phone-screen {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 8px solid #070707;
+}
+
+.preview-side[data-device^='duo'] .side-btn {
+  background: var(--duo-rim);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+.preview-side[data-device^='duo'] .side-btn.action {
+  display: none;
+}
+
+/* Two buttons on the top edge of the back half, one on its outer side */
+.preview-side[data-device^='duo'] .side-btn.vol-up,
+.preview-side[data-device^='duo'] .side-btn.vol-down {
+  top: -3px;
+  width: 57px;
+  height: 3px;
+}
+
+/* Status: no bar across the top. The time and one status ring — Wi-Fi inside,
+   signal as dots along the bottom — stack in the top-right corner, and the
+   article runs up underneath like any iOS content. */
+.statusbar .sb-orb {
+  display: none;
+}
+
+.preview-side[data-device^='duo'] .statusbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 20px 22px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  background: transparent;
+}
+
+.preview-side[data-device^='duo'] .sb-icons {
+  display: none;
+}
+
+/* The status ring: a circle, solid over the top and down both sides,
+   its bottom finished in a run of dots. The Wi-Fi fan sits in its upper half,
+   and every stroke carries the same weight as the fan. */
+.preview-side[data-device^='duo'] .sb-orb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+}
+
+.sb-orb .ring,
+.sb-orb .wifi {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* With no bar holding it down, the article head takes the top inset itself */
+.preview-side[data-device^='duo'] .article-head {
+  padding-top: 44px;
+}
+
+/* A roomier side margin on the Duo's wider screens */
+.preview-side[data-device^='duo'] .article-head,
+.preview-side[data-device^='duo'] .check-body,
+.preview-side[data-device^='duo'] .article-footer {
+  padding-left: 36px;
+  padding-right: 36px;
+}
+
+/* Only the title wraps before the stack; the byline divider keeps the full measure */
+.preview-side[data-device^='duo'] .article-head .head-title {
+  padding-right: 28px;
+}
+
+/* The inner screen's camera sits under the display: no island there */
+.preview-side[data-device='duo-open'] .dynamic-island {
+  display: none;
+}
+
+/* The outer screen keeps its Dynamic Island — at rest, a small round camera
+   cutout heading the status stack, a little narrower than the ring below */
+.preview-side[data-device='duo'] .statusbar {
+  padding-top: 16px;
+}
+
+.preview-side[data-device='duo'] .statusbar .dynamic-island {
+  position: relative;
+  left: auto;
+  top: auto;
+  order: -1;
+  transform: none;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 3px;
+}
+
+/* The lens, centred in the cutout */
+.preview-side[data-device='duo'] .statusbar .dynamic-island::after {
+  right: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+}
+
+/* The title wraps before the stack */
+.preview-side[data-device='duo'] .article-head .head-title {
+  padding-right: 32px;
+}
+
+/* ---- Outside: back half + outer screen ---- */
+
+.preview-side[data-device='duo'] .phone-frame {
+  width: 897px; /* 2 × 443.5px halves + 2px seam + 2 × 4px rim */
+  height: 647px; /* (678pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  border-radius: 59px;
+}
+
+.preview-side[data-device='duo'] .side-btn.vol-up {
+  left: 104px;
+}
+
+.preview-side[data-device='duo'] .side-btn.vol-down {
+  left: 182px;
+}
+
+.preview-side[data-device='duo'] .side-btn.power {
+  right: auto;
+  left: -3px;
+  top: 175px;
+  height: 114px;
+}
+
+/* The back glass: cool and frosted, lit from the top-left and falling off to
+   the bottom-right; a hairline seam where it meets the rim, and a little shade
+   where it dips into the hinge */
+.duo-back {
+  position: relative;
+  flex: none;
+  width: 443.5px; /* matches the screen half beside it */
+  border-radius: 55px 0 0 55px;
+  background:
+    radial-gradient(130% 80% at 10% 0%, var(--duo-key), transparent 60%),
+    radial-gradient(110% 75% at 100% 100%, var(--duo-falloff), transparent 68%),
+    var(--duo-glass);
+  box-shadow:
+    0 0 0 0.5px var(--duo-seam),
+    inset 0 0 26px rgba(0, 0, 0, 0.035),
+    inset -3px 0 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+/* The camera plateau: the same glass, raised. No outline — its shape comes
+   from light alone: a lit top face, a lip of highlight, a soft shadow cast
+   down the back from its lower edge */
+.duo-plateau {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 311px;
+  height: 122px;
+  border-radius: 61px;
+  background: var(--duo-plateau);
+  box-shadow:
+    0 1.5px 2px rgba(0, 0, 0, 0.07),
+    0 12px 24px -12px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1px var(--duo-plateau-lip),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.045);
+}
+
+/* Each lens: a thin polished ring around a wide, deep glass — the ring is
+   only a sliver of the diameter; the glass shows its stacked elements */
+.duo-lens {
+  position: absolute;
+  top: 15.5px;
+  width: 91px;
+  height: 91px;
+  border-radius: 50%;
+  background: var(--duo-ring);
+  box-shadow:
+    0 3px 6px -2px rgba(0, 0, 0, 0.3),
+    0 0 0 0.5px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 1.5px rgba(0, 0, 0, 0.25);
+}
+
+.duo-lens.l1 {
+  left: 9px;
+}
+
+.duo-lens.l2 {
+  left: 111px;
+}
+
+/* The glass: black, with the lens elements stacked inside it — an inner
+   barrel ring, a faint mid ring, a deep blue centre, one catch of light */
+.duo-lens::before {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 37% 31%, rgba(255, 255, 255, 0.55) 0 1.4%, rgba(255, 255, 255, 0.06) 3%, transparent 5%),
+    radial-gradient(circle, #2b3659 0 6%, #121828 9%, transparent 12%),
+    radial-gradient(circle, transparent 0 29%, rgba(95, 105, 135, 0.35) 30.5%, transparent 34%),
+    radial-gradient(circle, transparent 0 52%, rgba(255, 255, 255, 0.06) 53%, transparent 56%),
+    radial-gradient(circle, #0c0d11 0 60%, #050506 80%, #17181c 100%);
+  box-shadow: 0 0 0 1px #0a0a0b, inset 0 2px 5px rgba(0, 0, 0, 0.8);
+}
+
+/* A soft reflection across the upper glass */
+.duo-lens::after {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.09), transparent 42%);
+  pointer-events: none;
+}
+
+/* The mic: a slot cut into the glass */
+.duo-mic {
+  position: absolute;
+  left: 239px;
+  top: 32px;
+  width: 18px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #0f0f10, #2a2a2c);
+  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.7), 0 0.5px 0 var(--duo-plateau-lip);
+}
+
+/* The flash: a translucent diffuser, neutral rather than yellow when off */
+.duo-flash {
+  position: absolute;
+  left: 238px;
+  top: 74px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, transparent 0 1.6px, rgba(0, 0, 0, 0.05) 1.6px 2.2px),
+    radial-gradient(circle at 45% 40%, #fbfaf6, #e4e1d8 58%, #c9c5ba 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.14),
+    0 0.5px 0 1px var(--duo-plateau-lip),
+    inset 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+/* The logo: one silver tone, mirror-polished — a soft diagonal sheen across
+   it (the gradient lives in the SVG) and a faint bright lip on its lower edge */
+.duo-logo {
+  position: absolute;
+  left: 50%;
+  top: 51%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0.75px 0 var(--duo-logo-lip));
+}
+
+.duo-logo .a {
+  stop-color: var(--duo-logo-a);
+}
+
+.duo-logo .sheen {
+  stop-color: var(--duo-logo-sheen);
+}
+
+.duo-logo .b {
+  stop-color: var(--duo-logo-b);
+}
+
+/* Square on the hinge side, rounded on the free side — a "D" */
+.preview-side[data-device='duo'] .phone-screen {
+  border-radius: 6px 60px 60px 6px;
+}
+
+/* ---- Inner screen: 890×626pt held landscape ----
+   Open, the back half sits behind the right side, so its buttons mirror over */
+
+.preview-side[data-device='duo-open'] .phone-frame {
+  width: 842px; /* (890pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  height: 599px; /* (626pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  border-radius: 47px;
+}
+
+.preview-side[data-device='duo-open'] .phone-screen {
+  border-radius: 47px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.vol-up {
+  left: auto;
+  right: 96px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.vol-down {
+  left: auto;
+  right: 168px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.power {
+  top: 162px;
+  height: 106px;
+}
+
+.preview-side[data-device='duo-open'] .crease {
+  display: block;
+}
+
+/* The fold down the middle. Apple's nano-texture finish makes it barely
+   visible, so: one soft shadow and one soft highlight, laid over the content */
+.phone-screen .crease {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 12px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.028) 42%,
+    rgba(255, 255, 255, 0.04) 52%,
+    rgba(0, 0, 0, 0.02) 60%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ---------------- Desktop mode (the 桌面 choice) ----------------
    Same markup, different chrome: the device rail gives way to a plain
    window so the wider measure is what you are judging. */
 
