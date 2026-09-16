@@ -356,3 +356,11 @@
   line-height: 1.6;
   color: var(--text-3);
 }
+
+/* A group can carry more than one row (界面外观 / 行号 share a section: both
+   are the shell, neither travels with the draft). The second eyebrow opens
+   its row at the same distance the group's own rows sit at, so the two read
+   as siblings rather than as one control with a stray label under it. */
+.typeset-group > .segmented + .eyebrow {
+  margin-top: 14px;
+}

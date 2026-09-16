@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BatteryFull, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
+import { BatteryFull, CaretDown, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
 import Tooltip from './Tooltip';
 import { extractTitle, stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
@@ -785,6 +785,9 @@ export default function PreviewPane({
                 {theme.name}
               </span>
               <span className="seg">{densityName}</span>
+              {/* The one mark that says this label opens something. Small and
+                  quiet enough to stay a caption until the pointer arrives. */}
+              <CaretDown size={10} weight="bold" className="pane-path-caret" aria-hidden="true" />
             </button>
           </Tooltip>
         )}

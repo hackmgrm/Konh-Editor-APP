@@ -3,6 +3,7 @@ import { Check, Eyedropper, PencilSimple, SlidersHorizontal, Sparkle, Trash } fr
 import { DENSITIES, darkThemes, lightThemes, punkThemes, type Theme } from '../theme';
 import { sampleHtmlFor } from '../themeSample';
 import type { Appearance } from '../store/appearance';
+import { useEditorPrefs } from '../store/editorPrefs';
 import Tooltip from './Tooltip';
 
 interface Props {
@@ -108,6 +109,13 @@ const APPEARANCES: { id: Appearance; name: string }[] = [
   { id: 'dark', name: '深色' },
 ];
 
+/** The line-number column in the source pane. Off by default — see
+ *  store/editorPrefs.ts */
+const LINE_NUMBERS = [
+  { id: 'off', name: '隐藏' },
+  { id: 'on', name: '显示' },
+] as const;
+
 /**
  * Everything about how things look, in one popover.
  *
@@ -210,6 +218,11 @@ export default function TypesetPopover({
 
   const densityIndex = Math.max(0, DENSITIES.findIndex((d) => d.id === densityId));
   const appearanceIndex = Math.max(0, APPEARANCES.findIndex((a) => a.id === appearance));
+  // Straight off the shared store rather than down through App: nothing above
+  // this popover has any use for the value, and the editor reads the same
+  // store, so the two stay in step without a prop chain between them.
+  const { lineNumbers, setLineNumbers } = useEditorPrefs();
+  const lineNumbersIndex = lineNumbers ? 1 : 0;
 
   return (
     <div
@@ -340,6 +353,34 @@ export default function TypesetPopover({
               onClick={() => onAppearance(a.id)}
             >
               {a.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Second row of the same group: also the shell, also not the draft.
+            Line numbers are scaffolding for code and this pane holds prose,
+            so they start hidden and this is where you go looking for them. */}
+        <span className="eyebrow">行号</span>
+        <div
+          className="segmented"
+          role="radiogroup"
+          aria-label="行号"
+          style={{ '--seg-n': LINE_NUMBERS.length, '--seg-i': lineNumbersIndex } as React.CSSProperties}
+        >
+          {LINE_NUMBERS.map((o, i) => (
+            <button
+              key={o.id}
+              role="radio"
+              aria-checked={lineNumbersIndex === i}
+              tabIndex={lineNumbersIndex === i ? 0 : -1}
+              className={`seg-btn ${lineNumbersIndex === i ? 'active' : ''}`}
+              onKeyDown={(e) => {
+                const next = arrowPick(e, LINE_NUMBERS, lineNumbersIndex);
+                if (next) setLineNumbers(next.id === 'on');
+              }}
+              onClick={() => setLineNumbers(o.id === 'on')}
+            >
+              {o.name}
             </button>
           ))}
         </div>

@@ -885,23 +885,29 @@ export default function FileTree({
         )}
       </div>
 
-      {/* Foot of the rail. Plain anchors on purpose: the app-wide external
-          link listener catches them and hands the address to the system
-          browser, the same path every other outside link takes. */}
+      {/* Foot of the rail: the bottom counterpart of the head — one 28px row,
+          a grouped object on the left and a single ghost button pushed right,
+          the same shape as the vault pill and its 「+」 above.
+
+          Plain anchors on purpose: the app-wide external link listener catches
+          them and hands the address to the system browser, the same path every
+          other outside link takes. */}
       <div className="tree-foot">
-        <Tooltip content="作者的 X" side="top">
-          <a className="ghost-btn" href="https://x.com/yanxi067" aria-label="作者的 X">
-            <XLogo size={16} weight="fill" />
-          </a>
-        </Tooltip>
-        <Tooltip content="作者的 GitHub" side="top">
-          <a className="ghost-btn" href="https://github.com/whyubel1eve" aria-label="作者的 GitHub">
-            <GithubLogo size={16} weight="fill" />
-          </a>
-        </Tooltip>
+        <div className="tree-foot-links">
+          <Tooltip content="作者的 X" side="top">
+            <a className="ghost-btn" href="https://x.com/yanxi067" aria-label="作者的 X">
+              <XLogo size={16} weight="regular" />
+            </a>
+          </Tooltip>
+          <Tooltip content="作者的 GitHub" side="top">
+            <a className="ghost-btn" href="https://github.com/whyubel1eve" aria-label="作者的 GitHub">
+              <GithubLogo size={16} weight="regular" />
+            </a>
+          </Tooltip>
+        </div>
         <Tooltip content="设置（公众号凭据）" shortcut={hintFor("settings")} side="top">
           <button className="ghost-btn tree-foot-settings" onClick={onOpenSettings} aria-label="设置">
-            <GearSix size={17} weight="bold" />
+            <GearSix size={16} weight="regular" />
           </button>
         </Tooltip>
       </div>

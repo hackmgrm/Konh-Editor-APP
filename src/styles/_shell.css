@@ -273,7 +273,10 @@
      shadow already draw the edge, and the stroke on top of them was what
      made the sheet read as a box rather than a surface. */
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-2), var(--sheen);
+  /* Highlight first, shadow behind it: the inset line along the top edge is
+     the thickness of the paper catching the light, and it has to read on top
+     of the shadow that lifts the sheet off the canvas. */
+  box-shadow: var(--sheen), var(--shadow-2);
 }
 
 /* Same problem the phone frame has in the dark: a #262320-ish surface against
@@ -462,7 +465,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: 10px;
+  padding-left: 6px;
+}
+
+/* The source head's last stat and the preview head's theme chip face each
+   other across the split handle, at the same size and nearly the same
+   colour, so with nothing drawn between them they read as one sentence.
+   Nothing is the right thing to draw — the gap does the separating, and it
+   has to be wide enough to be a gap rather than a word space. */
+.editor-side .pane-head-right {
+  padding-right: 6px;
 }
 
 /* Separate adjacent stats with a middle dot rather than more whitespace */
@@ -483,7 +495,10 @@
 }
 
 .pane-head .device-switch .seg-btn {
-  padding: 2px 9px;
+  /* 7px, not the control's usual 9: four labels at 9 left the preview head
+     exactly full at 1440px, and the caret on the theme chip then pushed the
+     density word into an ellipsis for any four-character theme name */
+  padding: 2px 7px;
   font-size: var(--fs-sm);
 }
 
@@ -501,8 +516,24 @@
   font: inherit;
   cursor: pointer;
   text-align: left;
-  border-radius: var(--r-xs);
-  transition: color var(--t-fast) var(--ease);
+  border-radius: var(--r-sm);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+/* Room for the hover fill to sit around the words, taken back with the
+   matching negative margin so nothing moves when the tint appears. Written
+   with both classes because `.pane-path` further down the file sets the
+   vertical padding the swap animation needs, and a single class would lose
+   to it on source order. */
+.pane-path.pane-path-btn {
+  padding: 8px 7px;
+  margin: -8px -7px;
+}
+
+.pane-path-btn:hover {
+  background: var(--sunken);
 }
 
 .pane-path-btn:hover .seg,
@@ -512,6 +543,25 @@
 
 .pane-path-btn:focus-visible {
   outline-offset: 3px;
+}
+
+/* The caret is the affordance, not a glyph in the label: it never shrinks,
+   it never wraps, and it only picks up the accent with the rest of the
+   control. Colour, not opacity — a composited layer at this size renders
+   the stroke visibly thicker in WebKit. */
+.pane-path-caret {
+  flex: none;
+  align-self: center;
+  /* Pulled back inside the breadcrumb's 5px gap: the caret belongs to the
+     word in front of it, and every pixel it takes here is a pixel the density
+     word loses when a four-character theme name fills the head. */
+  margin-left: -2px;
+  color: var(--text-3);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.pane-path-btn:hover .pane-path-caret {
+  color: var(--accent-hi);
 }
 
 /* ---------------- Side columns ----------------
@@ -650,11 +700,24 @@
   text-overflow: clip;
 }
 
+/* The offset lives one frame in, not at 0%.
+
+   WebKit does not merely pause animations while it decides the view is not
+   visible — it holds them at their first frame, and a first frame of
+   `translateY(4px)` is a state the head can be caught in for as long as the
+   window stays hidden. That is exactly what a snapshot catches: the theme
+   name sitting four pixels below the density word beside it, on what should
+   be one line. Starting at rest and stepping down a hundredth of the way in
+   means a frozen swap is indistinguishable from a finished one, while a swap
+   that actually runs still travels the same four pixels. */
 @keyframes seg-swap {
-  from {
+  0% {
+    transform: none;
+  }
+  0.01% {
     transform: translateY(4px);
   }
-  to {
+  100% {
     transform: none;
   }
 }
@@ -667,11 +730,10 @@
   color: var(--text-3);
   white-space: nowrap;
   letter-spacing: 0.01em;
-  transition: color var(--t-base) var(--ease);
-}
-
-.pane-stat.count {
+  /* Every stat here counts something, and a count that reflows its own
+     width as it ticks is the head fidgeting while you type */
   font-variant-numeric: tabular-nums;
+  transition: color var(--t-base) var(--ease);
 }
 
 .pane-stat.count-warn {

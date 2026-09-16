@@ -208,26 +208,72 @@
   overflow-anchor: none;
 }
 
-/* Example prompts under the resting state's explanation. Chips rather than a
-   list: they are things to press, and three of them in a column would read as
-   an agenda the agent is about to work through. */
-.agent-seeds {
-  margin-top: 14px;
+/* The resting caption, held a little above the middle of the log. Dead centre
+   between the head and the composer is where a dialog puts its message; a
+   notch higher reads as a page that simply has not been written on yet. */
+.agent-rest {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  padding-bottom: 44px;
+}
+
+/* Smaller than the app's standard empty state on purpose: this one is not
+   announcing an absence, it is captioning a panel you just opened. */
+.agent-rest .empty-state {
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.agent-rest .empty-mark {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 10px;
+}
+
+.agent-rest .empty-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.agent-rest .empty-hint {
+  max-width: 26em;
+  margin-top: 4px;
+}
+
+/* Each sentence is one unbreakable run, so when the two do not fit on a line
+   the break lands on the full stop between them rather than three characters
+   before it. Narrower than one sentence, a sentence still wraps inside itself */
+.agent-rest-line {
+  display: inline-block;
+}
+
+/* Example prompts, sitting on top of the composer where the sentences they
+   stand for would be typed. Chips in a wrap row rather than full-width
+   buttons: three outlined bars stacked above the box read as a form to fill
+   in, and these are only examples of what to say. */
+.agent-seeds {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  width: 100%;
+  margin-bottom: 10px;
 }
 
 .agent-seed {
-  padding: 7px 11px;
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--r-full);
-  background: var(--surface-3);
+  background: transparent;
   color: var(--text-2);
   font-size: var(--fs-sm);
-  line-height: 1.4;
-  text-align: center;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease),
@@ -237,9 +283,9 @@
 }
 
 .agent-seed:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--text-1);
 }
 
 .agent-seed:active {

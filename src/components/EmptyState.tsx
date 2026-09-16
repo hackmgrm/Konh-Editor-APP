@@ -9,7 +9,7 @@ interface Props {
   hint?: ReactNode;
   /** The single thing to do about it, if there is one */
   action?: { label: string; onClick: () => void };
-  /** Chips under the action — the agent panel offers example prompts this way */
+  /** Anything extra under the action (the agent panel used to put its example prompts here) */
   children?: ReactNode;
 }
 

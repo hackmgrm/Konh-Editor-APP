@@ -1,18 +1,20 @@
 import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowCounterClockwise, Code, CodeBlock, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic } from '@phosphor-icons/react';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers } from '@codemirror/view';
+import type { DecorationSet, ViewUpdate } from '@codemirror/view';
+import { Compartment, EditorState, RangeSetBuilder } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from '@codemirror/commands';
 import { searchKeymap } from '@codemirror/search';
 import { autocompletion } from '@codemirror/autocomplete';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import { registerImageFiles } from '../images';
 import Tooltip from './Tooltip';
 import { EASE, EXIT_POPOVER, animate, usePresence } from '../usePresence';
 import { hintFor } from '../shortcuts';
+import { useEditorPrefs } from '../store/editorPrefs';
 import type { ScrollSyncChannel } from '../scrollSync';
 
 /* One size for every Phosphor icon; the H1–H4 menu items each use the glyph
@@ -34,18 +36,50 @@ const HEADING_ICON = { 1: TextHOne, 2: TextHTwo, 3: TextHThree, 4: TextHFour } a
  * appearance change.
  */
 const editorTheme = EditorView.theme({
-  '&': { height: '100%', fontSize: '13.5px', color: 'var(--text-1)' },
+  '&': { height: '100%', fontSize: '14px', color: 'var(--text-1)' },
+  // The writing surface is set in the app's own proportional face, not in
+  // the monospace one. `--mono` lists the UI font in its CJK tail so that Han
+  // at least matched the rest of the app, but a Chinese glyph rendered at a
+  // monospace face's size next to Latin that *is* monospaced still came out
+  // lighter and narrower than the same sentence in the preview — the source
+  // read grey beside the article it produces. Proportional, a notch larger,
+  // a hair tighter in the leading: the two columns now read as one document.
+  // Code keeps `--mono`, one rule down in markdownHighlight.
   '.cm-scroller': {
-    fontFamily: 'var(--mono)',
-    lineHeight: '1.8',
+    fontFamily: 'var(--sans)',
+    lineHeight: '1.75',
     overflow: 'auto',
   },
-  '.cm-content': { padding: '18px 24px 28px 20px', caretColor: 'var(--accent)' },
+  // paddingLeft is deliberately absent: it is the one edge that depends on
+  // whether the gutter is there, so it is declared once, in the compartment
+  // below, and nowhere else. Two rules setting it would leave the result at
+  // the mercy of which theme CodeMirror happens to mount last.
+  '.cm-content': { paddingTop: '18px', paddingRight: '24px', paddingBottom: '28px', caretColor: 'var(--accent)' },
   '.cm-line': { padding: '0 4px' },
+  // See `fencedCode` below: the whole block, fences included, in the face the
+  // prose gave up. Set at the same 0.93em the inline `code` spans use, so an
+  // expression reads the same size whichever of the two it is sitting in.
+  '.cm-fenced': { fontFamily: 'var(--mono)', fontSize: '0.93em' },
+  // A fence with no language tagged after it is `CodeText`, which @lezer
+  // /markdown marks as `monospace` — the same tag inline `code` carries, and
+  // the same 0.93em. Sitting inside a line that has already been scaled, that
+  // second 0.93 compounds and a plain fence comes out a step smaller than the
+  // fence above it with `ts` on it. The size belongs to the line here, so the
+  // spans inside give it up.
+  '.cm-fenced span': { fontSize: '1em' },
+  // Line numbers are scaffolding, not content: you look for one when you need
+  // it and never otherwise. At full --text-3 the column read as another line
+  // of meta running down the page, so it is mixed most of the way out —
+  // a whisper you can still count by. Tabular figures keep the column from
+  // shifting as it passes 9, 99, 999. It keeps the monospace face the prose
+  // gave up: these are figures in a column, which is the one thing a mono
+  // stack is unambiguously better at.
   '.cm-gutters': {
     background: 'transparent',
-    color: 'var(--text-3)',
-    fontSize: '12px',
+    color: 'color-mix(in srgb, var(--text-3) 62%, transparent)',
+    fontFamily: 'var(--mono)',
+    fontSize: '11.5px',
+    fontVariantNumeric: 'tabular-nums',
     paddingLeft: '14px',
     paddingRight: '14px',
     borderRight: 'none',
@@ -65,6 +99,73 @@ const editorTheme = EditorView.theme({
 });
 
 /**
+ * The gutter, and the text inset that goes with it.
+ *
+ * Switching the line numbers off drops the whole column — CodeMirror only
+ * builds a gutter when an extension asks for one — so there is no empty 28px
+ * channel left behind. What is left behind is the inset: the content's left
+ * padding was written to sit *after* that column, and with the column gone
+ * the first character no longer lines up with anything. So the two travel
+ * together. Gutter off, the prose starts exactly where the toolbar's H glyph
+ * does, and the pane reads as one left edge from the chrome down.
+ */
+const withGutter = [lineNumbers(), EditorView.theme({ '.cm-content': { paddingLeft: '20px' } })];
+const withoutGutter = EditorView.theme({ '.cm-content': { paddingLeft: '18px' } });
+
+/**
+ * Fenced code blocks, kept monospace.
+ *
+ * With the prose in a proportional face this is the one thing that has to opt
+ * out, and the highlighter cannot do it on its own: `t.monospace` reaches
+ * inline `code` spans, but the moment a fence names a language its contents
+ * are parsed by that language and tagged as keywords, strings and names —
+ * none of which is a "this is code" tag you could hang a font on. The block
+ * is a property of the *line*, not of any token inside it, so it is marked as
+ * one: every line from the opening fence to the closing one gets a class, and
+ * the class carries the face.
+ *
+ * Doing it per line rather than per token is also what keeps a fence's
+ * indentation and its blank rows in the same rhythm as its code.
+ */
+const fencedCodeLine = Decoration.line({ class: 'cm-fenced' });
+
+function fencedCodeDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter: (node) => {
+        if (node.name !== 'FencedCode' && node.name !== 'CodeBlock') return;
+        const last = view.state.doc.lineAt(Math.min(node.to, view.state.doc.length)).number;
+        for (let n = view.state.doc.lineAt(node.from).number; n <= last; n++) {
+          builder.add(view.state.doc.line(n).from, view.state.doc.line(n).from, fencedCodeLine);
+        }
+      },
+    });
+  }
+  return builder.finish();
+}
+
+const fencedCode = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = fencedCodeDecorations(view);
+    }
+    update(update: ViewUpdate) {
+      // The tree is parsed incrementally, so "the highlighting changed" is its
+      // own reason to rebuild — a fence can finish parsing a frame after the
+      // edit that opened it
+      if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+        this.decorations = fencedCodeDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+/**
  * Markdown highlighting.
  *
  * The rule here is that the source should look like prose that happens to
@@ -76,14 +177,24 @@ const editorTheme = EditorView.theme({
  * grammars @codemirror/language-data loads on demand.
  */
 const markdownHighlight = HighlightStyle.define([
-  { tag: t.heading1, fontWeight: '700', fontSize: '1.2em', color: 'var(--text-1)' },
-  { tag: t.heading2, fontWeight: '700', fontSize: '1.1em', color: 'var(--text-1)' },
-  { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: '700', color: 'var(--text-1)' },
+  // Heading sizes are set against the proportional body face, which carries
+  // more weight per pixel than the monospace one did — the old 1.2 / 1.1 pair
+  // read as barely-bigger body text next to it. Three steps now, each one
+  // clearly the level above the next, and H1 still well short of the
+  // preview's display size: this is the source, not the article.
+  { tag: t.heading1, fontWeight: '700', fontSize: '1.35em', color: 'var(--text-1)' },
+  { tag: t.heading2, fontWeight: '700', fontSize: '1.2em', color: 'var(--text-1)' },
+  { tag: t.heading3, fontWeight: '700', fontSize: '1.08em', color: 'var(--text-1)' },
+  { tag: [t.heading4, t.heading5, t.heading6], fontWeight: '700', color: 'var(--text-1)' },
   { tag: t.strong, fontWeight: '700', color: 'var(--text-1)' },
   { tag: t.emphasis, fontStyle: 'italic' },
   { tag: t.strikethrough, textDecoration: 'line-through', color: 'var(--text-3)' },
   { tag: [t.link, t.url], color: 'var(--accent-hi)', textUnderlineOffset: '2px' },
-  { tag: t.monospace, color: 'var(--accent-hi)' },
+  // The one place the mono face survives. @lezer/markdown puts `monospace` on
+  // inline code *and* on the text inside a fenced block, so this single rule
+  // covers both. Slightly down-sized: a monospace face set at the body's own
+  // size always looks a size too big beside proportional text.
+  { tag: t.monospace, color: 'var(--accent-hi)', fontFamily: 'var(--mono)', fontSize: '0.93em' },
   { tag: t.quote, color: 'var(--text-2)', fontStyle: 'italic' },
   { tag: t.contentSeparator, color: 'var(--text-3)' },
   // Every markdown marker lands here (#, **, >, -, ```): present, recessive.
@@ -158,6 +269,14 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   imageNamesRef.current = imageNames;
   /** The text last reported upward — tells "I typed that" from "someone else did" */
   const lastEmittedRef = useRef(value);
+  /** Line numbers on/off, shared with the switch in the typeset popover */
+  const { lineNumbers: showLineNumbers } = useEditorPrefs();
+  // Swapping the gutter in and out goes through a compartment rather than
+  // through a remount: rebuilding the editor would throw away the undo
+  // history and the scroll position every time the switch was touched.
+  const gutterComp = useRef(new Compartment()).current;
+  const showLineNumbersRef = useRef(showLineNumbers);
+  showLineNumbersRef.current = showLineNumbers;
 
   /** Register the images and insert Obsidian-style ![[name]] embeds at the caret */
   const insertImages = async (files: File[]) => {
@@ -181,7 +300,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       state: EditorState.create({
         doc: value,
         extensions: [
-          lineNumbers(),
+          gutterComp.of(showLineNumbersRef.current ? withGutter : withoutGutter),
           history(),
           keymap.of([
             ...defaultKeymap,
@@ -230,6 +349,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
           }),
           editorTheme,
           syntaxHighlighting(markdownHighlight),
+          fencedCode,
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             const next = update.state.doc.toString();
@@ -329,6 +449,19 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Line numbers on / off, live. One reconfigure of the compartment — the
+  // document, the history and the scroll position all stay exactly as they
+  // were, so the column appears under your caret rather than around a
+  // rebuilt editor.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: gutterComp.reconfigure(showLineNumbers ? withGutter : withoutGutter),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLineNumbers]);
 
   // Content sync: when the draft changes (draftId) or value changes from the
   // outside (import, cleanup), replace the doc wholesale if it differs and keep
@@ -514,18 +647,21 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   }, [headingOpen]);
 
   /** Pull a heading outline (line number → title) out of the markdown; with the
-   *  drawer closed, do not scan the document at all */
+   *  drawer gone, do not scan the document at all */
   const outline = useMemo(() => {
-    // Nothing to scan with the drawer shut — but keep scanning while it folds,
-    // or it empties out mid-animation
-    if (!outlineOpen) return [];
+    // Gated on `mounted`, not on `open`. The drawer folds shut over 180ms and
+    // stays in the tree for all of it, so emptying the list the moment the
+    // button is pressed does not hide anything — it swaps the headings for
+    // 「还没有标题」 and plays *that* out. Scanning stops when the element
+    // actually leaves, which is the point of the presence hook.
+    if (!outlinePresence.mounted) return [];
     const items: { level: number; text: string; line: number }[] = [];
     value.split('\n').forEach((line, i) => {
       const m = line.match(/^(#{1,4})\s+(.+)$/);
       if (m) items.push({ level: m[1].length, text: m[2].trim(), line: i });
     });
     return items;
-  }, [value, outlineOpen]);
+  }, [value, outlinePresence.mounted]);
 
   /** Click an outline entry: jump the editor to that line */
   const jumpToLine = (line: number) =>

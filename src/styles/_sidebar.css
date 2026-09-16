@@ -359,45 +359,97 @@
   outline: none;
 }
 
+/* A soft chip, not a drop zone: the dashed rule it used to wear said "drag
+   something here", which is the one thing this button does not do. Filled
+   instead, on the rows' own left inset, so it reads as the last line of the
+   list rather than an attachment below it. */
 .tree-cleanup {
   display: flex;
   align-items: center;
   gap: 7px;
   width: 100%;
   margin-top: 6px;
-  padding: 7px 8px;
-  border: 1px dashed var(--line-strong);
-  background: transparent;
+  /* Left inset lands the broom in the rows' icon column (6px row padding +
+     the 10px caret slot + the 6px gap), so the label starts on the same
+     vertical as the file names above it */
+  padding: 6px 8px 6px 22px;
+  border: none;
+  background: var(--accent-softer);
   border-radius: var(--r-sm);
   font-size: var(--fs-sm);
   color: var(--text-2);
+  text-align: left;
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease);
+    color var(--t-fast) var(--ease);
+}
+
+.tree-cleanup > svg {
+  flex: none;
+  color: var(--accent);
 }
 
 .tree-cleanup:hover {
   background: var(--accent-soft);
-  border-color: var(--accent-ring);
   color: var(--accent-hi);
 }
 
-/* Foot of the rail: where the author is reachable. It sits below the scroll
-   area rather than inside it, so it stays put no matter how long the file list
-   grows. What keeps it from reading as one more tree row is that it is a pair
-   of bare glyphs at the bottom of the column with air above them, not a
-   full-width row with a label — no rule needed to say so. */
+/* Foot of the rail. It sits below the scroll area rather than inside it, so it
+   stays put no matter how long the file list grows.
+
+   The two ends of the rail rhyme: the head is a wide object on the left with a
+   lone 28px button at the right margin, and so is the foot — except the left
+   object here is a column. Stacking the author's two links turns three glyphs
+   scattered along one line into one small block plus one button, and bottom-
+   aligning the gear to it keeps the rail's last line straight. */
 .tree-foot {
   flex: none;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  /* The gear sits on the bottom line, level with the GitHub link */
+  align-items: flex-end;
+  /* Left inset matches the head: both strips start on the rail's own 10px */
   padding: 10px 0 0;
 }
 
-/* One size up from the shared 24px ghost button: at 24 with a 14px glyph these
+/* The author's two links as one block, read top to bottom, held in the same
+   track the toolbar uses for its own pairs (.tb-group.capsule in _shell.css:
+   a --sunken fill with 2px of inset). Fully rounded rather than --r-sm — a
+   28px-wide, 60px-tall capsule is a pill, and a small radius on that
+   proportion reads as a cropped box. The 2px inset is pulled back out of the
+   left margin so the glyphs stay on the same vertical as the folder glyph in
+   the head pill above. */
+.tree-foot-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-left: -2px;
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--sunken);
+}
+
+/* Round, so the hover fill nests inside the pill instead of cutting corners
+   into it. Not --text-3 either: these were specks before, and at --text-2 they
+   carry as far as a file name. */
+.tree-foot .tree-foot-links .ghost-btn {
+  border-radius: var(--r-full);
+  color: var(--text-2);
+}
+
+.tree-foot .tree-foot-links .ghost-btn:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+/* Settings sits at the far end, apart from the author links: same quiet
+   weight, but its own corner, so it reads as the app's rather than the
+   author's — the mirror of the head's 「+」 */
+.tree-foot-settings {
+  margin-left: auto;
+}
+
+/* One size up from the shared 24px ghost button: at 24 with a 16px glyph these
    read as specks in the corner of the rail. The head's 「+」 uses the same size
    for the same reason, so the top and bottom of the rail match. */
 .tree-head .ghost-btn,
@@ -405,13 +457,6 @@
   width: 28px;
   height: 28px;
   border-radius: var(--r-sm);
-}
-
-/* Settings sits at the far end of the foot, apart from the author links:
-   same quiet weight, but its own corner, so it reads as the app's rather
-   than the author's */
-.tree-foot-settings {
-  margin-left: auto;
 }
 
 /* Context menu: positioned at the cursor, styled by the shared popover rules */

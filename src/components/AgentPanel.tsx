@@ -58,6 +58,11 @@ import EmptyState from './EmptyState';
  * Short on purpose: they are examples of the *shape* of a useful request —
  * name a file, say what to do to it — not a menu of features. Pressing one
  * writes it into the composer and leaves the cursor there.
+ *
+ * They sit directly above the composer rather than under the explanation in
+ * the middle: they are sentences you would have typed, so they belong next to
+ * where you type, and as chips in a row they read as examples rather than as
+ * three fields of a form waiting to be filled in.
  */
 const SEED_PROMPTS = [
   '把当前这篇通读一遍，指出啰嗦的段落',
@@ -468,6 +473,9 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   const current = sessions.find((s) => s.key === activeKey[kind]) ?? null;
   const lines = current?.lines ?? [];
   const continuing = !!current?.cliId;
+  /** Nothing has been said yet and there is something to say it to — the state
+   *  the caption in the middle and the example chips belong to */
+  const resting = lines.length === 0 && !missing && !probing;
 
   /** Patch one conversation by key, pushing its timestamp to now */
   const patch = (key: string, fn: (s: Session) => Session) => {
@@ -1020,34 +1028,29 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
               正在找本机的 claude / codex
             </div>
           )}
-          {lines.length === 0 && !missing && !probing && (
-            /* The resting state used to be a 44px terminal glyph at 32%
-               opacity and nothing else — a panel that had been opened on
-               purpose and then said nothing about what it was for. Three
-               openings instead: pressing one fills the composer rather than
-               sending it, because what the agent is told about your own draft
-               is not something to hand over unread. */
-            <EmptyState
-              icon={Terminal}
-              title={`${kind} 在这个工作区里干活`}
-              hint="它读得到、也改得了左边那些文件。存盘后预览立刻跟着变。"
-            >
-              <div className="agent-seeds">
-                {SEED_PROMPTS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className="agent-seed"
-                    onClick={() => {
-                      setInput(p);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </EmptyState>
+          {resting && (
+            /* What is left in the middle is a caption, not a hero: a small
+               disc, one line naming where the agent works, one line saying
+               what that means for the files on the left. The openings it used
+               to carry have moved down to the composer. Anchored a little
+               above centre, because a block sitting exactly halfway between
+               the head and the composer reads as a dialog's message. */
+            <div className="agent-rest">
+              <EmptyState
+                icon={Terminal}
+                title={`${kind} 在这个工作区里干活`}
+                hint={
+                  /* One sentence per span so the line break falls between
+                     them: left to wrap on its own the second sentence lost
+                     its first character to the line above, which under a
+                     centred block is the one place that shows. */
+                  <>
+                    <span className="agent-rest-line">它读得到、也改得了左边那些文件。</span>
+                    <span className="agent-rest-line">存盘后预览立刻跟着变。</span>
+                  </>
+                }
+              />
+            </div>
           )}
           {lines.map((l, i) =>
             l.role === 'fail' && l.fail ? (
@@ -1077,6 +1080,26 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
 
       {!historyOpen && (
         <div className="agent-composer">
+          {resting && (
+            /* Pressing one fills the composer rather than sending it: what the
+               agent is told about your own draft is not something to hand over
+               unread. They go once the conversation has anything in it. */
+            <div className="agent-seeds">
+              {SEED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="agent-seed"
+                  onClick={() => {
+                    setInput(p);
+                    inputRef.current?.focus();
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
           {activeId && (
             <div className="agent-context" title={`这轮会告诉它你正在看「${activeId}」`}>
               <Paperclip size={11} weight="bold" />
