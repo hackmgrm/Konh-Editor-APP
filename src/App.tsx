@@ -41,7 +41,7 @@ import { deleteCustomTheme, ensureThemeGuide, saveCustomTheme, useCustomThemes }
 import { sniffThemeFromUrl } from './themeSniff';
 import { fetch as httpFetch } from '@tauri-apps/plugin-http';
 import { chord } from './platform';
-import { useUpdate } from './store/updater';
+import { markAnnounced, useUpdate } from './store/updater';
 import type { DraftTarget } from './publish';
 import type { Entry } from './store/vault';
 import './styles.css';
@@ -184,6 +184,23 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const update = useUpdate();
   const hasUpdate =
     update.phase === 'available' || update.phase === 'downloading' || update.phase === 'ready';
+  /**
+   * Say it once, on the launch check that found it.
+   *
+   * The pill alone is easy to never notice — it is a small thing in a corner
+   * that was not there a moment ago. The toast names the version and offers
+   * the way in, then leaves; the pill stays behind as the reminder. Only the
+   * silent pass sets `announce`, so pressing 检查更新 by hand does not get a
+   * toast on top of the dialog that already answered the question.
+   */
+  useEffect(() => {
+    if (update.phase !== 'available' || !update.announce) return;
+    toast(`有新版本 v${update.info.version} 可以安装`, {
+      action: { label: '查看', onClick: () => setUpdateOpen(true) },
+      ms: 10000,
+    });
+    markAnnounced();
+  }, [update]);
   /** Local agent panel. Once opened it is never unmounted — a run in flight
    *  still needs someone watching it when the panel is collapsed */
   const [agentOpen, setAgentOpen] = useState(false);

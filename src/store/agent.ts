@@ -119,7 +119,10 @@ export type ToolAct = 'run' | 'read' | 'edit' | 'search' | 'web' | 'mcp' | 'task
 
 /** One entry on the timeline. role decides how it looks, not where it came from */
 export interface Beat {
-  role: 'you' | 'agent' | 'tool' | 'note';
+  role: 'you' | 'agent' | 'tool' | 'note' | 'fail';
+  /** `fail` only: what went wrong and what to do about it. Plain data, so it
+   *  survives being written to the session log and read back */
+  fail?: Diagnosis;
   /** For a tool call this is only the target — the file, the command, the
    *  query. The name of the call itself is `verb` */
   text: string;
@@ -148,6 +151,15 @@ export interface Interpreted {
   sessionId?: string;
   /** This run is over, one way or another */
   done?: boolean;
+  /** Raw failure text — an error result, an error event, a line of stderr.
+   *  Collected rather than displayed: on its own a line like this says nothing
+   *  a reader can act on, and three of them in a row say it three times */
+  evidence?: string;
+  /** Something genuinely went wrong, as opposed to a line that only looks
+   *  alarming. Sticky for the rest of the run */
+  failed?: boolean;
+  /** The process is gone, and this is what it exited with */
+  exitCode?: string;
 }
 
 const NOTHING: Interpreted = { beats: [] };
@@ -280,7 +292,9 @@ function fromClaude(dir: string, obj: Record<string, any>): Interpreted {
   // reliable signal than type
   if (obj.type === 'result' || typeof obj.is_error === 'boolean') {
     if (obj.is_error) {
-      return { beats: [{ role: 'note', text: clip(String(obj.result ?? '这轮出错了'), 160), bad: true }], done: true };
+      // Not a line on the timeline: the panel keeps it as evidence and says one
+      // thing about the whole failure once the run is over
+      return { beats: [], evidence: String(obj.result ?? '这轮出错了'), failed: true, done: true };
     }
     return { beats: [], done: true };
   }
@@ -357,12 +371,9 @@ function fromCodexItems(dir: string, obj: Record<string, any>): Interpreted {
     case 'turn.completed':
       return { beats: [], done: true };
     case 'turn.failed':
-      return {
-        beats: [{ role: 'note', text: clip(String(obj.error?.message ?? '这轮失败了'), 160), bad: true }],
-        done: true,
-      };
+      return { beats: [], evidence: String(obj.error?.message ?? '这轮失败了'), failed: true, done: true };
     case 'error':
-      return { beats: [{ role: 'note', text: clip(String(obj.message ?? '出错了'), 160), bad: true }] };
+      return { beats: [], evidence: String(obj.message ?? '出错了'), failed: true };
     case 'item.completed': {
       const item = obj.item as Record<string, any> | undefined;
       if (!item) return NOTHING;
@@ -395,7 +406,7 @@ function fromCodexItems(dir: string, obj: Record<string, any>): Interpreted {
             beats: [{ role: 'tool', act: 'web', verb: 'search', text: clip(String(item.query ?? ''), 120) }],
           };
         case 'error':
-          return { beats: [{ role: 'note', text: clip(String(item.message ?? '出错了'), 160), bad: true }] };
+          return { beats: [], evidence: String(item.message ?? '出错了'), failed: true };
         default:
           // reasoning / todo_list / whatever gets added later: not on the timeline
           return NOTHING;
@@ -450,7 +461,7 @@ function fromCodex(dir: string, obj: Record<string, any>): Interpreted {
         : NOTHING;
     }
     case 'error':
-      return { beats: [{ role: 'note', text: clip(String(msg.message ?? '出错了'), 160), bad: true }] };
+      return { beats: [], evidence: String(msg.message ?? '出错了'), failed: true };
     case 'task_complete':
       return { beats: [], done: true };
     default:
@@ -484,6 +495,141 @@ export function stderrGist(line: string): string {
   return line.replace(/\/[^\s:]+/g, '…').replace(/\d+/g, '#');
 }
 
+/* ---------------- Diagnosis ----------------
+   A run that fails used to leave three red lines behind — the CLI's sentence,
+   the same sentence again off stderr, and 进程退出（1） — none of which says
+   what to do next. The lines are collected instead, and this turns the pile
+   into one statement: what happened, what to do, and the raw text for whoever
+   wants it. */
+
+/** What went wrong, in the coarsest terms that still change what you do next */
+export type FailCode = 'auth' | 'rate' | 'network' | 'model' | 'permission' | 'exit';
+
+export interface Diagnosis {
+  code: FailCode;
+  /** Which CLI this was */
+  kind: AgentKind;
+  /** One line naming the problem, in your words rather than the CLI's */
+  title: string;
+  /** One sentence on what to do about it */
+  hint: string;
+  /** A line worth copying into a terminal, when there is one */
+  command?: string;
+  /** Everything the CLI actually said, kept behind the 详细 disclosure */
+  detail: string;
+}
+
+/**
+ * How to log this CLI in on this machine.
+ *
+ * Both were read off `--help` rather than guessed: claude keeps signing in
+ * under an `auth` subcommand (`claude auth login`, sibling of logout and
+ * status), codex has it at the top level.
+ */
+export function loginCommand(kind: AgentKind): string {
+  return kind === 'claude' ? 'claude auth login' : 'codex login';
+}
+
+/** The exit code travels alongside the text evidence, marked so it can still
+ *  be told apart from something the CLI said */
+const EXIT_MARK = 'exit:';
+
+/** Wrap an exit code as a piece of evidence. `start` means the process never
+ *  got far enough to have one */
+export function exitEvidence(code: string): string {
+  return `${EXIT_MARK}${code}`;
+}
+
+interface Rule {
+  code: FailCode;
+  when: RegExp;
+  title: (kind: AgentKind) => string;
+  hint: string;
+  command?: (kind: AgentKind) => string;
+}
+
+/**
+ * The table, read top to bottom, first match wins.
+ *
+ * Deliberately coarse: every CLI words these differently and rewords them
+ * between releases, so the patterns aim at the vocabulary that has to be in
+ * there somewhere (oauth, 401, ETIMEDOUT) rather than at whole sentences. A
+ * miss costs the generic card, which is still better than what was here before.
+ */
+const RULES: Rule[] = [
+  {
+    code: 'auth',
+    when: /oauth|authenticat|not logged in|log ?in|unauthori[sz]ed|api key|401|expired/i,
+    title: (k) => `${k} 还没登录，或登录已经过期`,
+    hint: '在终端里登录一次就好，登录状态记在本机，之后这个面板直接就能用。',
+    command: loginCommand,
+  },
+  {
+    code: 'rate',
+    when: /rate.?limit|usage limit|quota|429|too many requests|exceeded/i,
+    title: () => '用量到上限了',
+    hint: '等一会儿再试；急的话在下面换一个模型，或者换另一个 CLI。',
+  },
+  {
+    code: 'network',
+    when: /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|network|fetch failed|offline|proxy/i,
+    title: () => '连不上网络',
+    hint: '检查一下网络和代理 —— 终端里能跑通，这儿才跑得通。',
+  },
+  {
+    code: 'model',
+    when: /model.*(not found|unknown|invalid|unavailable)|does not exist|no such model/i,
+    title: (k) => `这个模型名 ${k} 不认识`,
+    hint: '在下面的模型胶囊里换一个，或者选「默认」，跟着 CLI 自己的配置走。',
+  },
+  {
+    code: 'permission',
+    when: /permission denied|EACCES|not permitted/i,
+    title: () => '没有权限',
+    hint: '它读不了或写不了这个位置，检查一下稿库目录的权限。',
+  },
+];
+
+/**
+ * Turn everything a failed run said into one diagnosis, or nothing.
+ *
+ * Pure on purpose — it takes the text and gives back a verdict, which is what
+ * makes it checkable without a CLI, a process or a panel.
+ */
+export function diagnose(kind: AgentKind, evidence: string[]): Diagnosis | null {
+  const said: string[] = [];
+  let exit: string | null = null;
+  for (const raw of evidence) {
+    const text = (raw ?? '').trim();
+    if (!text) continue;
+    if (text.startsWith(EXIT_MARK)) exit = text.slice(EXIT_MARK.length);
+    else if (!said.includes(text)) said.push(text);
+  }
+  const detail = said.length ? said.join('\n') : exit ? `退出码 ${exit}` : '';
+  const hit = said.length ? RULES.find((r) => r.when.test(said.join('\n'))) : undefined;
+  if (hit) {
+    return {
+      code: hit.code,
+      kind,
+      title: hit.title(kind),
+      hint: hit.hint,
+      command: hit.command?.(kind),
+      detail,
+    };
+  }
+  // Nothing recognisable was said. A card is still owed if the process ended
+  // badly; a clean exit with unreadable noise on stderr is not a failure
+  if (!exit || exit === '0' || exit === 'stopped') return null;
+  const numeric = /^-?\d+$/.test(exit);
+  return {
+    code: 'exit',
+    kind,
+    title: numeric ? `${kind} 退出了（代码 ${exit}）` : `${kind} 没能跑起来`,
+    hint: `在终端里直接跑一次 ${kind}，看看完整的输出。`,
+    detail,
+  };
+}
+
 /**
  * Translate one raw event into timeline entries.
  *
@@ -494,14 +640,19 @@ export function stderrGist(line: string): string {
 export function interpret(dir: string, e: RawEvent): Interpreted {
   if (e.stream === 'exit') {
     // A normal exit (0) has already been announced by result / task_complete,
-    // so only the abnormal ones matter here
-    if (e.line === '0') return { beats: [], done: true };
-    if (e.line === 'stopped') return { beats: [{ role: 'note', text: '已停下' }], done: true };
-    return { beats: [{ role: 'note', text: `进程退出（${e.line}）`, bad: true }], done: true };
+    // so only the abnormal ones matter here — and an abnormal one is no longer
+    // a line of its own either: it is the last piece of evidence for the card
+    if (e.line === '0') return { beats: [], done: true, exitCode: '0' };
+    if (e.line === 'stopped') {
+      return { beats: [{ role: 'note', text: '已停下' }], done: true, exitCode: 'stopped' };
+    }
+    return { beats: [], done: true, exitCode: e.line, failed: true };
   }
   if (e.stream === 'stderr') {
     const said = tidyStderr(e.line);
-    return said ? { beats: [{ role: 'note', text: clip(said, 200), bad: true }] } : NOTHING;
+    // Evidence, not a verdict: plenty of CLIs warn on stderr and finish fine,
+    // and those lines are only ever read if the run then fails
+    return said ? { beats: [], evidence: said } : NOTHING;
   }
   let obj: Record<string, any>;
   try {

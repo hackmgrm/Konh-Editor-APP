@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Tooltip from './Tooltip';
+import { EXIT_POPOVER, usePresence } from '../usePresence';
+import { hintFor } from '../shortcuts';
 import {
   ArrowUp,
   CaretDown,
@@ -16,14 +19,18 @@ import {
   Stop,
   Trash,
   TreeStructure,
+  Warning,
   Wrench,
   X,
   type Icon,
 } from '@phosphor-icons/react';
 import {
   agentModels,
+  diagnose,
   EFFORTS,
+  exitEvidence,
   interpret,
+  loginCommand,
   onAgentEvent,
   probeAgents,
   readSessions,
@@ -34,12 +41,29 @@ import {
   type AgentInfo,
   type AgentKind,
   type Beat,
+  type Diagnosis,
+  type FailCode,
   type ModelChoice,
   type Session,
   type ToolAct,
 } from '../store/agent';
 import { getConfig, setConfig } from '../store/appConfig';
+import { toast } from '../toast';
 import AgentMarkdown from './AgentMarkdown';
+import EmptyState from './EmptyState';
+
+/**
+ * Three things worth asking for, offered in the resting state.
+ *
+ * Short on purpose: they are examples of the *shape* of a useful request —
+ * name a file, say what to do to it — not a menu of features. Pressing one
+ * writes it into the composer and leaves the cursor there.
+ */
+const SEED_PROMPTS = [
+  '把当前这篇通读一遍，指出啰嗦的段落',
+  '给这篇拟三个公众号标题',
+  '把开头改得更抓人一点',
+];
 
 interface Props {
   /** Collapsed means hidden, not unmounted — see the note on the component */
@@ -149,6 +173,7 @@ function TuneMenu({
   inherited?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const presence = usePresence(open, EXIT_POPOVER);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -169,19 +194,20 @@ function TuneMenu({
 
   return (
     <div className={`agent-tune ${wide ? 'wide' : ''}`} ref={ref}>
-      <button
-        type="button"
-        className={`agent-chip ${open ? 'on' : ''} ${inherited ? 'inherited' : ''}`}
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="agent-chip-text">{chip}</span>
-        <CaretDown size={9} weight="bold" />
-      </button>
-      {open && (
-        <div className="popover agent-tune-menu" role="menu">
+      <Tooltip content={title} side="top">
+        <button
+          type="button"
+          className={`agent-chip ${open ? 'on' : ''} ${inherited ? 'inherited' : ''}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="agent-chip-text">{chip}</span>
+          <CaretDown size={9} weight="bold" />
+        </button>
+      </Tooltip>
+      {presence.mounted && (
+        <div className="popover agent-tune-menu" role="menu" data-state={presence.state}>
           {items.map((it) => (
             <button
               key={it.id}
@@ -233,6 +259,105 @@ function ToolBeat({ beat }: { beat: Beat }) {
       {beat.text && <span className="agent-tool-target">{beat.text}</span>}
     </div>
   );
+}
+
+/**
+ * A run that ended badly, said once.
+ *
+ * What used to stand here was three red lines in a row — the CLI's sentence,
+ * the same sentence again off stderr, and 进程退出（1） — which between them
+ * described the problem three times and the way out of it zero times. This is
+ * one quiet card instead: what happened, what to do, the line to paste into a
+ * terminal, and the raw text folded away for whoever wants it.
+ *
+ * Quiet on purpose. A failed login is an ordinary Tuesday, not an alarm: the
+ * tint is the danger colour at a tenth of its strength and only the title
+ * carries the colour itself.
+ */
+function FailBeat({
+  fail,
+  busy,
+  other,
+  onRetry,
+  onSwitch,
+}: {
+  fail: Diagnosis;
+  /** A run is in flight — retrying now would collide with it */
+  busy: boolean;
+  /** The other CLI, if this machine has it */
+  other: AgentKind | null;
+  /** Absent when there is nothing to send again */
+  onRetry: (() => void) | null;
+  onSwitch: (kind: AgentKind) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const copy = () => {
+    if (!fail.command) return;
+    void navigator.clipboard
+      .writeText(fail.command)
+      .then(() => toast('已复制'))
+      .catch(() => toast('复制不了，手敲一下吧'));
+  };
+  return (
+    <div className="agent-beat fail">
+      <p className="agent-fail-title">{fail.title}</p>
+      <p className="agent-fail-hint">{fail.hint}</p>
+      {fail.command && (
+        <div className="agent-fail-cmd">
+          <code>{fail.command}</code>
+          <Tooltip content="复制这行命令" side="top">
+            <button type="button" className="agent-fail-copy" onClick={copy}>
+              复制
+            </button>
+          </Tooltip>
+        </div>
+      )}
+      <div className="agent-fail-acts">
+        {onRetry && (
+          <button type="button" className="btn agent-fail-act" onClick={onRetry} disabled={busy}>
+            重试
+          </button>
+        )}
+        {other && (
+          <button
+            type="button"
+            className="btn agent-fail-act"
+            onClick={() => onSwitch(other)}
+            disabled={busy}
+          >
+            换成 {other}
+          </button>
+        )}
+        {fail.detail && (
+          <button
+            type="button"
+            className="btn agent-fail-act"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            详细
+          </button>
+        )}
+      </div>
+      {open && fail.detail && <pre className="agent-fail-detail scroll-thin">{fail.detail}</pre>}
+    </div>
+  );
+}
+
+/**
+ * The CLI often says the same sentence twice — once as speech, once as the
+ * error result that follows it. Two identical lines read as two problems, so
+ * the echo goes and the text survives inside the card's 详细.
+ */
+function dropEcho(lines: Beat[], evidence: string[]): Beat[] {
+  const said = new Set(evidence.map((t) => t.trim()).filter(Boolean));
+  const out = lines.slice();
+  while (out.length) {
+    const last = out[out.length - 1];
+    if (last.role === 'agent' && said.has(last.text.trim())) out.pop();
+    else break;
+  }
+  return out;
 }
 
 /**
@@ -301,6 +426,20 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   /** stderr already reported this run (path-stripped), so the same thing is
    *  never posted twice */
   const saidOnce = useRef<Set<string>>(new Set());
+  /** Everything this run said that went wrong, in the order it was said. The
+   *  diagnosis is made from the pile, not from whichever line arrived first */
+  const evidence = useRef<string[]>([]);
+  /** Something actually failed, as opposed to a stderr line that merely reads
+   *  that way. Sticky for the rest of the run */
+  const wrecked = useRef(false);
+  /** A card has already been posted for this run — result and exit both report
+   *  the same failure, and one is enough */
+  const reported = useRef(false);
+  /** What the process exited with, once it has */
+  const exited = useRef<string | null>(null);
+  /** Which CLI this run belongs to. The event callback cannot see state, and
+   *  by the time a run fails you may already be looking at the other one */
+  const runKindRef = useRef<AgentKind>(kind);
   const seq = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -314,6 +453,13 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   const loaded = useRef(false);
   /** An IME candidate window is open — Enter belongs to it, not to us */
   const composing = useRef(false);
+  /** How each CLI last failed in this session. Only `auth` is worth keeping:
+   *  a reminder that outlives the card is the difference between "it broke
+   *  again" and "oh right, I never logged in" */
+  const [lastFail, setLastFail] = useState<Record<AgentKind, FailCode | null>>({
+    claude: null,
+    codex: null,
+  });
 
   const info = infos.find((i) => i.kind === kind);
   /** Do not rush to say "not found" while the probe is still running */
@@ -411,6 +557,33 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
     writing.current = false;
   };
 
+  /**
+   * The run is over: decide whether anything went wrong, and if so say it once.
+   *
+   * Called on every `done`, which arrives twice on a bad claude run (the error
+   * result, then the exit) — the first one that can name the problem posts the
+   * card and the second finds it already posted. A run that ended cleanly
+   * clears the login reminder: whatever stderr muttered on the way through, it
+   * evidently worked.
+   */
+  const verdict = (key: string) => {
+    if (reported.current) return;
+    const k = runKindRef.current;
+    if (!wrecked.current) {
+      setLastFail((prev) => (prev[k] ? { ...prev, [k]: null } : prev));
+      return;
+    }
+    const code = exited.current;
+    const found = diagnose(k, code ? [...evidence.current, exitEvidence(code)] : evidence.current);
+    if (!found) return;
+    reported.current = true;
+    setLastFail((prev) => ({ ...prev, [k]: found.code }));
+    patch(key, (s) => ({
+      ...s,
+      lines: [...dropEcho(s.lines, evidence.current), { role: 'fail', text: found.title, fail: found }],
+    }));
+  };
+
   const probe = () => {
     setProbing(true);
     void probeAgents()
@@ -504,6 +677,11 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
       }
       const out = interpret(vaultDir, e);
       const key = runKeyRef.current;
+      // Failure text is gathered rather than shown; one card is made of the
+      // whole pile once the run is over
+      if (out.evidence) evidence.current.push(out.evidence);
+      if (out.failed) wrecked.current = true;
+      if (out.exitCode) exited.current = out.exitCode;
       if (key) {
         if (out.delta) jot(key, 'append', out.delta);
         if (out.live !== undefined) jot(key, 'set', out.live);
@@ -514,7 +692,10 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
         }
         // A mid-flight break (the process died, you pressed stop) still has to
         // close the beat, or the next run's text continues this one
-        if (out.done) close(key);
+        if (out.done) {
+          close(key);
+          verdict(key);
+        }
         // The CLI reported its own session id; record it on this conversation —
         // "continue" means handing that id back
         if (out.sessionId) patch(key, (s) => ({ ...s, cliId: out.sessionId! }));
@@ -575,8 +756,13 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
     return () => mo.disconnect();
   }, [historyOpen]);
 
-  const send = () => {
-    const text = input.trim();
+  /**
+   * Send what is in the composer, or `again` — the same prompt one more time,
+   * which is what 重试 on a failure card does. Same conversation, same model,
+   * same effort: the point of retrying is that nothing else changed.
+   */
+  const send = (again?: string) => {
+    const text = (again ?? input).trim();
     if (!text || running) return;
     void (async () => {
       // Flush unsaved edits first. Otherwise the agent reads a stale body, and
@@ -601,8 +787,13 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
 
       const context = activeId ? `（我正在编辑器里看着「${activeId}」这篇。）\n\n` : '';
       pushTo(key, [{ role: 'you', text }]);
-      setInput('');
+      if (again === undefined) setInput('');
       saidOnce.current.clear();
+      evidence.current = [];
+      wrecked.current = false;
+      reported.current = false;
+      exited.current = null;
+      runKindRef.current = kind;
       // If the previous run broke off mid-sentence, that sentence ends here:
       // this run's text starts a new beat
       writing.current = false;
@@ -620,10 +811,16 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
         });
         runIdRef.current = id;
       } catch (err) {
+        // It never started — no stdout, no exit code, just the reason Rust gave
+        // for not being able to run it. Same card, same way out
         setRunning(false);
-        pushTo(key, [
-          { role: 'note', text: err instanceof Error ? err.message : String(err), bad: true },
-        ]);
+        const why = err instanceof Error ? err.message : String(err);
+        const found = diagnose(kind, [why, exitEvidence('start')]);
+        reported.current = true;
+        if (found) {
+          setLastFail((prev) => ({ ...prev, [kind]: found.code }));
+          pushTo(key, [{ role: 'fail', text: found.title, fail: found }]);
+        }
       }
     })();
   };
@@ -666,6 +863,36 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
     setHistoryOpen(false);
   };
 
+  /** The last thing you asked for in this conversation — what 重试 sends again */
+  const lastPrompt = useMemo(() => {
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (lines[i].role === 'you') return lines[i].text;
+    }
+    return '';
+  }, [lines]);
+
+  /** The other CLI, but only if this machine actually has it — offering a swap
+   *  to something that is not installed is one dead end pointing at another */
+  const otherCli = (k: AgentKind): AgentKind | null => {
+    const other = KINDS.find((x) => x !== k);
+    return other && infos.find((i) => i.kind === other)?.bin ? other : null;
+  };
+
+  /**
+   * 换成 codex / 换成 claude.
+   *
+   * Switches the panel over and puts the same request back in the composer,
+   * unsent — the other CLI knows nothing about this conversation, so what goes
+   * to it is a fresh first message, and it is yours to send.
+   */
+  const swapTo = (next: AgentKind) => {
+    const again = lastPrompt;
+    switchKind(next);
+    if (!again) return;
+    setInput(again);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   const saveBin = () => {
     const path = binDraft.trim();
     if (!path) return;
@@ -680,7 +907,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
   );
 
   return (
-    <aside className={`agent-side surface ${open ? '' : 'collapsed'}`}>
+    <aside className={`agent-side ${open ? '' : 'collapsed'}`}>
       <div className="pane-head">
         <span className="pane-title">
           <Sparkle size={13} weight="fill" />
@@ -705,26 +932,33 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             </button>
           ))}
         </div>
-        <button
-          className={`ghost-btn ${historyOpen ? 'on' : ''}`}
-          onClick={() => setHistoryOpen((v) => !v)}
-          title="历史会话"
-          aria-pressed={historyOpen}
-        >
-          <ClockCounterClockwise size={14} weight="bold" />
-        </button>
-        <button className="ghost-btn" onClick={startNew} disabled={running} title="新对话">
-          <NotePencil size={14} weight="bold" />
-        </button>
-        <button className="ghost-btn" onClick={onClose} title="收起">
-          <X size={14} weight="bold" />
-        </button>
+        <Tooltip content="历史会话">
+          <button
+            className={`ghost-btn ${historyOpen ? 'on' : ''}`}
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-label="历史会话"
+            aria-pressed={historyOpen}
+          >
+            <ClockCounterClockwise size={14} weight="bold" />
+          </button>
+        </Tooltip>
+        <Tooltip content="新对话">
+          <button className="ghost-btn" onClick={startNew} disabled={running} aria-label="新对话">
+            <NotePencil size={14} weight="bold" />
+          </button>
+        </Tooltip>
+        <Tooltip content="收起" shortcut={hintFor('agent')}>
+          <button className="ghost-btn" onClick={onClose} aria-label="收起">
+            <X size={14} weight="bold" />
+          </button>
+        </Tooltip>
       </div>
 
       {missing && !historyOpen && (
         <div className="agent-missing">
-          <p>
-            没找到 <code>{kind}</code>。终端里跑一下 <code>which {kind}</code>，把路径填这儿：
+          <p className="agent-fail-title">这台机器上没找到 {kind}</p>
+          <p className="agent-fail-hint">
+            PATH 和常见安装位置里都没有。装过的话，终端里跑一下 <code>which {kind}</code>，把路径填在下面。
           </p>
           <div className="agent-bin-row">
             <input
@@ -734,7 +968,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
               onChange={(e) => setBinDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && saveBin()}
             />
-            <button type="button" onClick={saveBin}>
+            <button type="button" className="btn primary" onClick={saveBin}>
               记住
             </button>
           </div>
@@ -743,7 +977,13 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
 
       {historyOpen ? (
         <div className="agent-history scroll-thin">
-          {history.length === 0 && <p className="agent-history-empty">还没有聊过什么</p>}
+          {history.length === 0 && (
+            <EmptyState
+              icon={ClockCounterClockwise}
+              title="还没有聊过什么"
+              hint="从这个面板发起的每一段对话都会留在这儿，随时接着说。"
+            />
+          )}
           {history.map((s) => (
             <div
               key={s.key}
@@ -781,12 +1021,45 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             </div>
           )}
           {lines.length === 0 && !missing && !probing && (
-            <div className="agent-empty" aria-hidden="true">
-              <Terminal size={44} weight="duotone" />
-            </div>
+            /* The resting state used to be a 44px terminal glyph at 32%
+               opacity and nothing else — a panel that had been opened on
+               purpose and then said nothing about what it was for. Three
+               openings instead: pressing one fills the composer rather than
+               sending it, because what the agent is told about your own draft
+               is not something to hand over unread. */
+            <EmptyState
+              icon={Terminal}
+              title={`${kind} 在这个工作区里干活`}
+              hint="它读得到、也改得了左边那些文件。存盘后预览立刻跟着变。"
+            >
+              <div className="agent-seeds">
+                {SEED_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="agent-seed"
+                    onClick={() => {
+                      setInput(p);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </EmptyState>
           )}
           {lines.map((l, i) =>
-            l.role === 'tool' ? (
+            l.role === 'fail' && l.fail ? (
+              <FailBeat
+                key={i}
+                fail={l.fail}
+                busy={running}
+                other={otherCli(l.fail.kind)}
+                onRetry={lastPrompt ? () => send(lastPrompt) : null}
+                onSwitch={swapTo}
+              />
+            ) : l.role === 'tool' ? (
               <ToolBeat key={i} beat={l} />
             ) : (
               <div key={i} className={`agent-beat ${l.role}${l.bad ? ' bad' : ''}`}>
@@ -808,6 +1081,17 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             <div className="agent-context" title={`这轮会告诉它你正在看「${activeId}」`}>
               <Paperclip size={11} weight="bold" />
               <span>{activeId}</span>
+            </div>
+          )}
+          {/* The card explaining the login scrolls away as soon as you type
+              something else; this line does not, and it is the one thing you
+              have to do before anything here works again. */}
+          {lastFail[kind] === 'auth' && (
+            <div className="agent-context warn">
+              <Warning size={11} weight="bold" />
+              <span>
+                {kind} 需要先登录：<code>{loginCommand(kind)}</code>
+              </span>
             </div>
           )}
           <textarea
@@ -870,26 +1154,23 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             />
             <span className="agent-foot-gap" />
             {running ? (
-              <button
-                type="button"
-                className="agent-send stop"
-                onClick={stop}
-                title="停下"
-                aria-label="停下"
-              >
-                <Stop size={14} weight="fill" />
-              </button>
+              <Tooltip content="停下" side="top">
+                <button type="button" className="agent-send stop" onClick={stop} aria-label="停下">
+                  <Stop size={14} weight="fill" />
+                </button>
+              </Tooltip>
             ) : (
-              <button
-                type="button"
-                className="agent-send"
-                onClick={send}
-                disabled={!input.trim() || missing || probing}
-                title="发送（Enter，Shift + Enter 换行）"
-                aria-label="发送"
-              >
-                <ArrowUp size={14} weight="bold" />
-              </button>
+              <Tooltip content="发送" shortcut="Enter" side="top">
+                <button
+                  type="button"
+                  className="agent-send"
+                  onClick={() => send()}
+                  disabled={!input.trim() || missing || probing}
+                  aria-label="发送（Enter 发送，Shift + Enter 换行）"
+                >
+                  <ArrowUp size={14} weight="bold" />
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>

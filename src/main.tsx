@@ -34,8 +34,8 @@ void initAppConfig().then(() => {
 
   createRoot(document.getElementById('root')!).render(<App />);
 
-  // Ask GitHub whether there is a newer build — a few seconds from now, at
-  // most once every six hours, and without saying anything unless the answer
-  // is yes. All it does on its own is light the pill in the toolbar.
+  // Ask GitHub whether there is a newer build — a few seconds from now, every
+  // launch, and without saying anything unless the answer is yes. A find
+  // lights the pill in the toolbar and gets one toast; nothing opens by itself.
   scheduleAutoCheck();
 });
