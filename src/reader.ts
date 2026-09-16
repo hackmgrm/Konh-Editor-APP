@@ -31,10 +31,13 @@ import { getConfig, removeConfig, setConfig } from './store/appConfig';
 import { dataUrlBytes } from './images';
 import { fetchImageAsDataUrl } from './remoteImages';
 import { fetchWechatArticle, isWechatArticle } from './wechatArticle';
+import { sniffTheme, sniffThemeFromUrl } from './themeSniff';
+import type { Theme } from './theme';
 
 const ENDPOINT = 'https://r.jina.ai/';
 const STORAGE_KEY = 'reader-key';
 const STORAGE_IMAGES = 'reader-with-images';
+const STORAGE_THEME = 'reader.importTheme';
 
 /** How long Reader itself may spend on a slow page, in seconds */
 const READER_TIMEOUT = 30;
@@ -75,6 +78,20 @@ export function getImportImages(): boolean {
 
 export function setImportImages(on: boolean): void {
   setConfig(STORAGE_IMAGES, on ? 'on' : 'off');
+}
+
+/**
+ * Whether to read the article's typesetting into a theme as well.
+ *
+ * Off unless asked: it changes how every draft in the workspace looks, which
+ * is not something to slip into "fetch me this page".
+ */
+export function getImportTheme(): boolean {
+  return getConfig(STORAGE_THEME) === 'on';
+}
+
+export function setImportTheme(on: boolean): void {
+  setConfig(STORAGE_THEME, on ? 'on' : 'off');
 }
 
 /* ---------- The address ---------- */
@@ -127,6 +144,14 @@ function hostOf(url: string): string {
 
 export interface Article {
   title: string;
+  /**
+   * The parsed page, when the fetch happened here.
+   *
+   * Only the local path has one (see wechatArticle.ts); a page that came back
+   * from Reader is text by then. It is carried so that sniffing a theme off
+   * the same visit costs no second request — the markup is already in hand.
+   */
+  doc?: Document;
   /** The body alone — the title is never repeated inside it */
   markdown: string;
   /** The address that actually answered, after redirects */
@@ -485,6 +510,8 @@ function nameImage(title: string, index: number, dataUrl: string, taken: Set<str
 export interface ImportOptions {
   /** Pull the images into the workspace, rather than leaving them as addresses */
   withImages: boolean;
+  /** Also read the article's typesetting into a theme (see themeSniff.ts) */
+  withTheme?: boolean;
   /** Store one image, returning its workspace-relative path (see useVault) */
   addImage: (name: string, dataUrl: string) => Promise<string | null>;
   /** Image file names already in use, so one import cannot overwrite another */
@@ -501,6 +528,13 @@ export interface ImportResult {
   saved: number;
   /** Images left as addresses, because their host would not hand them over */
   missed: number;
+  /** The theme read off the page, when asked for one */
+  theme?: Theme;
+  /** What came off the page and what stayed at the preset's default */
+  themeNotes?: string[];
+  /** The import stands on its own: a theme that could not be read is
+   *  reported, never a reason to fail the draft */
+  themeError?: string;
 }
 
 /**
@@ -557,7 +591,35 @@ export async function importArticle(url: string, opts: ImportOptions): Promise<I
     body = localizeImages(body, stored);
   }
 
-  return { title: article.title, markdown: compose(article, body), saved, missed };
+  const styling = opts.withTheme ? await sniffed(url, article, opts.signal) : {};
+  return { title: article.title, markdown: compose(article, body), saved, missed, ...styling };
+}
+
+/**
+ * The article's typesetting, as a theme.
+ *
+ * The page fetched here is reused as it is; one that came back from Reader is
+ * markdown by now, with no styles left in it, so that one page is asked for a
+ * second time — for its own markup rather than a reader's rendering of it.
+ */
+async function sniffed(
+  url: string,
+  article: Article,
+  signal?: AbortSignal,
+): Promise<Pick<ImportResult, 'theme' | 'themeNotes' | 'themeError'>> {
+  const title = article.title.trim();
+  const opts = {
+    name: title ? `${title.slice(0, 10)} 的排版` : '扒来的排版',
+    description: title ? `从《${title.slice(0, 20)}》扒来的排版` : '从一篇文章里扒来的排版',
+  };
+  try {
+    const { theme, notes } = article.doc
+      ? sniffTheme(article.doc, opts)
+      : await sniffThemeFromUrl(url, (target, init) => fetch(target, init), { signal });
+    return { theme, themeNotes: notes };
+  } catch (err) {
+    return { themeError: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**

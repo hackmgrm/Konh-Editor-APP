@@ -61,6 +61,9 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 通常就够做出一个气质完全不同的主题了。挑 base 的时候优先看结构像不像
 （编号小节？居中标题？终端窗口？），颜色反正总要改。
 
+想**去掉** base 里有的某个可选项（比如 base 自带的 \`list.bullet\`、\`extra\` 里的某一条），
+把它写成 \`null\`。
+
 可选的 base：
   - ${BASES}
 
@@ -79,7 +82,7 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 
 ### 标题 \`heading.decor\`
 
-一篇公众号文章，读者最先看见的就是标题的样子。十选一：
+一篇公众号文章，读者最先看见的就是标题的样子。十一选一：
 
 | 值 | 长什么样 |
 | --- | --- |
@@ -90,6 +93,7 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 | \`rule\` | 只在文字宽度下画一条杂志粗线 |
 | \`left-bar\` | 左侧竖条，公众号最常见的那种 |
 | \`boxed\` | 文字外面一圈描边框 |
+| \`highlight\` | 一整套标题系统，不是一个记号：h1/h2 是居中的粗高亮压线（吃 \`accentBright\`，只有文字那么宽）；h3 左侧一条 5px 竖条；h3 如果自带序号（\`1. \` \`2.1 \` \`三、\`），序号会被摘出来单独压一道短线 |
 | \`marker\` | 文字前面一个符号，符号由 \`heading.markerGlyph\` 定（如 \`▍\` \`#\` \`$\` \`❁\`） |
 | \`numbered\` | 每个 h2 前面自动编号 01 / 02 / 03（只给 h2，其他层级不编） |
 | \`center-rule\` | 标题居中，文字底下一条短线 |
@@ -110,7 +114,8 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 
 ### 分隔线 \`hr.style\`
 
-\`line\`（默认）/ \`dashed\` / \`dotted\` / \`double\` / \`glyph\`。
+\`line\`（默认）/ \`dashed\` / \`dotted\` / \`double\` / \`fade\` / \`glyph\`。
+\`fade\` 画的是一条 2px 的色块，两端渐隐成透明——线是「来」和「走」的，不会在页边戛然而止。
 \`glyph\` 画的不是线，而是一个居中的小花饰，字符由 \`hr.glyph\` 定：\`❋\` \`✦\` \`◈\` \`✿\` \`· · ·\`。
 \`hr.width\` 可以让线短一些（如 \`"15%"\`），小于 100% 会自动居中——极简主题很吃这一招。
 
@@ -122,6 +127,10 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 - \`list.bullet\`：无序列表的符号，如 \`•\` \`▸\` \`—\` \`◇\` \`○\` \`❀\` \`*\` \`›\` \`◆\`
 - \`list.bulletColor\`：符号颜色，不写就用 \`accent\`
 - \`list.ordered\`：\`plain\`（原样）/ \`accent\`（数字染成强调色）/ \`pill\`（数字装进实心小圆牌）
+- \`list.taskGlyphs\`：待办清单（\`- [ ]\` / \`- [x]\`）的一对符号，前一个是勾上的，
+  后一个是没勾的，如 \`☑☐\` \`✅⬜\` \`✔✗\` \`●○\`
+- \`list.taskChecked\` / \`list.taskUnchecked\`：勾上、没勾的颜色，不写就分别用
+  \`accent\` 和 \`delColor\`
 
 ### 代码块 \`codeBlock.chrome\`
 
@@ -131,7 +140,8 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 ### 表格 \`table.style\`
 
 \`grid\`（默认，每格都有框）/ \`minimal\`（只留横线，表头去掉底色）/ \`striped\`（隔行底色，
-颜色由 \`table.stripeBg\` 定，不写就用 \`headBg\`）。
+颜色由 \`table.stripeBg\` 定，不写就用 \`headBg\`）/ \`rails\`（表格上下各一条粗线、表头下一条细线，
+正文行之间什么都没有，每格居中——印刷品里的表，不是电子表格）。
 
 ### 正文 \`body\`
 
@@ -152,9 +162,11 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
 | \`mono\` | 等宽字体族（代码用） |
 | \`accent\` | 强调色。标题装饰、引用条、链接、列表符号、脚注都吃它，是一个主题的性格所在 |
 | \`accentSoft\` | 强调色的淡版本，用来铺大面积（标题色带、徽章底） |
+| \`accentBright\` | 第二强调色，满饱和。\`accent\` 负责承载文字，它负责承载形状：高亮压线、列表符号、分隔线。不填则回落到 \`accent\` |
 | \`pMargin\` | 段间距，如 \`"16px"\` |
 | \`listPaddingLeft\` / \`listItemMargin\` | 列表缩进与条目间距 |
 | \`strongColor\` | 加粗的颜色，\`"inherit"\` 表示跟正文 |
+| \`strongWeight\` | 加粗的字重，默认 \`"700"\`。\`"800"\` 往上就不再是句子里的强调，而是第二个声音 |
 | \`delColor\` | 删除线的颜色 |
 | \`codePaletteMode\` | \`"light"\` 或 \`"dark"\`，跟 \`codeBlock.background\` 的明暗一致 |
 
@@ -171,8 +183,8 @@ export const THEME_GUIDE = `# 火星编辑器 · 主题文件格式
   \`padding\`、\`margin\`、\`badgeBg\`、\`badgeColor\`、\`extra\`
 - \`code\`（行内代码）：\`background\`、\`color\`、\`borderRadius\`、\`padding\`、\`fontSize\`、\`extra\`
 - \`codeBlock\`（代码块）：同上，另有 \`lineHeight\`、\`chrome\`
-- \`link\`：\`color\`、\`textDecoration\`
-- \`list\`：\`bullet\`、\`bulletColor\`、\`ordered\`
+- \`link\`：\`color\`、\`textDecoration\`、\`underline\`（设了就把下划线画成 2px 色线，可以跟文字不同色；\`textDecoration\` 随之失效）
+- \`list\`：\`bullet\`、\`bulletColor\`、\`ordered\`、\`taskGlyphs\`、\`taskChecked\`、\`taskUnchecked\`
 - \`table\`：\`borderColor\`、\`headBg\`、\`headColor\`、\`fontSize\`、\`cellPadding\`、\`style\`、\`stripeBg\`
 - \`hr\`：\`color\`、\`margin\`、\`style\`、\`glyph\`、\`width\`
 - \`img\`：\`borderRadius\`、\`margin\`（\`"16px auto"\` 让图片居中）、\`caption\`、\`frame\`

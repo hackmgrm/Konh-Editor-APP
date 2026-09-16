@@ -106,6 +106,16 @@ pub fn themes_guide_write(app: AppHandle, text: String) -> Result<ThemePaths, St
     })
 }
 
+/// Does this file hold the theme with this id? Read from the JSON rather than
+/// the file name — see theme_delete
+fn holds_id(path: &Path, id: &str) -> bool {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|v| v.get("id").and_then(|v| v.as_str()).map(str::to_string))
+        .is_some_and(|found| found == id)
+}
+
 /// Throw one away.
 ///
 /// The file is found by the id *inside* it rather than by its name, even
@@ -121,18 +131,44 @@ pub fn theme_delete(app: AppHandle, id: String) -> Result<(), String> {
     let entries = fs::read_dir(&dir).map_err(|e| format!("读不了主题目录：{e}"))?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if !is_theme_file(&path) {
-            continue;
-        }
-        let holds_id = fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-            .and_then(|v| v.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .is_some_and(|found| found == id);
-        if holds_id {
+        if is_theme_file(&path) && holds_id(&path, &id) {
             fs::remove_file(&path).map_err(|e| format!("删不掉主题：{e}"))?;
         }
     }
+    Ok(())
+}
+
+/// Save one theme — what the theme studio does, as opposed to the agent, which
+/// writes its files with its own tools.
+///
+/// Any *other* file already holding this id goes first: the agent may have
+/// named its file differently, and two files claiming one id would leave which
+/// one wins up to the order the directory happens to list in. The text lands
+/// under a temporary name (not `.json`, so the watcher ignores it) and is
+/// renamed into place, so the front end never reads half a file.
+#[tauri::command]
+pub fn theme_write(app: AppHandle, id: String, text: String) -> Result<(), String> {
+    if !safe_id(&id) {
+        return Err(format!("主题 id 不对：{id}"));
+    }
+    let parsed: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("主题不是合法的 JSON：{e}"))?;
+    if parsed.get("id").and_then(|v| v.as_str()) != Some(id.as_str()) {
+        return Err("主题文件里的 id 和文件名对不上".into());
+    }
+    let dir = themes_dir(&app)?;
+    let target = dir.join(format!("{id}.json"));
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path != target && is_theme_file(&path) && holds_id(&path, &id) {
+                fs::remove_file(&path).map_err(|e| format!("清不掉同名的旧主题：{e}"))?;
+            }
+        }
+    }
+    let tmp = dir.join(format!(".{id}.json.tmp"));
+    fs::write(&tmp, text).map_err(|e| format!("存不了主题：{e}"))?;
+    fs::rename(&tmp, &target).map_err(|e| format!("存不了主题：{e}"))?;
     Ok(())
 }
 
@@ -188,5 +224,7 @@ mod tests {
     fn 只有_json_算主题文件() {
         assert!(is_theme_file(Path::new("/x/celadon.json")));
         assert!(!is_theme_file(Path::new("/x/GUIDE.md")));
+        // theme_write's staging file must never look like a theme
+        assert!(!is_theme_file(Path::new("/x/.celadon.json.tmp")));
     }
 }

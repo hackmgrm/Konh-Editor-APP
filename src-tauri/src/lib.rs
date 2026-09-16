@@ -55,6 +55,7 @@ pub fn run() {
             themes::themes_read,
             themes::themes_guide_write,
             themes::theme_delete,
+            themes::theme_write,
             window::window_chrome,
         ])
         .setup(|app| {

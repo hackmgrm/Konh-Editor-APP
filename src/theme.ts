@@ -12,6 +12,16 @@ export interface Theme {
   id: string;
   name: string;
   description: string;
+  /** For a custom theme, the preset it was built on (see parseTheme). Presets
+   *  leave it unset — they are their own base */
+  base?: string;
+  /**
+   * A named family the theme belongs to. A theme with a group is pulled out of
+   * the light/dark lists and shown as its own section, which is what a set of
+   * siblings wants — they differ from each other by palette, not by the
+   * light/dark split the rest of the list is sorted on
+   */
+  group?: string;
   /** Whether the preview paper is light or dark (used to group the theme list;
    *  do not infer it from codePaletteMode) */
   appearance: 'light' | 'dark';
@@ -32,11 +42,23 @@ export interface Theme {
     /** Justified prose. Only worth it with indent on; ragged-right is the
      *  safer default on a phone */
     align?: 'left' | 'justify';
+    /** Tracking on the prose. Chinese text takes a little air better than
+     *  Latin does, so a theme may open the body up by a pixel; inherited by
+     *  everything inside, so it is set once on the section wrapper */
+    letterSpacing?: string;
   };
   /** Accent (heading decoration, quotes, links…) */
   accent: string;
   /** A pale form of the accent, for large fills like heading bands */
   accentSoft?: string;
+  /**
+   * A second accent, at full saturation. Where `accent` is the colour that
+   * carries text (headings, links, quote rules), this is the one that carries
+   * *shapes* — the `highlight` bar behind a heading, a bullet, a divider. Two
+   * accents is what lets a theme put readable ink next to a loud block of
+   * colour. Falls back to `accent`.
+   */
+  accentBright?: string;
   /** Headings */
   heading: {
     font: string;
@@ -61,6 +83,9 @@ export interface Theme {
      * - `marker` — a glyph in front of the text (see markerGlyph)
      * - `numbered` — an accent section number in front of every h2 (01, 02…)
      * - `center-rule` — centered, with a short rule under the text only
+     * - `highlight` — a thick bar of `accentBright` struck through the foot of
+     *   the text, the way a highlighter pen leaves it; centred, and only as
+     *   wide as the words
      */
     decor?:
       | 'none'
@@ -72,7 +97,8 @@ export interface Theme {
       | 'boxed'
       | 'marker'
       | 'numbered'
-      | 'center-rule';
+      | 'center-rule'
+      | 'highlight';
     /** The glyph the `marker` decor puts in front of the text (default ▍) */
     markerGlyph?: string;
     /** Centre every heading. `center-rule` implies this; set it on its own to
@@ -143,7 +169,17 @@ export interface Theme {
     extra?: Record<string, string>;
   };
   /** Links */
-  link: { color: string; textDecoration: string };
+  link: {
+    color: string;
+    textDecoration: string;
+    /**
+     * Draw the underline as a border in this colour instead of as
+     * text-decoration — which is how a link gets an underline in a *different*
+     * colour from its text, and thicker than a hairline. Set it and
+     * `textDecoration` is forced to none
+     */
+    underline?: string;
+  };
   listPaddingLeft: string;
   listItemMargin: string;
   /**
@@ -160,6 +196,16 @@ export interface Theme {
     /** How the numbers of an ordered list are drawn: as they come, in the
      *  accent, or as filled accent pills */
     ordered?: 'plain' | 'accent' | 'pill';
+    /**
+     * Checklists (`- [ ]` / `- [x]`). The box is a character rather than a
+     * drawn control, like every other marker here, so it survives the WeChat
+     * paste — which means the pair can be any two glyphs.
+     */
+    taskGlyphs?: string;
+    /** Colour of the ticked box (defaults to the accent) */
+    taskChecked?: string;
+    /** Colour of the empty box (defaults to delColor) */
+    taskUnchecked?: string;
   };
   /** Tables */
   table: {
@@ -168,9 +214,15 @@ export interface Theme {
     headColor: string;
     fontSize: string;
     cellPadding: string;
-    /** `grid` rules every cell (the default), `minimal` keeps only the
-     *  horizontal lines, `striped` fills alternate rows */
-    style?: 'grid' | 'minimal' | 'striped';
+    /**
+     * - `grid` — rules every cell (the default)
+     * - `minimal` — keeps only the horizontal lines
+     * - `striped` — fills alternate rows
+     * - `rails` — a rule above and below the table and one under the head,
+     *   nothing between the body rows, every cell centred: a printed table
+     *   rather than a spreadsheet
+     */
+    style?: 'grid' | 'minimal' | 'striped' | 'rails';
     /** The fill `striped` uses on every other row */
     stripeBg?: string;
   };
@@ -179,8 +231,9 @@ export interface Theme {
     color: string;
     margin: string;
     /** A divider is a whole sentence of punctuation in a long article: a line,
-     *  a dashed or dotted rule, a double rule, or a centred ornament */
-    style?: 'line' | 'dashed' | 'dotted' | 'double' | 'glyph';
+     *  a dashed or dotted rule, a double rule, a centred ornament, or a bar
+     *  that fades out at both ends (`fade`) */
+    style?: 'line' | 'dashed' | 'dotted' | 'double' | 'glyph' | 'fade';
     /** What `glyph` draws, e.g. '❋' or '· · ·' */
     glyph?: string;
     /** Rule width; anything under 100% is centred */
@@ -198,6 +251,9 @@ export interface Theme {
   };
   /** Bold color ('inherit' means take the body color) */
   strongColor: string;
+  /** Weight bold is set in. Defaults to 700; 800 and up reads as a second
+   *  voice rather than an emphasis inside the sentence */
+  strongWeight?: string;
   /** Strikethrough color */
   delColor: string;
   /** ==mark== highlight */
@@ -212,16 +268,16 @@ export interface Theme {
 
 /* ---------------- Font stacks ---------------- */
 
-const SANS =
+export const SANS =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif";
-const SERIF = "Georgia, 'Songti SC', 'SimSun', 'Times New Roman', serif";
-const MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+export const SERIF = "Georgia, 'Songti SC', 'SimSun', 'Times New Roman', serif";
+export const MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
 
 /* ---------------- highlight.js palettes (one light, one dark) ---------------- */
 
 /** Light palette: gentle contrast on a warm paper code block (shared by the
  *  classic, editorial and cream themes) */
-const PALETTE_LIGHT: Record<string, string> = {
+export const PALETTE_LIGHT: Record<string, string> = {
   'hljs-keyword': '#9a3d9e',
   'hljs-string': '#b4552f',
   'hljs-title': '#7a4a9e',
@@ -256,7 +312,7 @@ const PALETTE_LIGHT: Record<string, string> = {
 };
 
 /** Dark palette: high-contrast neon on a black terminal (the dark terminal theme) */
-const PALETTE_DARK: Record<string, string> = {
+export const PALETTE_DARK: Record<string, string> = {
   'hljs-keyword': '#ff7ab2',
   'hljs-string': '#ffd27a',
   'hljs-title': '#7ad0ff',
@@ -1013,6 +1069,406 @@ export const nightSakuraTheme: Theme = {
   codePaletteMode: 'dark',
 };
 
+/* ---------------- Punk 系列 ----------------
+ *
+ * Four palettes lifted, with the author's blessing, from Punk微排
+ * (weipai.iamadrianpunk.com). What makes them a family is not the colours but
+ * the way the colours are dealt out: each palette carries *two* accents — one
+ * that carries ink (headings, quote rules, inline code) and one that carries
+ * shapes (the highlighter bar behind a heading, bullets, the divider). Hence
+ * `accent` + `accentBright` on every one.
+ *
+ * The paper is white and the prose is #1B252D on all four, which is not what
+ * the palettes appear to say. Their `background` and `ink` fields do not reach
+ * the page: the renderer resolves the paper as `background` only when the
+ * "默认白色底" toggle is off, and it ships on, so the paper is #FFFFFF; the
+ * prose is then picked for contrast against that paper rather than read from
+ * the palette at all. White ground, four sets of marks on it.
+ *
+ * Two things are deliberately not copied:
+ *
+ *  - The original paints bold body text, and table head text, in the bright
+ *    accent — 1.07:1 against white on one of the four. Both keep the hue here
+ *    but are darkened until they clear 4.5:1. A faint rule is a style; faint
+ *    text is not.
+ *  - Its code blocks are a flat wash of the code colour with no highlighting at
+ *    all. `codePalette` keeps that near-monochrome reading rather than dropping
+ *    a light syntax palette onto a saturated ground, where none of it is legible.
+ *    The one ink is #FFFDF6 on all four. The original appears to pick it for
+ *    contrast — it sets `--on-accent` on the <pre> — but the code actually sits
+ *    in spans that a higher-specificity rule paints #FFFDF6 regardless, so the
+ *    picking never reaches the page. Near-white on every ground is the design.
+ */
+/** The body face: the Source Han / PingFang stack the original ships */
+const PUNK_SANS =
+  "'Source Han Sans SC', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+/**
+ * The heading face. Monospace first is not a mistake and not a fallback: no
+ * mono face carries CJK, so Chinese drops through to PingFang while Latin and
+ * digits stay monospaced — which is where a section heading like `01 标题` gets
+ * its look.
+ */
+const PUNK_HEADING =
+  "ui-monospace, SFMono-Regular, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+/** The paper, and the prose on it — shared by all four (see above) */
+const PUNK_PAPER = '#FFFFFF';
+const PUNK_INK = '#1B252D';
+
+/** A near-monochrome code palette: one ink for everything, comments dimmed
+ *  back toward the ground. Built per theme, since the ground is the theme's
+ *  own code colour */
+const punkCodePalette = (fg: string, dim: string): Record<string, string> =>
+  Object.fromEntries(
+    Object.keys(PALETTE_LIGHT).map((k) => [k, /comment|quote|meta/.test(k) ? dim : fg]),
+  );
+
+export const punkTheme: Theme = {
+  id: 'punk',
+  name: '蓝黄',
+  description: '黄色高亮压住标题 + 蓝底 macOS 代码窗，Punk微排的招牌蓝黄',
+  group: 'punk',
+  appearance: 'light',
+  mono: MONO,
+  body: {
+    font: PUNK_SANS,
+    fontSize: '16px',
+    lineHeight: '1.9',
+    color: PUNK_INK,
+    bg: PUNK_PAPER,
+    letterSpacing: '1px',
+  },
+  accent: '#0058A3',
+  accentSoft: '#E0EBF4',
+  accentBright: '#FFDB00',
+  heading: {
+    font: PUNK_HEADING,
+    fontWeight: '900',
+    color: '#0058A3',
+    lineHeight: '1.45',
+    letterSpacing: '0.015em',
+    // Between the original's 44/24 on a section and 32/13 on a sub-head, which
+    // one global pair has to cover both of
+    marginTop: '40px',
+    marginBottom: '20px',
+    decor: 'highlight',
+  },
+  headingSizes: { h1: '25px', h2: '19px', h3: '17px', h4: '16px', h5: '15px', h6: '14px' },
+  pMargin: '15px',
+  list: { bullet: '•', bulletColor: '#FFDB00', ordered: 'accent' },
+  quote: {
+    style: 'bar',
+    background: '#EDF3F9',
+    color: '#5B5D58',
+    borderLeft: '3px solid #0058A3',
+    borderRadius: '0',
+    padding: '17px 18px 17px 20px',
+    margin: '27px 0',
+  },
+  callout: {
+    background: '#EDF3F9',
+    color: '#5B5D58',
+    borderLeft: '3px solid #0058A3',
+    borderRadius: '0',
+    padding: '16px 18px',
+    margin: '27px 0',
+    badgeBg: '#FFDB00',
+    badgeColor: '#1B252D',
+  },
+  code: { background: '#FFF8D6', color: '#0058A3', borderRadius: '3px', padding: '2px 5px', fontSize: '0.88em' },
+  codeBlock: {
+    background: '#0058A3',
+    color: '#FFFDF6',
+    borderRadius: '8px',
+    padding: '16px 18px 18px',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    chrome: 'dots',
+    // The body sets 1px of tracking; code is the one place it must not reach
+    extra: { 'letter-spacing': '0' },
+  },
+  link: { color: '#0058A3', textDecoration: 'none', underline: '#FFDB00' },
+  listPaddingLeft: '25px',
+  listItemMargin: '8px 0',
+  table: {
+    borderColor: '#0058A3',
+    headBg: 'transparent',
+    headColor: '#0058A3',
+    fontSize: '15px',
+    cellPadding: '10px 8px',
+    style: 'rails',
+  },
+  hr: { color: '#FFDB00', margin: '36px 0', style: 'fade' },
+  img: { borderRadius: '3px', margin: '28px auto 10px' },
+  strongColor: '#0058A3',
+  strongWeight: '800',
+  delColor: '#8D9296',
+  mark: { background: '#FFDB00', color: '#1B252D', borderRadius: '2px', padding: '1px 4px' },
+  footnote: { refColor: '#0058A3', blockBorder: '#D1D3D5', textColor: '#8D9296', numColor: '#0058A3', textSize: '12px' },
+  codePalette: punkCodePalette('#FFFDF6', '#8CB3D1'),
+  codePaletteMode: 'dark',
+};
+
+export const punkRetroTheme: Theme = {
+  id: 'punk-retro',
+  name: '复古潮流',
+  description: '湖蓝标题 + 复古黄高亮 + 番茄红引用，冰箱贴一样的撞色',
+  group: 'punk',
+  appearance: 'light',
+  mono: MONO,
+  body: {
+    font: PUNK_SANS,
+    fontSize: '16px',
+    lineHeight: '1.9',
+    color: PUNK_INK,
+    bg: PUNK_PAPER,
+    letterSpacing: '1px',
+  },
+  accent: '#00A6C7',
+  accentSoft: '#E0F4F8',
+  accentBright: '#F5C51B',
+  heading: {
+    font: PUNK_HEADING,
+    fontWeight: '900',
+    color: '#00A6C7',
+    lineHeight: '1.45',
+    letterSpacing: '0.015em',
+    // Between the original's 44/24 on a section and 32/13 on a sub-head, which
+    // one global pair has to cover both of
+    marginTop: '40px',
+    marginBottom: '20px',
+    decor: 'highlight',
+  },
+  headingSizes: { h1: '25px', h2: '19px', h3: '17px', h4: '16px', h5: '15px', h6: '14px' },
+  pMargin: '15px',
+  list: { bullet: '•', bulletColor: '#F5C51B', ordered: 'accent' },
+  quote: {
+    style: 'bar',
+    background: '#FDF2F1',
+    color: '#5B5D58',
+    borderLeft: '3px solid #E84A3C',
+    borderRadius: '0',
+    padding: '17px 18px 17px 20px',
+    margin: '27px 0',
+  },
+  callout: {
+    background: '#FDF2F1',
+    color: '#5B5D58',
+    borderLeft: '3px solid #00A6C7',
+    borderRadius: '0',
+    padding: '16px 18px',
+    margin: '27px 0',
+    badgeBg: '#F5C51B',
+    badgeColor: '#1B252D',
+  },
+    // The palette tint is within 1.03:1 of white paper — no chip at all
+  code: { background: '#FDEDEC', color: '#E84A3C', borderRadius: '3px', padding: '2px 5px', fontSize: '0.88em' },
+  codeBlock: {
+    background: '#00A6C7',
+    color: '#FFFDF6',
+    borderRadius: '8px',
+    padding: '16px 18px 18px',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    chrome: 'dots',
+    // The body sets 1px of tracking; code is the one place it must not reach
+    extra: { 'letter-spacing': '0' },
+  },
+  link: { color: '#00A6C7', textDecoration: 'none', underline: '#F5C51B' },
+  listPaddingLeft: '25px',
+  listItemMargin: '8px 0',
+  table: {
+    borderColor: '#F5C51B',
+    headBg: 'transparent',
+    headColor: '#008293',
+    fontSize: '15px',
+    cellPadding: '10px 8px',
+    style: 'rails',
+  },
+  hr: { color: '#F5C51B', margin: '36px 0', style: 'fade' },
+  img: { borderRadius: '3px', margin: '28px auto 10px' },
+  /** The bright accent is unreadable as text on white; the title hue, darkened to 4.55:1 */
+  strongColor: '#008293',
+  strongWeight: '800',
+  delColor: '#8D9296',
+  mark: { background: '#F5C51B', color: '#1B252D', borderRadius: '2px', padding: '1px 4px' },
+  footnote: { refColor: '#00A6C7', blockBorder: '#D1D3D5', textColor: '#8D9296', numColor: '#00A6C7', textSize: '12px' },
+  codePalette: punkCodePalette('#FFFDF6', '#8CD6E1'),
+  codePaletteMode: 'dark',
+};
+
+export const punkRedBlueTheme: Theme = {
+  id: 'punk-redblue',
+  name: '红蓝 CP',
+  description: '复古红压雾霾蓝，海报式的高反差',
+  group: 'punk',
+  appearance: 'light',
+  mono: MONO,
+  body: {
+    font: PUNK_SANS,
+    fontSize: '16px',
+    lineHeight: '1.9',
+    color: PUNK_INK,
+    bg: PUNK_PAPER,
+    letterSpacing: '1px',
+  },
+  accent: '#BF0C09',
+  accentSoft: '#F7E2E1',
+  accentBright: '#9CC0D0',
+  heading: {
+    font: PUNK_HEADING,
+    fontWeight: '900',
+    color: '#BF0C09',
+    lineHeight: '1.45',
+    letterSpacing: '0.015em',
+    // Between the original's 44/24 on a section and 32/13 on a sub-head, which
+    // one global pair has to cover both of
+    marginTop: '40px',
+    marginBottom: '20px',
+    decor: 'highlight',
+  },
+  headingSizes: { h1: '25px', h2: '19px', h3: '17px', h4: '16px', h5: '15px', h6: '14px' },
+  pMargin: '15px',
+  list: { bullet: '•', bulletColor: '#9CC0D0', ordered: 'accent' },
+  quote: {
+    style: 'bar',
+    background: '#FBEEEE',
+    color: '#5B5D58',
+    borderLeft: '3px solid #BF0C09',
+    borderRadius: '0',
+    padding: '17px 18px 17px 20px',
+    margin: '27px 0',
+  },
+  callout: {
+    background: '#FBEEEE',
+    color: '#5B5D58',
+    borderLeft: '3px solid #BF0C09',
+    borderRadius: '0',
+    padding: '16px 18px',
+    margin: '27px 0',
+    badgeBg: '#9CC0D0',
+    badgeColor: '#1B252D',
+  },
+  code: { background: '#FFF9F9', color: '#BF0C09', borderRadius: '3px', padding: '2px 5px', fontSize: '0.88em' },
+  codeBlock: {
+    background: '#BF0C09',
+    color: '#FFFDF6',
+    borderRadius: '8px',
+    padding: '16px 18px 18px',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    chrome: 'dots',
+    // The body sets 1px of tracking; code is the one place it must not reach
+    extra: { 'letter-spacing': '0' },
+  },
+  link: { color: '#BF0C09', textDecoration: 'none', underline: '#9CC0D0' },
+  listPaddingLeft: '25px',
+  listItemMargin: '8px 0',
+  table: {
+    borderColor: '#9CC0D0',
+    headBg: 'transparent',
+    headColor: '#BF0C09',
+    fontSize: '15px',
+    cellPadding: '10px 8px',
+    style: 'rails',
+  },
+  hr: { color: '#9CC0D0', margin: '36px 0', style: 'fade' },
+  img: { borderRadius: '3px', margin: '28px auto 10px' },
+  strongColor: '#BF0C09',
+  strongWeight: '800',
+  delColor: '#8D9296',
+  mark: { background: '#9CC0D0', color: '#1B252D', borderRadius: '2px', padding: '1px 4px' },
+  footnote: { refColor: '#BF0C09', blockBorder: '#D1D3D5', textColor: '#8D9296', numColor: '#BF0C09', textSize: '12px' },
+  codePalette: punkCodePalette('#FFFDF6', '#E2918B'),
+  codePaletteMode: 'dark',
+};
+
+export const punkOrangeTheme: Theme = {
+  id: 'punk-orange',
+  name: '活力橙',
+  description: '活力橙标题 + 清透蓝高亮，一对补色',
+  group: 'punk',
+  appearance: 'light',
+  mono: MONO,
+  body: {
+    font: PUNK_SANS,
+    fontSize: '16px',
+    lineHeight: '1.9',
+    color: PUNK_INK,
+    bg: PUNK_PAPER,
+    letterSpacing: '1px',
+  },
+  accent: '#FD7E15',
+  accentSoft: '#FFF0E3',
+  accentBright: '#599DC6',
+  heading: {
+    font: PUNK_HEADING,
+    fontWeight: '900',
+    color: '#FD7E15',
+    lineHeight: '1.45',
+    letterSpacing: '0.015em',
+    // Between the original's 44/24 on a section and 32/13 on a sub-head, which
+    // one global pair has to cover both of
+    marginTop: '40px',
+    marginBottom: '20px',
+    decor: 'highlight',
+  },
+  headingSizes: { h1: '25px', h2: '19px', h3: '17px', h4: '16px', h5: '15px', h6: '14px' },
+  pMargin: '15px',
+  list: { bullet: '•', bulletColor: '#599DC6', ordered: 'accent' },
+  quote: {
+    style: 'bar',
+    background: '#F3F8FB',
+    color: '#5B5D58',
+    borderLeft: '3px solid #599DC6',
+    borderRadius: '0',
+    padding: '17px 18px 17px 20px',
+    margin: '27px 0',
+  },
+  callout: {
+    background: '#F3F8FB',
+    color: '#5B5D58',
+    borderLeft: '3px solid #FD7E15',
+    borderRadius: '0',
+    padding: '16px 18px',
+    margin: '27px 0',
+    badgeBg: '#599DC6',
+    badgeColor: '#1B252D',
+  },
+  code: { background: '#EDF8FD', color: '#FD7E15', borderRadius: '3px', padding: '2px 5px', fontSize: '0.88em' },
+  codeBlock: {
+    background: '#FD7E15',
+    color: '#FFFDF6',
+    borderRadius: '8px',
+    padding: '16px 18px 18px',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    chrome: 'dots',
+    // The body sets 1px of tracking; code is the one place it must not reach
+    extra: { 'letter-spacing': '0' },
+  },
+  link: { color: '#FD7E15', textDecoration: 'none', underline: '#599DC6' },
+  listPaddingLeft: '25px',
+  listItemMargin: '8px 0',
+  table: {
+    borderColor: '#599DC6',
+    headBg: 'transparent',
+    headColor: '#BA5D15',
+    fontSize: '15px',
+    cellPadding: '10px 8px',
+    style: 'rails',
+  },
+  hr: { color: '#599DC6', margin: '36px 0', style: 'fade' },
+  img: { borderRadius: '3px', margin: '28px auto 10px' },
+  /** The bright accent is unreadable as text on white; the title hue, darkened to 4.50:1 */
+  strongColor: '#BA5D15',
+  strongWeight: '800',
+  delColor: '#8D9296',
+  mark: { background: '#599DC6', color: '#1B252D', borderRadius: '2px', padding: '1px 4px' },
+  footnote: { refColor: '#FD7E15', blockBorder: '#D1D3D5', textColor: '#8D9296', numColor: '#FD7E15', textSize: '12px' },
+  codePalette: punkCodePalette('#FFFDF6', '#FEC491'),
+  codePaletteMode: 'dark',
+};
+
 export const themes: Theme[] = [
   classicTheme,
   minimalTheme,
@@ -1026,12 +1482,18 @@ export const themes: Theme[] = [
   midnightTheme,
   graphiteTheme,
   nightSakuraTheme,
+  punkTheme,
+  punkRetroTheme,
+  punkRedBlueTheme,
+  punkOrangeTheme,
 ];
 
 /** Look a theme up by id, falling back to classic */
 /** Light / dark groups (shown as separate sections in the theme list) */
-export const lightThemes: Theme[] = themes.filter((t) => t.appearance === 'light');
-export const darkThemes: Theme[] = themes.filter((t) => t.appearance === 'dark');
+export const lightThemes: Theme[] = themes.filter((t) => !t.group && t.appearance === 'light');
+export const darkThemes: Theme[] = themes.filter((t) => !t.group && t.appearance === 'dark');
+/** The Punk family, shown as its own section (see Theme.group) */
+export const punkThemes: Theme[] = themes.filter((t) => t.group === 'punk');
 
 export function getTheme(id?: string): Theme {
   return themes.find((t) => t.id === id) ?? classicTheme;

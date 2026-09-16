@@ -1,0 +1,1029 @@
+/* ============================================================
+   9 · Theme studio
+   ------------------------------------------------------------
+   Docked on the right like the agent panel, because the thing it edits is
+   the preview beside it: every control writes the draft theme the preview
+   is already drawing with. Dense by necessity — close to a hundred values —
+   so each row is a label column and a control column, sections fold, and
+   both a search box and a click in the preview jump straight to one.
+   ============================================================ */
+
+/* Same arrangement as the agent panel: fixed width inside an animating
+   `.side-slot` (see _shell.css) */
+.studio-side {
+  flex: none;
+  width: 348px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.st-mode {
+  padding: 1px 7px;
+  border-radius: var(--r-full);
+  background: var(--sunken);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.studio-side .st-close {
+  margin-left: auto;
+}
+
+/* ---------------- Top: identity, search ---------------- */
+
+.st-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px 13px;
+}
+
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.st-row-label {
+  flex: none;
+  width: 28px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.st-row > .st-input,
+.st-row > .st-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.st-appearance {
+  flex: none;
+}
+
+.st-appearance .seg-btn {
+  padding: 3px 9px;
+  font-size: var(--fs-sm);
+}
+
+.st-search {
+  position: relative;
+  display: block;
+}
+
+.st-search > svg {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.st-search .st-input {
+  padding-left: 25px;
+}
+
+.st-tip {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+/* ---------------- Inputs ---------------- */
+
+.st-input {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  font-size: var(--fs-md);
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  outline: none;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.st-input.mono {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: -0.01em;
+}
+
+.st-input::placeholder {
+  color: var(--text-3);
+}
+
+.st-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* A value that cannot stand: kept in the box for fixing, not committed */
+.st-input.bad,
+.st-input.bad:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+/* The trigger of the custom listbox (components/Select.tsx). It keeps the
+   shape the native <select> had — the row layouts are built around this
+   26px pill — and loses the background-image caret, which was a hard-coded
+   grey that never followed the appearance. */
+.st-select {
+  height: 26px;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px 0 8px;
+  font-size: var(--fs-md);
+  text-align: left;
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.st-select:hover {
+  border-color: var(--accent-ring);
+}
+
+.st-select:focus-visible,
+.st-select.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  outline: none;
+}
+
+.st-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-select-caret {
+  flex: none;
+  color: var(--text-3);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.st-select:hover .st-select-caret,
+.st-select.open .st-select-caret {
+  color: var(--accent);
+}
+
+/* ---------------- The list ----------------
+   `.popover` carries the material and the enter/exit animation; this adds
+   only the things a listbox needs that a menu does not. */
+
+.select-menu {
+  position: fixed;
+  z-index: 260;
+  max-height: 320px;
+  overflow-y: auto;
+  transform-origin: top left;
+}
+
+.select-item {
+  font-size: var(--fs-md);
+}
+
+/* The keyboard cursor, which is not the same thing as the chosen value: it is
+   where ↑↓ has got to, and it follows the mouse as well so that there is only
+   ever one highlighted row */
+.select-item[data-active='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.select-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* .menu-check keys off aria-checked for menus; a listbox says aria-selected */
+.select-item[aria-selected='true'] .menu-check {
+  opacity: 1;
+}
+
+.select-group {
+  padding: 8px 10px 4px;
+}
+
+/* ---------------- Sections ---------------- */
+
+.st-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 6px 18px;
+}
+
+.st-empty {
+  margin: 0;
+  padding: 28px 12px;
+  text-align: center;
+  font-size: var(--fs-md);
+  color: var(--text-3);
+}
+
+.st-sec {
+  border-radius: var(--r-md);
+  scroll-margin-top: 6px;
+}
+
+/* Where a click in the preview landed */
+.st-sec.flash {
+  animation: st-flash 1.25s var(--ease);
+}
+
+@keyframes st-flash {
+  0%,
+  35% {
+    background: var(--accent-soft);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.st-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.st-sec-head:hover {
+  background: var(--sunken);
+}
+
+.st-caret {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--t-base) var(--ease);
+}
+
+.st-sec.open .st-caret {
+  transform: rotate(90deg);
+}
+
+.st-sec-title {
+  flex: none;
+}
+
+.st-sec-sub {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.st-sec-count {
+  flex: none;
+  margin-left: auto;
+  min-width: 16px;
+  padding: 1px 5px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* The roll. See StudioSection for why this is a grid row rather than a
+   max-height: the track resolves to the content's real height, so the motion
+   ends exactly when the content does. */
+.st-sec-slide {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--t-base) var(--ease);
+}
+
+.st-sec-slide.open {
+  grid-template-rows: 1fr;
+}
+
+/* The clip has to be a separate element from the grid item's contents, and
+   needs min-height: 0 — without it the item refuses to go below its content
+   height and the track never animates */
+.st-sec-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.st-sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 4px 6px 14px 22px;
+}
+
+/* ---------------- Field rows ---------------- */
+
+.st-field {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 3px;
+  align-items: start;
+}
+
+/* Rows whose control needs the full width (the free CSS table) */
+.st-field.wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.st-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 26px;
+  font-size: var(--fs-sm);
+  line-height: 1.25;
+  color: var(--text-2);
+}
+
+.st-field.changed .st-label {
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+.st-reset {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  animation: pop-in var(--t-base) var(--spring);
+}
+
+.st-reset:hover {
+  background: var(--accent-soft);
+}
+
+.st-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 26px;
+}
+
+.st-control > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.st-field-hint {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.st-field.wide .st-field-hint {
+  grid-column: 1;
+}
+
+/* ---------------- Colour ---------------- */
+
+.st-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Checkerboard behind a colour, so a translucent value looks translucent.
+   The colour itself is a child span laid over it */
+.st-checker {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #d9d6cf 25%, transparent 25%, transparent 75%, #d9d6cf 75%),
+    linear-gradient(45deg, #d9d6cf 25%, transparent 25%, transparent 75%, #d9d6cf 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    4px 4px;
+}
+
+.st-swatch {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow var(--t-fast) var(--ease);
+}
+
+/* No frame: the colour is the whole swatch */
+.st-swatch > span {
+  position: absolute;
+  inset: 0;
+}
+
+.st-swatch:focus-visible,
+.st-swatch.open {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* ---------------- The colour picker ---------------- */
+
+.st-picker {
+  position: fixed;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  transform-origin: top left;
+}
+
+/* Saturation left to right, brightness bottom to top, over the hue */
+.st-sv {
+  position: relative;
+  height: 140px;
+  border-radius: var(--r-sm);
+  cursor: crosshair;
+  touch-action: none;
+  outline: none;
+}
+
+.st-sv::before,
+.st-sv::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.st-sv::before {
+  background: linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+}
+
+.st-sv::after {
+  background: linear-gradient(to top, #000000, rgba(0, 0, 0, 0));
+}
+
+.st-thumb {
+  position: absolute;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.st-thumb > span {
+  position: absolute;
+  inset: 0;
+}
+
+.st-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 0 6px;
+}
+
+.st-bar {
+  position: relative;
+  height: 12px;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.st-bar .st-thumb {
+  top: 50%;
+}
+
+.st-bar.hue {
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 16.66%,
+    #00ff00 33.33%,
+    #00ffff 50%,
+    #0000ff 66.66%,
+    #ff00ff 83.33%,
+    #ff0000 100%
+  );
+}
+
+.st-bar.alpha .st-thumb {
+  background-color: #ffffff;
+}
+
+.st-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.st-sv:focus-visible,
+.st-bar:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.st-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-picker-now {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+}
+
+.st-picker-now > span {
+  position: absolute;
+  inset: 0;
+}
+
+.st-picker-entry {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.st-picker-entry.hex {
+  flex: 1;
+}
+
+.st-picker-entry.alpha {
+  flex: none;
+  width: 58px;
+}
+
+.st-picker-entry.alpha .st-input {
+  padding-right: 20px;
+  text-align: right;
+}
+
+.st-picker-suffix {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: var(--fs-sm) var(--mono);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.st-picker-swatches-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.st-picker-label {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.st-picker-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.st-picker-sw {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.st-picker-sw > span {
+  position: absolute;
+  inset: 0;
+}
+
+.st-picker-sw:hover {
+  transform: scale(1.12);
+}
+
+/* ---------------- Sizes and borders ---------------- */
+
+.st-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------------- Slider (components/Slider.tsx) ----------------
+   The row is 26px tall so it lines up with the text box beside it, but the
+   rail itself is 4px: the height is hit area, which a 4px rail cannot give
+   and a finger-width rail should not look like. */
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.slider-track {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--sunken-strong);
+  overflow: hidden;
+}
+
+.slider-fill {
+  display: block;
+  height: 100%;
+  width: var(--slider-pct, 0%);
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--slider-pct, 0%);
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-2);
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.slider:hover .slider-thumb {
+  border-color: var(--accent-ring);
+}
+
+.slider:focus-visible .slider-thumb {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-2), 0 0 0 3px var(--accent-ring);
+}
+
+.slider.dragging .slider-thumb {
+  transform: scale(1.12);
+}
+
+/* The number, only while it is being changed. A value permanently parked over
+   the rail is one more thing to read on a panel of a hundred rows; during a
+   drag it is the only thing anyone is looking at. */
+.slider-bubble {
+  position: absolute;
+  bottom: 17px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  padding: 3px 7px;
+  border-radius: var(--r-sm);
+  background: #2b2723;
+  color: #f6f1e8;
+  font: var(--fs-xs) var(--mono);
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+:root[data-appearance='dark'] .slider-bubble {
+  background: #322d28;
+}
+
+.slider.dragging .slider-bubble,
+.slider:focus-visible .slider-bubble {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.st-size .st-num {
+  flex: none;
+  width: 66px;
+}
+
+.st-border {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.st-border .st-select {
+  flex: none;
+  width: 60px;
+}
+
+.st-border .st-color {
+  flex: 1 1 120px;
+}
+
+.st-stepper {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.st-stepper button {
+  width: 20px;
+  height: 100%;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.st-stepper button:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.st-stepper button:active {
+  background: var(--accent-ring);
+  color: var(--accent-hi);
+}
+
+.st-stepper-value {
+  min-width: 30px;
+  text-align: center;
+  font: var(--fs-sm) var(--mono);
+  color: var(--text-1);
+  /* It takes ↑↓ and the wheel, so it is a control and has to say so */
+  cursor: ns-resize;
+  outline: none;
+}
+
+/* ---------------- Fonts, glyphs, choices ---------------- */
+
+.st-font,
+.st-glyph {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.st-font .st-select {
+  width: 100%;
+}
+
+.st-input.st-glyph-input {
+  width: 84px;
+}
+
+.st-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.st-chip {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.st-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text-1);
+}
+
+.st-chip[aria-checked='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+.st-chip.glyph {
+  min-width: 26px;
+  padding: 0 6px;
+  font-size: var(--fs-md);
+}
+
+.st-control > .st-toggle {
+  flex: none;
+  width: auto;
+  padding: 3px 0;
+}
+
+.st-palette-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ---------------- Free CSS ---------------- */
+
+.st-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.st-extra-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 24px;
+  gap: 4px;
+  align-items: center;
+}
+
+.st-extra-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.st-extra-add:hover {
+  border-color: var(--accent);
+  color: var(--accent-hi);
+  background: var(--accent-softer);
+}
+
+/* ---------------- Footer ---------------- */
+
+.st-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 10px;
+}
+
+.st-foot .grow {
+  flex: 1;
+}
+
+/* ---------------- Picking in the preview ----------------
+   While the studio is open, the article answers the pointer: the element
+   under it gets a tinted, labelled box laid over it (see PreviewPane), and a
+   click opens its section. A box of its own, never a style on the element —
+   an outline there sat on the very borders being tuned and passed for part
+   of the theme. */
+
+.check-body.picking {
+  cursor: pointer;
+}
+
+.pick-mark {
+  position: absolute;
+  z-index: 4;
+  border-radius: 3px;
+  background: rgba(64, 132, 255, 0.07);
+  box-shadow: 0 0 0 1px rgba(64, 132, 255, 0.55);
+  pointer-events: none;
+  transition:
+    top 90ms var(--ease),
+    left 90ms var(--ease),
+    width 90ms var(--ease),
+    height 90ms var(--ease);
+}
+
+.pick-tag {
+  position: absolute;
+  left: -1px;
+  bottom: calc(100% + 3px);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(64, 132, 255);
+  color: #ffffff;
+  font: 600 10.5px/1.5 var(--sans);
+  white-space: nowrap;
+}
+
+/* What a click in the article would style, in the theme name's place while
+   the studio is open (see PreviewPane). Truncates rather than pushing the
+   device switcher off the end of the head */
+.pane-pick {
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1180px) {
+  .studio-side {
+    width: 312px;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-side {
+    width: 100%;
+    max-height: 420px;
+  }
+}
+
+/* Keyboard arrival on the stepper's number: the shared :focus-visible ring is
+   an outline offset outwards, which on a control inside a 1px bordered pill
+   draws over the pill. An inset ring instead. */
+.st-stepper-value:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 3px;
+}

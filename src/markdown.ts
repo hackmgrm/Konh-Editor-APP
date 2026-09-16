@@ -60,6 +60,9 @@ interface Token {
   /** markdown-it hides the paragraphs of a tight list; its own renderToken
    *  drops them, and every rule overridden here has to do the same */
   hidden?: boolean;
+  /** Inline tokens carry their parsed run here; a heading rule reaches into it
+   *  to lift a leading number out of the words (see takeSubheadNumber) */
+  children?: Token[] | null;
   /** meta.tip: a callout blockquote; meta.title: its title (absent when untitled) */
   meta: { id?: number; subId?: number; name?: string; tip?: boolean; title?: string } | null;
   attrGet(name: string): string | null;
@@ -233,10 +236,43 @@ const esc = md.utils.escapeHtml;
  *
  * Three of the decorations cannot be expressed as style on the heading alone:
  * `marker` and `numbered` put an element *before* the text, and `center-rule`
- * needs a rule as wide as the text rather than as wide as the column, which
- * means an inline-block wrapper around the content. So this rule may open more
- * than the tag, and heading_close reads the same theme to close what it opened.
+ * and `highlight` need a decoration as wide as the text rather than as wide as
+ * the column, which means an inline-block wrapper around the content. So this
+ * rule may open more than the tag, and heading_close reads the same theme to
+ * close what it opened.
+ *
+ * `highlight` is a whole heading system rather than one mark: the bar for the
+ * title and the sections, a left rule for a sub-head, and — when a sub-head
+ * opens with its own number — that number lifted out and struck on its own.
  */
+/**
+ * A sub-head that numbers itself: `1. 图片示例`, `2.1 第二节`, `三、小结`. The
+ * number is pulled out so it can be marked separately from the words, which is
+ * the only way the mark stays as short as the number.
+ * Two shapes, tried in order: a dotted multi-level number, then a single
+ * ordinal (digits or Chinese) followed by its separator.
+ */
+const SUBHEAD_LEVELS = /^\s*(\d{1,2}(?:[.．]\d{1,2}){1,4})\s+/u;
+const SUBHEAD_ORDINAL =
+  /^\s*((?:第)?[一二三四五六七八九十]+(?:点|项|步|个|条)?|\d{1,2})\s*[、.．)：:）]\s*/u;
+
+/** Split a leading number off a sub-head, mutating the inline token that holds
+ *  it. Returns the number as it should be printed, or '' if there is none */
+function takeSubheadNumber(inline: Token | undefined): string {
+  const first = inline?.children?.[0];
+  if (!first || first.type !== 'text') return '';
+  const levels = first.content.match(SUBHEAD_LEVELS);
+  if (levels) {
+    first.content = first.content.slice(levels[0].length);
+    return levels[1];
+  }
+  const ordinal = first.content.match(SUBHEAD_ORDINAL);
+  if (!ordinal) return '';
+  first.content = first.content.slice(ordinal[0].length);
+  // A bare digit reads as a number only with its stop; a Chinese ordinal
+  // already carries one
+  return /^\d+$/.test(ordinal[1]) ? `${ordinal[1]}.` : ordinal[1];
+}
 md.renderer.rules.heading_open = ((tokens, idx, _o, env) => {
   const th = env.theme;
   const tag = tokens[idx].tag;
@@ -252,7 +288,17 @@ md.renderer.rules.heading_open = ((tokens, idx, _o, env) => {
   };
   if (h.letterSpacing) styles['letter-spacing'] = h.letterSpacing;
   const decor = h.decor ?? 'none';
-  if (h.align === 'center' || decor === 'center-rule') styles['text-align'] = 'center';
+  // The highlighter bar marks the title and the sections; running it down to
+  // h3 and below would turn a long article into a page of yellow
+  const struck = decor === 'highlight' && (tag === 'h1' || tag === 'h2');
+  if (h.align === 'center' || decor === 'center-rule' || struck) styles['text-align'] = 'center';
+  // A sub-head under `highlight` is marked one of two ways, never both: by its
+  // own number, or — having none — by a rule down its left
+  const num = decor === 'highlight' && tag === 'h3' ? takeSubheadNumber(tokens[idx + 1]) : '';
+  if (decor === 'highlight' && tag === 'h3' && !num) {
+    styles['border-left'] = `5px solid ${th.accentBright ?? th.accent}`;
+    styles['padding-left'] = '12px';
+  }
   if (decor === 'accent-bar' && idx > 0) {
     styles['border-top'] = `3px solid ${th.accent}`;
     styles['padding-top'] = '10px';
@@ -301,13 +347,35 @@ md.renderer.rules.heading_open = ((tokens, idx, _o, env) => {
       'border-bottom': `2px solid ${th.accent}`,
       'padding-bottom': '7px',
     })}">`;
+  } else if (struck) {
+    // An inset shadow rather than a background: it fills only the foot of the
+    // line box, so the bar sits behind the words like a highlighter stroke
+    // instead of boxing them in
+    out += `<span style="${st({
+      display: 'inline-block',
+      'box-shadow': `inset 0 -8px 0 ${th.accentBright ?? th.accent}`,
+      padding: '0 7px 4px',
+    })}">`;
+  } else if (decor === 'highlight' && tag === 'h3' && num) {
+    // The same stroke as a section heading, cut down to the width of the
+    // number — which is why it is worth lifting the number out at all
+    out += `<span style="${st({
+      display: 'inline-block',
+      'min-width': '27px',
+      color: th.accent,
+      'box-shadow': `inset 0 -6px 0 ${th.accentBright ?? th.accent}`,
+      padding: '0 3px 4px',
+    })}">${esc(num)}</span>`;
   }
   return out;
 }) as RenderRule;
 
 md.renderer.rules.heading_close = ((tokens, idx, _o, env) => {
   const decor = env.theme.heading.decor ?? 'none';
-  return `${decor === 'center-rule' ? '</span>' : ''}</${tokens[idx].tag}>`;
+  const tag = tokens[idx].tag;
+  const wrapped =
+    decor === 'center-rule' || (decor === 'highlight' && (tag === 'h1' || tag === 'h2'));
+  return `${wrapped ? '</span>' : ''}</${tag}>`;
 }) as RenderRule;
 
 md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
@@ -796,12 +864,26 @@ md.renderer.rules.hr = ((_t, _i, _o, env) => {
     })}">${esc(h.glyph ?? '❋')}</p>`;
   }
   const width = h.width ?? '100%';
+  if (style === 'fade') {
+    // Not a border at all: a 2px block with a gradient through it, so the rule
+    // arrives and leaves instead of stopping dead at the margin
+    return `<hr style="${st({
+      border: 'none',
+      height: '2px',
+      background: `linear-gradient(90deg, transparent, ${h.color}, transparent)`,
+      margin: h.margin,
+      ...(h.width ? { width: h.width } : {}),
+    })}" />`;
+  }
   // 'double' collapses into a single line under 3px — the two rules and the gap
   // between them need somewhere to be
   const weight = style === 'double' ? '3px' : '1px';
+  // Our name for the plain rule is `line`; CSS calls it `solid`, and a
+  // border-style it does not recognise drops the whole declaration
+  const borderStyle = style === 'line' ? 'solid' : style;
   return `<hr style="${st({
     border: 'none',
-    'border-top': `${weight} ${style} ${h.color}`,
+    'border-top': `${weight} ${borderStyle} ${h.color}`,
     margin: width === '100%' ? h.margin : `${h.margin.trim().split(/\s+/)[0]} auto`,
     ...(width === '100%' ? {} : { width }),
   })}" />`;
@@ -814,14 +896,23 @@ md.renderer.rules.table_open = ((_t, _i, _o, env) => {
   const f = flow(env);
   f.row = 0;
   f.head = false;
+  const tb = env.theme.table;
   return `<table style="${st({
     'font-family': b.font,
-    'font-size': env.theme.table.fontSize,
+    'font-size': tb.fontSize,
     'line-height': b.lineHeight,
     color: b.color,
     'border-collapse': 'collapse',
     width: '100%',
     margin: `0 0 ${env.theme.pMargin}`,
+    // `rails` is bounded by the table, not by its cells: the heavy rule above
+    // and below belongs to the whole block
+    ...(tb.style === 'rails'
+      ? {
+          'border-top': `2px solid ${tb.borderColor}`,
+          'border-bottom': `2px solid ${tb.borderColor}`,
+        }
+      : {}),
   })}">`;
 }) as RenderRule;
 
@@ -849,7 +940,13 @@ md.renderer.rules.tr_open = ((_t, _i, _o, env) => {
 /** Cell borders. `grid` rules every side, the other two keep the horizontal
  *  lines only — which is what separates a spreadsheet from a printed table */
 function cellBorder(tb: Theme['table'], head: boolean): Record<string, string> {
-  if ((tb.style ?? 'grid') === 'grid') return { border: `1px solid ${tb.borderColor}` };
+  const style = tb.style ?? 'grid';
+  if (style === 'grid') return { border: `1px solid ${tb.borderColor}` };
+  // `rails` puts a hairline under the head and nothing at all between the body
+  // rows — the reading is held by the two rules around the table instead
+  if (style === 'rails') {
+    return head ? { border: 'none', 'border-bottom': `1px solid ${tb.borderColor}` } : { border: 'none' };
+  }
   return {
     border: 'none',
     'border-bottom': `${head ? '2px' : '1px'} solid ${tb.borderColor}`,
@@ -863,12 +960,13 @@ md.renderer.rules.th_open = ((_t, _i, _o, env) => {
   // already. Its text colour has to go with it: headColor was picked to read
   // *on* headBg, and several themes make it light enough to vanish on paper
   const bare = (tb.style ?? 'grid') === 'minimal';
+  const rails = tb.style === 'rails';
   return `<th style="${st({
     ...cellBorder(tb, true),
     padding: tb.cellPadding,
-    'text-align': 'left',
-    'font-weight': '700',
-    ...(bare ? {} : { background: tb.headBg }),
+    'text-align': rails ? 'center' : 'left',
+    'font-weight': rails ? '800' : '700',
+    ...(bare || rails ? {} : { background: tb.headBg }),
     color: bare ? th.heading.color : tb.headColor,
   })}">`;
 }) as RenderRule;
@@ -878,6 +976,7 @@ md.renderer.rules.td_open = ((_t, _i, _o, env) => {
   return `<td style="${st({
     ...cellBorder(tb, false),
     padding: tb.cellPadding,
+    ...(tb.style === 'rails' ? { 'text-align': 'center' } : {}),
   })}">`;
 }) as RenderRule;
 
@@ -897,7 +996,10 @@ md.renderer.rules.code_inline = ((tokens, idx, _o, env) => {
 }) as RenderRule;
 
 md.renderer.rules.strong_open = ((_t, _i, _o, env) =>
-  `<strong style="${st({ 'font-weight': '700', color: env.theme.strongColor })}">`) as RenderRule;
+  `<strong style="${st({
+    'font-weight': env.theme.strongWeight ?? '700',
+    color: env.theme.strongColor,
+  })}">`) as RenderRule;
 md.renderer.rules.strong_close = (() => '</strong>') as RenderRule;
 
 md.renderer.rules.em_open = (() => '<em style="font-style: italic;">') as RenderRule;
@@ -924,7 +1026,10 @@ md.renderer.rules.link_open = ((tokens, idx, _o, env) => {
   const href = esc(tokens[idx].attrGet('href') ?? '');
   return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="${st({
     color: l.color,
-    'text-decoration': l.textDecoration,
+    // A border is the only underline that can carry its own colour and weight
+    // through a WeChat paste; text-decoration-color does not survive
+    'text-decoration': l.underline ? 'none' : l.textDecoration,
+    ...(l.underline ? { 'border-bottom': `2px solid ${l.underline}` } : {}),
     'word-break': 'break-all',
   })}">`;
 }) as RenderRule;
@@ -1339,12 +1444,23 @@ function preprocess(src: string): string {
   return lines.join('\n');
 }
 
-/** Task-symbol coloring: ☑ takes the accent, ☐ a light grey (a straight
- *  substitution on the ☐/☑ characters) */
+/**
+ * Checklist boxes: a straight substitution on the ☐/☑ characters preprocess
+ * left behind, which is also where a theme gets to choose its own pair of
+ * glyphs (`list.taskGlyphs`) and the two colours.
+ *
+ * Split by code point, not by index: a glyph may well be a surrogate pair or
+ * carry a variation selector (✔︎), and slicing those in half draws rubbish.
+ */
 function colorTasks(html: string, th: Theme): string {
+  const pair = [...(th.list?.taskGlyphs ?? '')];
+  const on = pair[0] || '☑';
+  const off = pair[1] || '☐';
+  const checked = th.list?.taskChecked ?? th.accent;
+  const unchecked = th.list?.taskUnchecked ?? th.delColor;
   return html
-    .replace(/☑/g, `<span style="color:${th.accent};font-weight:700">☑</span>`)
-    .replace(/☐/g, `<span style="color:${th.delColor};font-weight:400">☐</span>`);
+    .replace(/☑/g, `<span style="color:${checked};font-weight:700">${esc(on)}</span>`)
+    .replace(/☐/g, `<span style="color:${unchecked};font-weight:400">${esc(off)}</span>`);
 }
 
 /* ---------------- Render entry point ---------------- */
@@ -1386,6 +1502,7 @@ export function renderArticle(
     'line-height': th.body.lineHeight,
     color: th.body.color,
     'word-break': 'break-word',
+    ...(th.body.letterSpacing ? { 'letter-spacing': th.body.letterSpacing } : {}),
     ...(th.body.bg ? { background: th.body.bg } : {}),
   })}">${body}</section>`;
   return {

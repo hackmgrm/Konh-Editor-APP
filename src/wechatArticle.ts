@@ -65,6 +65,9 @@ export async function fetchWechatArticle(url: string, signal?: AbortSignal): Pro
   }
 
   return {
+    // The parsed page travels with the article so a theme can be read off the
+    // same visit (see sniffed() in reader.ts)
+    doc,
     title: textOf(doc.querySelector('#activity-name')),
     markdown: toMarkdown(content, url),
     url,
@@ -97,6 +100,10 @@ function publishedTime(html: string): string {
 interface Ctx {
   /** For resolving whatever relative addresses turn up in links */
   base: string;
+  /** The article's own root, and its length: a "box" as wide as the whole
+   *  piece is the page's wrapper, not a box drawn on the page */
+  root: Element;
+  total: number;
 }
 
 /** Absolute address, or null if there is nothing usable */
@@ -131,12 +138,68 @@ function normalizeText(text: string): string {
 
 const HEADINGS: Record<string, number> = { H1: 1, H2: 2, H3: 3, H4: 4, H5: 5, H6: 6 };
 
+/**
+ * Text that is nothing but an address.
+ *
+ * Emphasis around one of those is never emphasis: it is how WeChat prints a
+ * reference URL (in italics, right after the bold label). Marking it up adds
+ * nothing a reader can see, and the markers end up against the label's own —
+ * `**label:**` followed by `*url*` runs into `***`, which Markdown reads as
+ * something else entirely.
+ */
+const BARE_URL = /^<?(https?:\/\/|www\.)[^\s<>]+>?$/i;
+
 /** Elements whose content is not part of the article no matter what is in them */
 const DROP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO']);
 
 /** Elements that start and end a block, so their content cannot run into the
  *  text on either side */
 const BLOCKS = new Set(['P', 'DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'FIGURE', 'FIGCAPTION', 'ADDRESS']);
+
+/**
+ * The WeChat editor has no callout and no blockquote: a box there is a
+ * `<section>` with a fill, a rule down its left, or both. Markdown has words
+ * for exactly those two shapes — a callout and a quote — and without this
+ * step both arrive as loose paragraphs, which is why a themed callout had
+ * nothing to style.
+ *
+ * A rule down the left reads as a quote even when the box is also filled;
+ * a plain fill is a callout.
+ */
+function boxKind(el: Element, ctx: Ctx): 'callout' | 'quote' | null {
+  const style = (el as HTMLElement).style;
+  if (!style) return null;
+  const len = (el.textContent ?? '').trim().length;
+  if (len < 6 || len > ctx.total * 0.6) return null;
+  // Only the outermost box: nested ones would stack into `> >`
+  for (let up = el.parentElement; up && up !== ctx.root; up = up.parentElement) {
+    if (boxKind(up, ctx)) return null;
+  }
+  const width = (v: string) => {
+    const m = /^([\d.]*\d)(px|pt|em|rem)?$/.exec(v.trim());
+    if (!m) return 0;
+    const n = parseFloat(m[1]);
+    // `.25em` is how the editor writes a quote bar, and 0.25 is not 2px
+    return m[2] === 'em' || m[2] === 'rem' ? n * 16 : m[2] === 'pt' ? (n * 4) / 3 : n;
+  };
+  const bar =
+    width(style.borderLeftWidth || '') >= 2 &&
+    !!style.borderLeftStyle &&
+    style.borderLeftStyle !== 'none';
+  if (bar) return 'quote';
+  const fill = style.backgroundColor || '';
+  const filled = !!fill && !/^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/i.test(fill.trim());
+  return filled ? 'callout' : null;
+}
+
+/** Wrap block content as a quote, keeping it one block: a bare blank line
+ *  would end the quote and start another */
+function quoteLines(inner: string): string {
+  return inner
+    .split('\n')
+    .map((line) => (line.trim() ? `> ${line}`.trimEnd() : '>'))
+    .join('\n');
+}
 
 function renderChildren(node: Node, ctx: Ctx): string {
   let out = '';
@@ -145,6 +208,25 @@ function renderChildren(node: Node, ctx: Ctx): string {
   });
   return out;
 }
+
+/**
+ * One line of WeChat's reference list at the foot of an article.
+ *
+ * It is written as a flex row: a fixed-width span holding `[1]`, then the
+ * text. Recognising it is what turns the list into real footnotes — left
+ * alone it arrives as loose paragraphs with the marker escaped to `\[1\]`,
+ * which is neither a footnote nor readable.
+ */
+function refEntry(el: Element): { n: string; body: Element } | null {
+  const kids = Array.from(el.children);
+  if (kids.length !== 2) return null;
+  const m = /^\[(\d{1,3})\]$/.exec((kids[0].textContent ?? '').trim());
+  return m ? { n: m[1], body: kids[1] } : null;
+}
+
+/** The heading WeChat puts above that list. The renderer draws a footnote
+ *  section of its own, so keeping this would head it twice */
+const REF_HEADING = /^(references?|参考(资料|链接|文献)?|注释)$/i;
 
 function renderNode(node: Node, ctx: Ctx): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeText(normalizeText(node.nodeValue ?? ''));
@@ -157,12 +239,30 @@ function renderNode(node: Node, ctx: Ctx): string {
   // never saw does not belong in the draft either
   if ((el as HTMLElement).style?.display === 'none') return '';
 
+  const ref = refEntry(el);
+  if (ref) {
+    const body = renderChildren(ref.body, ctx).replace(/\s+/g, ' ').trim();
+    // `**label:**https://…` with nothing between them reads as one word
+    const spaced = body.replace(/(\*\*)(?=https?:\/\/)/g, '$1 ');
+    return spaced ? `\n\n[^${ref.n}]: ${spaced}\n\n` : '';
+  }
+
   if (tag in HEADINGS) {
     const text = renderChildren(el, ctx).replace(/\s+/g, ' ').trim();
+    if (REF_HEADING.test(text) && /^\s*\[\d+\]/.test(el.nextElementSibling?.textContent ?? '')) {
+      return '';
+    }
     return text ? `\n\n${'#'.repeat(HEADINGS[tag])} ${text}\n\n` : '';
   }
 
   switch (tag) {
+    case 'SUP': {
+      const text = (el.textContent ?? '').trim();
+      const m = /^\[(\d{1,3})\]$/.exec(text);
+      // A numbered superscript is a footnote reference; anything else is
+      // ordinary superscript text (a date, a unit) and stays as it reads
+      return m ? `[^${m[1]}]` : escapeText(normalizeText(text));
+    }
     case 'BR':
       return '\n';
     case 'HR':
@@ -183,12 +283,29 @@ function renderNode(node: Node, ctx: Ctx): string {
     case 'STRONG':
     case 'B': {
       const text = renderChildren(el, ctx).trim();
-      return text ? `**${text}**` : '';
+      if (!text) return '';
+      return BARE_URL.test(text) ? text : `**${text}**`;
+    }
+    case 'SPAN':
+    case 'FONT': {
+      // The WeChat editor writes bold as a weight on a span, not as <strong>,
+      // so without this every emphasis in an article — and every card's own
+      // title line — arrives as plain text
+      const weight = (el as HTMLElement).style?.fontWeight ?? '';
+      const bold = weight === 'bold' || weight === 'bolder' || parseInt(weight, 10) >= 600;
+      const text = renderChildren(el, ctx);
+      if (!bold) return text;
+      const trimmed = text.trim();
+      if (!trimmed || /^\*\*/.test(trimmed) || BARE_URL.test(trimmed)) return text;
+      // Keep the spaces that sat around it: they separate words either side
+      const [, before, core, after] = /^(\s*)([\s\S]*?)(\s*)$/.exec(text) ?? ['', '', text, ''];
+      return `${before}**${core}**${after}`;
     }
     case 'EM':
     case 'I': {
       const text = renderChildren(el, ctx).trim();
-      return text ? `*${text}*` : '';
+      if (!text) return '';
+      return BARE_URL.test(text) ? text : `*${text}*`;
     }
     case 'DEL':
     case 'S':
@@ -226,6 +343,23 @@ function renderNode(node: Node, ctx: Ctx): string {
       return renderTable(el, ctx);
     default:
       break;
+  }
+
+  if (BLOCKS.has(tag)) {
+    const kind = boxKind(el, ctx);
+    if (kind) {
+      const inner = renderChildren(el, ctx).trim();
+      if (!inner) return '';
+      if (kind === 'quote') return `\n\n${quoteLines(inner)}\n\n`;
+      // A card's first line is usually its title, and usually set bold —
+      // which is exactly what a callout's title is
+      const lines = inner.split('\n');
+      const lead = /^\*\*(.{1,30}?)\*\*$/.exec(lines[0].trim());
+      const title = lead ? lead[1].trim() : '';
+      const body = title ? lines.slice(1).join('\n').trim() : inner;
+      const head = `> [!tip]${title ? ` ${title}` : ''}`;
+      return body ? `\n\n${head}\n${quoteLines(body)}\n\n` : `\n\n${head}\n\n`;
+    }
   }
 
   const inner = renderChildren(el, ctx);
@@ -284,11 +418,21 @@ function renderTable(table: Element, ctx: Ctx): string {
  * are collapsed once at the end. Doing it that way costs one pass and removes
  * every "did this element need a break before it" decision from the walk.
  */
-function toMarkdown(content: Element, base: string): string {
-  return renderNode(content, { base })
+/** Exported for the conversion tests; the article path uses it through
+ *  fetchWechatArticle */
+export function toMarkdown(content: Element, base: string): string {
+  return renderNode(content, {
+    base,
+    root: content,
+    total: (content.textContent ?? '').trim().length,
+  })
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n[ \t]+/g, '\n')
     .replace(/[ \t]{2,}/g, ' ')
+    // Two bold runs written back to back (the editor splits a bold line into
+    // several spans) meet as `****`, which reads as an empty emphasis as
+    // easily as a join. They are one bold run; make them one
+    .replace(/\*\*\*\*/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
