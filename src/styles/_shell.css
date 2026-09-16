@@ -21,7 +21,9 @@
   gap: 10px;
   height: 46px;
   padding: 0 12px 0 calc(12px + var(--traffic-pad));
-  border-bottom: 1px solid var(--line);
+  /* No rule under the strip: the sheet below it is a distinct surface with its
+     own shadow, and a hairline on top of that separation is the second time
+     the window says the same thing. */
   background: transparent;
 }
 
@@ -33,22 +35,17 @@
   flex: none;
 }
 
-/* Seal-style wordmark: flat fill, no glow, no gradient — a stamp pressed
-   onto the page */
+/* Horizon mark: the SVG draws its own paper tile, so the chip only clips
+   and lifts it off the toolbar */
 .brand-mark {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  display: grid;
-  place-items: center;
+  border-radius: 5px;
+  overflow: hidden;
   flex: none;
-  color: var(--on-accent);
-  background: var(--accent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--shadow-1);
+  box-shadow: var(--shadow-1);
 }
 
-/* The glyph carries its own padding inside the 32-unit viewBox, so it fills
-   the chip edge to edge. */
 .brand-mark svg {
   width: 100%;
   height: 100%;
@@ -56,21 +53,92 @@
 }
 
 .brand-name {
-  font-family: var(--serif);
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.04em;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
   color: var(--text-1);
   white-space: nowrap;
 }
 
-/* Hairline divider inside the toolbar */
+/* Hairline divider inside the toolbar. Down from line-strong at 16px: the
+   controls either side of it no longer have frames of their own, so the one
+   remaining stroke in the group was the loudest thing in the strip. */
 .tb-sep {
   flex: none;
   width: 1px;
-  height: 16px;
-  background: var(--line-strong);
-  opacity: 0.7;
+  height: 14px;
+  background: var(--line-hair);
+}
+
+/* ---------------- Toolbar capsules ----------------
+   The right end is two capsules, not a row of chips. Each is the segmented
+   control's track — the same sunken groove, the same 2px inset — so the three
+   objects up there (mode switch, capsule, capsule) are one family, and the
+   groove itself says where a group starts and ends. That is what the hairline
+   divider used to do, and a groove does it without drawing a line.
+
+   Inside, a button is a label until the pointer reaches it, and then it takes
+   the thumb's look: a raised tile lifted out of the groove. Hovering and
+   "this one's panel is open" are therefore the same shape, distinguished by
+   the accent the open one writes on its text and glyph.
+
+   No overflow clipping here, ever: the typeset popover is rendered inside the
+   排版 button's .menu-wrap, which is a child of the first capsule. */
+
+.toolbar .capsule .btn {
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: calc(var(--r-sm) - 2px);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* The glyph follows the label instead of carrying its own opacity: at
+   --text-2 it is already quiet, and dimming it a second time turned it to
+   mush at 15px */
+.toolbar .capsule .btn svg {
+  opacity: 1;
+  color: inherit;
+}
+
+.toolbar .capsule .btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+  color: var(--text-1);
+}
+
+/* Pressed, or a panel of its own is open — 排版 while its popover is up,
+   Agent while the column is out. Same tile as the hover, tinted. */
+.toolbar .capsule .btn.active {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+  color: var(--accent-hi);
+}
+
+.toolbar .capsule .btn.active svg {
+  color: var(--accent);
+}
+
+/* A working button keeps its tile: 长图 and 复制正文 are `disabled` while they
+   run, and the default .btn:disabled dimming would make the spinner vanish
+   into the groove */
+.toolbar .capsule .btn.busy {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+  color: var(--text-1);
+}
+
+/* 推草稿 no longer has to lift off the bar to be found, now that nothing else
+   up there is solid: the hover changes the fill and leaves the elevation
+   where it was. */
+.toolbar .btn.primary,
+.toolbar .btn.primary:hover {
+  box-shadow: var(--shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 /* The open draft: the toolbar is the window title, so it should say which
@@ -88,9 +156,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 500;
   color: var(--text-2);
+}
+
+/* The folder(s) the draft sits in, in front of its name: 系列 / 第一篇。
+   Context, so it recedes — the file name is the subject and keeps the weight
+   and colour it always had. A root-level draft renders none of these. */
+.tb-doc-folder {
+  color: var(--text-3);
+  font-weight: 400;
 }
 
 /* Save indicator: a warm dot breathing while a write is pending, settling
@@ -100,8 +176,11 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--text-3);
-  opacity: 0.5;
+  /* A resting dot is decoration, not type: it follows the hairline colour so
+     that darkening --text-3 for legibility does not turn "saved" into a
+     warning light */
+  background: var(--line-strong);
+  opacity: 0.9;
   transition: background var(--t-base) var(--ease), opacity var(--t-base) var(--ease);
 }
 
@@ -119,9 +198,28 @@
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 7px;
+  /* Between the four objects: mode switch, capsule, capsule, 推草稿. Inside a
+     capsule it is 2px, which is what makes each one read as a single control
+     rather than as the buttons it contains. */
+  gap: 10px;
   margin-left: auto;
   flex: none;
+}
+
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The capsule's track. 26px buttons in 2px of padding come to 30 — the height
+   of the segmented control beside it and of the primary button after it, so
+   all four objects sit on one line. */
+.tb-group.capsule {
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--sunken);
 }
 
 .menu-wrap {
@@ -129,15 +227,35 @@
   display: inline-flex;
 }
 
-/* ---------------- Workspace ---------------- */
+/* ---------------- Workspace ----------------
+   A quiet rail and one sheet, not four floating cards. The rail is flush to
+   the window's left edge and to the toolbar above it — it is furniture, part
+   of the window rather than a thing resting on it — and carries its own 10px
+   inset (see .file-tree). The sheet gets the air, on the two sides where it
+   is free to float, and the shadow under its edge is the only thing between
+   the two. */
 
 .workspace {
   flex: 1;
   min-height: 0;
   display: flex;
   gap: var(--rail-gap);
-  padding: var(--shell-pad);
+  padding: 0 var(--shell-pad) var(--shell-pad) 0;
 }
+
+/* ---------------- The sheet ----------------
+   The workspace surface: source, preview and whichever side column is open,
+   all on one piece of glass. Four separate cards each with its own frame,
+   radius and shadow spent the whole session announcing that the window has
+   parts; what the reader actually works on is one document, and the divisions
+   inside it are carried by surface tone, not by rules — the source is paper,
+   the preview is the glass itself, a side column is a shade sunk into it.
+
+   This is the one object in the shell allowed to float — hence --shadow-2
+   where the panels used to carry --shadow-1 each.
+
+   `overflow: hidden` is load-bearing: the panes inside are square, and the
+   radius is only real if it clips them. */
 
 .split {
   flex: 1;
@@ -145,17 +263,55 @@
   display: flex;
   align-items: stretch;
   position: relative;
+  overflow: hidden;
+  /* Solid paper, not frosted glass — see --sheet. The blur used to pick up
+     the canvas's ambient glows and the composited scrollers inside sampled
+     them differently, so the preview sat in a visibly different tone from
+     the strip beside it. */
+  background: var(--sheet);
+  /* No frame in the light: over the warm canvas the fill, the radius and the
+     shadow already draw the edge, and the stroke on top of them was what
+     made the sheet read as a box rather than a surface. */
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2), var(--sheen);
+}
+
+/* Same problem the phone frame has in the dark: a #262320-ish surface against
+   a #141311 canvas separates by nine values, and the shadow under it is
+   invisible on near-black. The rim of reflected light is what gives it an
+   edge — half the strength the phone's bezel uses, because this one only has
+   to keep the sheet from melting into the canvas, not to model a metal body. */
+:root[data-appearance='dark'] .split {
+  box-shadow: 0 0 0 1px rgba(255, 248, 238, 0.08), var(--shadow-2), var(--sheen);
+}
+
+/* The resizable row: source, handle, preview. The side columns are its
+   siblings inside the sheet, not its children, so the editor's width stays a
+   percentage of source + preview and opening the agent does not silently
+   change what that percentage means — see applyDrag in App.tsx. */
+.split-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
 }
 
 /* ---------------- Split handle ----------------
-   A short hairline at rest that grows into a grip on hover. The strip itself
-   is 16px wide purely so it is easy to grab. */
+   Nothing at rest. Source and preview share one sheet in one colour; the
+   phone frame on the right is what says where the preview begins, and a
+   hairline on top of that would be the window saying the same thing twice
+   — it was the loudest of the several rules this sheet used to carry.
+
+   The strip stays 16px so the handle is still easy to grab, and the grip
+   fades up under the pointer: an invisible control that answers the moment
+   you reach for it, rather than a permanent line advertising that it can be
+   dragged. */
 
 .split-bar {
   position: relative;
   flex: none;
   width: 16px;
-  margin: 0 -3px;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -165,11 +321,16 @@
 
 .split-bar::before {
   content: '';
+  position: relative;
+  z-index: 1;
   width: 2px;
   height: 40px;
   border-radius: var(--r-full);
   background: var(--line-strong);
+  /* Present in the layout, invisible until wanted */
+  opacity: 0;
   transition:
+    opacity var(--t-base) var(--ease),
     height var(--t-base) var(--ease),
     width var(--t-base) var(--ease),
     background var(--t-base) var(--ease),
@@ -177,11 +338,32 @@
 }
 
 .split-bar:hover::before,
+.split-bar:focus-visible::before,
 .split-dragging .split-bar::before {
+  opacity: 1;
   width: 3px;
   height: 68px;
   background: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-softer), 0 0 14px var(--accent-ring);
+}
+
+/* The handle is the control, not the 16px strip around it — the shared outline
+   would draw a rectangle down the whole height of the window */
+.split-bar:focus-visible {
+  outline: none;
+}
+
+/* Landing on a snap point. A drag has no detents to feel, so the stop is shown
+   instead: one swell of the handle at the moment it catches. Fires on arrival
+   only (see snappedRef), so holding the pointer inside the window is still. */
+.split-bar.snapped::before {
+  animation: split-snap 220ms var(--spring);
+}
+
+@keyframes split-snap {
+  0% { transform: scaleY(1); }
+  45% { transform: scaleY(1.15); }
+  100% { transform: scaleY(1); }
 }
 
 /* ---------------- Split panes ---------------- */
@@ -194,6 +376,9 @@
 }
 
 .editor-side {
+  /* No fill of its own any more: source, preview and the side columns are
+     one sheet in one colour. The brighter paper that used to sit here made
+     the strip between it and the preview read as a third tone. */
   flex: 0 0 auto;
   width: calc(100% - 430px);
   max-width: calc(100% - 430px);
@@ -214,7 +399,6 @@
   flex-basis: 0;
   width: 0 !important;
   min-width: 0;
-  border-width: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -229,38 +413,51 @@
 }
 
 /* ---------------- Pane head ----------------
-   A 40px strip: the title is set as an eyebrow (small, wide tracking,
-   dimmed) with status and tool buttons on the right. Shared by every panel
-   so the horizontal rhythm lines up across the window. */
+   A strip at the top of each region: the title is set as an eyebrow (small,
+   wide tracking, dimmed) with status and tool buttons on the right. Shared by
+   every panel so the horizontal rhythm lines up across the window.
+
+   No rule beneath it. The head is already the quietest type in the window and
+   the content under it is the loudest, which is the whole separation — what
+   the hairline was doing was keeping them from touching, and whitespace does
+   that better. Hence the two pixels of padding on top of --head-h: the box
+   the eyebrow sits in is the 40px it always was, with air around it. */
 
 .pane-head {
   flex: none;
   min-height: var(--head-h);
-  padding: 0 10px 0 14px;
+  padding: 2px 10px 2px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid var(--line-hair);
 }
 
 .pane-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 9.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--text-eyebrow);
   white-space: nowrap;
 }
 
+/* The only place a `fill` glyph is right: this is a mark identifying the
+   panel, not a control and not a file — it sits at 13px beside a 10.5px
+   eyebrow and a hollow outline at that size reads as a smudge. Everywhere
+   else the rule is bold 15 for controls, regular 14 for content. */
 .pane-title svg {
   color: var(--accent);
   opacity: 0.8;
 }
 
+/* The controls never yield: they are fixed-size, and squeezing them only
+   pushes them out of the pane to be clipped by its edge. What gives way is
+   the breadcrumb beside them, which has an ellipsis for exactly that. */
 .pane-head-right {
+  flex: none;
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -287,26 +484,128 @@
 
 .pane-head .device-switch .seg-btn {
   padding: 2px 9px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
+}
+
+/* The preview's breadcrumb is also the way into the typeset popover: the theme
+   name is the thing you want to change when you are looking at the theme name.
+   Styled as text, because that is what it is — the hover tint is the only hint
+   that it does anything, which is the right amount for a label. */
+.pane-path-btn {
+  border: none;
+  background: transparent;
+  /* No padding/margin reset here: this element also carries `.pane-path`,
+     which sets both — and sets a vertical padding the swap animation needs
+     (see there). Resetting them to 0 would put the glyphs back on the clip
+     edge. */
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--r-xs);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.pane-path-btn:hover .seg,
+.pane-path-btn:hover .seg.last {
+  color: var(--accent-hi);
+}
+
+.pane-path-btn:focus-visible {
+  outline-offset: 3px;
+}
+
+/* ---------------- Side columns ----------------
+   The agent panel and the theme studio both live in one of these. The slot
+   animates its own width from zero and clips what is inside, so the panel
+   itself never reflows while it opens — the preview beside it is pushed aside
+   and let back, instead of the whole row jumping when a column appears.
+
+   They are columns of the sheet now rather than cards beside it, so they have
+   no frame of their own: what separates a column from the preview is that it
+   is sunk a shade into the glass, the same way the source pane is raised a
+   shade out of it. Across the sheet that reads as raised / level / recessed,
+   left to right, with not one line drawn. */
+
+.side-slot {
+  flex: none;
+  display: flex;
+  min-height: 0;
+  width: 0;
+  overflow: hidden;
+  transition: width var(--t-slow) var(--ease);
+}
+
+/* On the panel rather than the slot, so it arrives and leaves with the column:
+   a tint this faint is invisible against the canvas but reads clearly against
+   the preview it sits beside, which is the only place it is ever seen. */
+.side-slot > * {
+  /* Same paper as the rest of the sheet — a recessed tint here was one more
+     colour in a window the user wanted to read as one */
+  background: transparent;
+}
+
+/* Each slot carries the width of the panel it holds, as a class rather than an
+   inline style — the narrow-window rules at the end of styles.css need to be
+   able to override it, and nothing overrides an inline value */
+.side-slot.agent {
+  --side-w: 336px;
+}
+
+.side-slot.studio {
+  --side-w: 348px;
+}
+
+.side-slot.open {
+  width: var(--side-w);
+}
+
+/* The panel follows its slot a little behind, so the column reads as sliding
+   in rather than being revealed by a moving mask */
+.side-slot > * {
+  opacity: 0;
+  transform: translateX(18px);
+  transition:
+    opacity var(--t-base) var(--ease),
+    transform var(--t-slow) var(--ease);
+}
+
+.side-slot.open > * {
+  opacity: 1;
+  transform: none;
 }
 
 /* ---------------- Pane-head breadcrumb ----------------
    The left side of a pane head used to read "source" and "preview" — two words
-   that name what you are already looking at. It carries something you cannot
-   otherwise see instead: which folder of the workspace the draft lives in, and
-   which theme and density the preview is rendering at.
+   that name what you are already looking at. The preview's carries something
+   you cannot otherwise see instead: which theme and density it is rendering
+   at. (The editor's left side is the format strip now, and the folder the
+   draft lives in is up in the toolbar beside the file name.)
 
-   The last segment is the subject and gets full weight; anything before it is
+   The first segment is the subject and gets full weight; what trails it is
    context and recedes. */
 
 .pane-path {
   display: flex;
   align-items: baseline;
   gap: 5px;
+  /* The one thing in the head that shrinks, so a long theme name cannot
+     push the device switch off the end of the pane */
+  flex: 1 1 auto;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
   white-space: nowrap;
+  /* Horizontal only in spirit: this clip exists to cut a long path off at the
+     end of the pane. But `overflow: hidden` clips in both axes, and the last
+     segment slides in from 4px down — so without room to move into, the slide
+     walked the glyphs into the clip edge and WebKit drew them sheared and,
+     while the layer was composited, heavier. Eight pixels of padding gives the
+     travel somewhere to happen — twice the 4px the keyframe moves, so a glyph
+     that descends past its line box still clears the edge — and the matching
+     negative margin means the box the head centres is exactly the box it
+     centred before. */
+  padding: 8px 0;
+  margin: -8px 0;
   overflow: hidden;
 }
 
@@ -316,8 +615,10 @@
   text-overflow: ellipsis;
 }
 
+/* The theme is the subject and the density trails it, so what separates them
+   is a middle dot rather than a path slash */
 .pane-path .seg + .seg::before {
-  content: '/';
+  content: '·';
   margin-right: 5px;
   color: var(--text-3);
   opacity: 0.55;
@@ -327,31 +628,41 @@
   flex: 0 1 auto;
   font-weight: 600;
   color: var(--text-2);
+  /* The subject of the breadcrumb is the one thing here that changes on its
+     own — the folder the draft is in, the theme the preview is using. Four
+     pixels of travel is enough to catch the eye without asking for attention;
+     the element is keyed on its own text, so this replays exactly when the
+     text changes.
+
+     Movement only, no fade. WebKit pauses CSS animations whenever it decides
+     the view is not visible (a backgrounded window, a snapshot), and a paused
+     fade-in holds the text at opacity 0 — the theme name simply vanished
+     from the head. A paused 4px offset is invisible. */
+  animation: seg-swap var(--t-base) var(--ease);
 }
 
-/* The preview head reverses the emphasis: the theme is the subject and the
-   density trails it, so the separator becomes a middle dot */
-.pane-path .seg.last + .seg::before {
-  content: '·';
+/* No ellipsis on the breadcrumb's subject: it is a theme name, two to four
+   characters, and WebKit's ellipsis path repaints text under a transform —
+   which is exactly what the swap animation applies — as a doubled, heavier
+   first glyph. `.pane-path` still clips anything absurdly long. */
+.pane-path .seg.last {
+  overflow: visible;
+  text-overflow: clip;
 }
 
-/* A quiet "saving" that appears only while a write is pending, then leaves.
-   The toolbar dot carries this too; here it is close to where you are typing. */
-.pane-saving {
-  flex: none;
-  margin-left: 4px;
-  padding: 1px 6px;
-  border-radius: var(--r-full);
-  background: var(--accent-soft);
-  color: var(--accent-hi);
-  font-size: 10px;
-  animation: pop-in var(--t-base) var(--spring);
+@keyframes seg-swap {
+  from {
+    transform: translateY(4px);
+  }
+  to {
+    transform: none;
+  }
 }
 
 /* Pane-head status: always quiet text — state is carried by color, not by
    a row of colored pills competing for attention */
 .pane-stat {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: var(--text-3);
   white-space: nowrap;
@@ -372,32 +683,60 @@
   font-weight: 600;
 }
 
-/* "contains images" notice: needs to be seen, but is still just a line of text */
+/* "contains images": a 5px mark with the sentence in a tooltip — see the note
+   in PreviewPane. The 16px box is hit area and a focus target; only the dot
+   inside it is drawn. */
 .pane-stat.warn {
+  flex: none;
+  width: 16px;
+  height: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--text-2);
+  justify-content: center;
+  border-radius: 50%;
+  cursor: help;
+  transition: background var(--t-fast) var(--ease);
 }
 
-.pane-stat.warn::before {
-  content: '';
+.pane-stat.warn:hover,
+.pane-stat.warn:focus-visible {
+  background: var(--accent-soft);
+}
+
+.pane-stat-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: var(--accent);
-  flex: none;
 }
 
 /* ---------------- Toast ----------------
-   Springs up from the bottom center. A dark pill reads cleanly under either
-   appearance, so the type only tints the leading dot rather than restyling
-   the whole capsule. */
+   A column bottom-center, newest at the bottom, at most three deep. Each pill
+   springs up and sinks away on its own clock, so an import that reports its
+   progress and then fails leaves both messages readable instead of one
+   overwriting the other.
 
-.status {
+   A dark pill reads cleanly under either appearance, so the type only tints
+   the leading dot rather than restyling the whole capsule. */
+
+.toaster {
   position: fixed;
   bottom: 26px;
   left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  /* The stack sits over the article: a click meant for the text behind it
+     must not land here. Each pill takes its pointer events back. */
+  pointer-events: none;
+  max-width: min(92vw, 520px);
+}
+
+.toast {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -405,25 +744,18 @@
   color: #f6f1e8;
   border-radius: var(--r-full);
   padding: 10px 18px 10px 15px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   line-height: 1.45;
   box-shadow: var(--shadow-4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: translate(-50%, 16px) scale(0.94);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--t-slow) var(--spring),
-    opacity var(--t-base) var(--ease);
-  z-index: 200;
-  max-width: min(92vw, 520px);
+  animation: toast-in var(--t-slow) var(--spring);
 }
 
-:root[data-appearance='dark'] .status {
+:root[data-appearance='dark'] .toast {
   background: #322d28;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.status::before {
+.toast::before {
   content: '';
   flex: none;
   width: 6px;
@@ -433,9 +765,55 @@
   box-shadow: 0 0 8px var(--accent);
 }
 
-.status.show {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
+.toast-text {
+  min-width: 0;
+}
+
+/* The optional action — 撤销 and its kind. Outlined rather than filled: it is
+   an offer, and the sentence beside it is still the message. */
+.toast-action {
+  flex: none;
+  margin: -4px -8px -4px 2px;
+  padding: 4px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Sinking rather than springing, and out of the layout on the way: the pills
+   above it close the gap as it goes instead of waiting for it to vanish */
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+    margin-bottom: -38px;
+  }
+}
+
+.toast[data-state='exit'] {
+  animation: toast-out 180ms var(--ease-in-out) forwards;
+  pointer-events: none;
 }
 
 /* ---------------- Conflict bar ----------------
@@ -446,9 +824,12 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--line);
+  /* Same reasoning as .agent-missing: the tint is the edge. With the toolbar
+     above it no longer ruled either, a line here would have been the only
+     one left across the whole window. */
   background: var(--accent-soft);
   animation: bar-drop var(--t-slow) var(--ease);
+  overflow: hidden;
 }
 
 @keyframes bar-drop {
@@ -462,12 +843,28 @@
   }
 }
 
+/* Rolling up rather than disappearing: resolving a conflict used to snap the
+   whole window up by the height of this bar */
+@keyframes bar-lift {
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+    max-height: 0;
+  }
+}
+
+.conflict-bar[data-state='exit'] {
+  max-height: 200px;
+  animation: bar-lift 180ms var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+
 .conflict-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 16px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: var(--accent-hi);
 }
@@ -485,35 +882,23 @@
   min-width: 0;
 }
 
-.conflict-row button {
+/* The bar's own tint is accent-soft, so a .btn's default translucent white
+   fill would read as a hole punched in it. Only the surface changes; the
+   shape, the press and the focus ring are .btn's. */
+.conflict-row .btn {
   flex: none;
-  padding: 5px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  height: 26px;
 }
 
-.conflict-row button:hover {
-  background: var(--accent-hi);
-}
-
-.conflict-row button:active {
-  transform: scale(0.97);
-}
-
-.conflict-row button.ghost {
+.conflict-row .btn.conflict-ghost {
   background: transparent;
   border-color: var(--accent-ring);
   color: var(--accent-hi);
 }
 
-.conflict-row button.ghost:hover {
-  background: var(--accent-soft);
+.conflict-row .btn.conflict-ghost:hover {
+  background: var(--accent-softer);
+  border-color: var(--accent);
 }
 
 /* ---------------- Update pill ----------------

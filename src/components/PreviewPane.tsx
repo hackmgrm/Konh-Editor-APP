@@ -1,17 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BatteryFull, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
+import Tooltip from './Tooltip';
 import { extractTitle, stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
 import { getConfig, setConfig } from '../store/appConfig';
 import type { Theme } from '../theme';
+import { SECTION_TITLE, sectionAt, type SectionId } from '../themeFields';
+import { hintFor } from '../shortcuts';
+import { morphChildren } from '../morph';
+import { EASE, animate } from '../usePresence';
 
 interface Props {
   body: string;
   theme: Theme;
   /** Whether the body contains images (shows the WeChat paste notice) */
   hasImage: boolean;
+  /** Set while the theme studio is open: clicking an element in the article
+   *  names the section that styles it, instead of doing what a click does */
+  onPick?: (section: SectionId) => void;
   /** Name of the current density preset, shown next to the theme name */
   densityName: string;
+  /** Which draft is open. Only used to cross-fade when it changes — a new
+   *  article should arrive, not blink into place */
+  draftId: string;
+  /** Which device the article is drawn as. Owned by App: the command palette
+   *  switches it too, and two owners of one setting is one owner too many */
+  device: PreviewDevice;
+  onDevice: (device: PreviewDevice) => void;
+  /** Open the typeset popover — the theme name in this head is a way in */
+  onOpenTypeset: () => void;
   /**
    * Layout-change signal (editor width and mode switching both change it):
    * a backstop for the ResizeObserver — dragging the splitter or switching
@@ -40,10 +57,10 @@ const TAIL_BLEND = 0.18;
  * - duo-open: the Duo's inner screen, held landscape
  * - desktop: a macOS window, for judging the wide measure
  */
-type PreviewDevice = 'iphone' | 'duo' | 'duo-open' | 'desktop';
+export type PreviewDevice = 'iphone' | 'duo' | 'duo-open' | 'desktop';
 type DuoView = 'duo' | 'duo-open';
 
-const DEVICES: { id: PreviewDevice; name: string; hint: string }[] = [
+export const DEVICES: { id: PreviewDevice; name: string; hint: string }[] = [
   { id: 'iphone', name: 'iPhone', hint: 'iPhone 竖屏' },
   {
     id: 'duo',
@@ -61,10 +78,23 @@ const DEVICES: { id: PreviewDevice; name: string; hint: string }[] = [
 /** Per machine, like the light/dark appearance: it is how you like to look, not part of the draft */
 const DEVICE_KEY = 'ui.previewDevice';
 
-function readDevice(): PreviewDevice {
+export function readDevice(): PreviewDevice {
   const v = getConfig(DEVICE_KEY);
   return DEVICES.find((d) => d.id === v)?.id ?? 'iphone';
 }
+
+/** Remembered per machine, like the light/dark appearance */
+export function writeDevice(device: PreviewDevice): void {
+  setConfig(DEVICE_KEY, device);
+}
+
+/** How long the frame takes to travel between two device sizes */
+const FLIP_MS = 240;
+/** How long the article takes to come back up after being restyled */
+const RESTYLE_MS = 200;
+/** How dim it goes first. Far enough to read as a change, not so far that the
+ *  page looks like it went away */
+const RESTYLE_FROM = 0.38;
 
 /** Unzoomed frame sizes of the two Duo views; keep in step with the
  *  [data-device^='duo'] .phone-frame rules in _preview.css */
@@ -138,6 +168,51 @@ function offsetForPosition(anchors: Anchor[], position: number, end: Anchor | nu
 }
 
 /**
+ * The inverse of offsetForPosition: a preview offset back into a source
+ * position.
+ *
+ * Same table, same linear interpolation, read the other way. Above the first
+ * anchor it interpolates from a virtual "top of content", and below the last
+ * one it extrapolates at the rate of the final pair rather than pinning to the
+ * last anchor — otherwise scrolling the tail of a long article would leave the
+ * editor parked on the last heading.
+ */
+function positionForOffset(anchors: Anchor[], offset: number): number {
+  if (!anchors.length) return 0;
+  let lo = 0;
+  let hi = anchors.length - 1;
+  let i = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid].top <= offset) {
+      i = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (i < 0) {
+    const first = anchors[0];
+    if (first.top <= 0) return first.line;
+    return Math.max(0, first.line * Math.min(1, Math.max(0, offset / first.top)));
+  }
+  const cur = anchors[i];
+  const next = anchors[i + 1];
+  if (!next) {
+    // Past the last anchor: continue at the slope of the last pair, so the
+    // final screenful still moves the editor
+    const prev = anchors[i - 1];
+    if (!prev || cur.top <= prev.top) return cur.line;
+    const rate = (cur.line - prev.line) / (cur.top - prev.top);
+    return Math.max(0, cur.line + (offset - cur.top) * rate);
+  }
+  const span = next.top - cur.top;
+  if (span <= 0) return cur.line;
+  const t = Math.min(1, Math.max(0, (offset - cur.top) / span));
+  return Math.max(0, cur.line + (next.line - cur.line) * t);
+}
+
+/**
  * Build the "source line → preview offset" anchor table.
  * `top` is relative to the top of the scrolled content (it excludes the current
  * scrollTop), so it can be reused while scrolling and only needs rebuilding
@@ -169,17 +244,38 @@ function buildAnchors(scroll: HTMLElement): Anchor[] {
  * Every style in the body HTML is inline ⇒ preview and export (the WeChat
  * paste) are identical.
  */
-export default function PreviewPane({ body, theme, hasImage, densityName, resizeKey, sync }: Props) {
+export default function PreviewPane({
+  body,
+  theme,
+  hasImage,
+  densityName,
+  draftId,
+  device,
+  onDevice,
+  onOpenTypeset,
+  resizeKey,
+  sync,
+  onPick,
+}: Props) {
   const paneRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   /** Content box of the device stage, for fitting the Duo views */
   const [stage, setStage] = useState({ w: 0, h: 0 });
-  const [device, setDeviceState] = useState<PreviewDevice>(readDevice);
-  const setDevice = (next: PreviewDevice) => {
-    setConfig(DEVICE_KEY, next);
-    setDeviceState(next);
+  /**
+   * Where the frame was standing when the switch was pressed.
+   *
+   * Measured in the click handler rather than in an effect: that is the last
+   * moment the old size is still on screen, and reading it there costs one
+   * layout on a gesture instead of one on every keystroke.
+   */
+  const flipFromRef = useRef<DOMRect | null>(null);
+  const pickDevice = (next: PreviewDevice) => {
+    if (next === device) return;
+    flipFromRef.current = frameRef.current?.getBoundingClientRect() ?? null;
+    onDevice(next);
   };
   /** What actually gets drawn */
   const layout = device === 'desktop' ? 'desktop' : 'phone';
@@ -188,6 +284,32 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
   const title = useMemo(() => extractTitle(body), [body]);
   /** Body used for the preview (duplicate h1 removed; exports still use the full body) */
   const previewBody = useMemo(() => (title ? stripFirstH1(body) : body), [body, title]);
+  /*
+   * The article is no longer handed to React at all — see the morph effect
+   * below, and morph.ts for why. `previewBody` stays memoised for the same
+   * reason it always was: it is the value the effect keys off, and a new
+   * string on every render of this pane (every hover of the studio's colour
+   * picker, for one) would re-run the walk for nothing.
+   */
+  /** The theme studio is open and wants the clicks in the article (see onPick) */
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  const picking = !!onPick;
+  /** Same flag, for callbacks that outlive the render they were made in */
+  const pickingRef = useRef(picking);
+  pickingRef.current = picking;
+
+  /** The theme and density the last render drew with. A change to either is a
+   *  *style* change: the same article, set differently — so the reader has to
+   *  stay on the paragraph they were reading, not be sent back to the top */
+  const styleKeyRef = useRef(`${theme.id}|${densityName}`);
+  /**
+   * True while a style change settles. Unlike `picking` this is not a mode the
+   * user is in, so it cannot be read off a prop: it has to outlive the commit,
+   * because the new heights wake the ResizeObserver a frame or two later and
+   * that must not realign either.
+   */
+  const restylingRef = useRef(false);
   /** Date in the article head (a new Date() on every render means nothing) */
   const today = useMemo(() => new Date(), []);
 
@@ -211,19 +333,86 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
     setStage((prev) => (prev.w === m.w && prev.h === m.h ? prev : m));
   }, [resizeKey]);
 
+  /** Where the article is scrolled to, tracked so a re-render can restore it */
+  const keptTopRef = useRef(0);
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const remember = () => {
+      keptTopRef.current = scroll.scrollTop;
+    };
+    scroll.addEventListener('scroll', remember, { passive: true });
+    return () => scroll.removeEventListener('scroll', remember);
+  }, []);
+
+  /**
+   * Preview → editor.
+   *
+   * The same anchor table read backwards: find the two anchors this offset
+   * falls between and take the source position in the same proportion. Using
+   * the one table for both directions is what keeps the two panes agreeing —
+   * a second mapping, however carefully written, would disagree with the first
+   * one somewhere, and the disagreement would show up as a slow drift while
+   * the reader scrolled back and forth.
+   *
+   * Whether the scroll was the reader's or this pane following the editor is
+   * the channel's question to answer; see canDrive in scrollSync.ts.
+   */
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (!sync.canDrive('preview')) return;
+        // While the studio is open, or a restyle is settling, the offsets are
+        // about to be wrong anyway and nobody is reading
+        if (pickingRef.current || restylingRef.current) return;
+        let anchors = anchorsRef.current;
+        if (!anchors) {
+          anchors = buildAnchors(scroll);
+          anchorsRef.current = anchors;
+        }
+        if (!anchors.length) return;
+        const max = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+        const top = scroll.scrollTop;
+        sync.publish({
+          position: positionForOffset(anchors, top),
+          endPosition: positionForOffset(anchors, max),
+          atTop: top <= 2,
+          atBottom: max > 0 && top >= max - 2,
+          source: 'preview',
+        });
+      });
+    };
+    scroll.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroll.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [sync]);
+
   /** Anchor cache (null means it needs rebuilding) */
   const anchorsRef = useRef<Anchor[] | null>(null);
-  /** Request one sync (coalesced onto a rAF); reused when the body changes */
-  const scheduleRef = useRef<() => void>(() => {});
+  /** Request one sync (coalesced onto a rAF); reused when the body changes.
+   *  `true` realigns even when this pane was the last to scroll */
+  const scheduleRef = useRef<(force?: boolean) => void>(() => {});
 
   // Editor scroll → preview scroll. None of this path goes through React:
   // subscribe to the channel → coalesce onto a frame → interpolate the anchors
   // → write scrollTop.
 
   useEffect(() => {
-    const apply = () => {
+    const apply = (force = false) => {
       const scroll = scrollRef.current;
       if (!scroll) return;
+      // Its own message coming back around, or the editor following this pane:
+      // either way there is nothing here to do. `force` is the realignment
+      // after a new body, which has to land whoever scrolled last — otherwise
+      // a draft opened after a scroll in this pane would never be aligned.
+      if (!force && !sync.shouldFollow('preview')) return;
       const { position, endPosition, atTop, atBottom } = sync.state;
       // Align the edges exactly, so interpolation error leaves no gap at either
       // end. Snapping at the bottom is now "the interpolation had already
@@ -267,29 +456,133 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
     };
 
     let raf = 0;
-    const schedule = () => {
+    let forced = false;
+    const schedule = (force = false) => {
+      forced ||= force;
       // Collapse several scroll events in one frame into a single read/write
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        apply();
+        const f = forced;
+        forced = false;
+        apply(f);
       });
     };
     scheduleRef.current = schedule;
-    const unsubscribe = sync.subscribe(schedule);
-    schedule();
+    const unsubscribe = sync.subscribe(() => schedule());
+    schedule(true);
     return () => {
       unsubscribe();
       if (raf) cancelAnimationFrame(raf);
     };
   }, [sync]);
 
+  /**
+   * Device switch, as one continuous move.
+   *
+   * iPhone → 桌面 is a jump from 390pt wide to a whole macOS window, and drawn
+   * as a straight swap it reads as two different screenshots rather than one
+   * device changing shape. FLIP: put the new frame back where the old one was,
+   * then let it travel. Web Animations rather than a CSS transition because
+   * the start value is measured, not declared.
+   */
+  useLayoutEffect(() => {
+    const from = flipFromRef.current;
+    flipFromRef.current = null;
+    const frame = frameRef.current;
+    if (!from || !frame) return;
+    const to = frame.getBoundingClientRect();
+    if (!to.width || !to.height || !from.width || !from.height) return;
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    const sx = from.width / to.width;
+    const sy = from.height / to.height;
+    animate(
+      frame,
+      [{ transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transform: 'none' }],
+      { duration: FLIP_MS, easing: EASE },
+    );
+  }, [device, fit]);
+
+  // A different draft is a different article: same treatment as a restyle,
+  // for the same reason
+  useLayoutEffect(() => {
+    animate(bodyRef.current, [{ opacity: RESTYLE_FROM }, { opacity: 1 }], {
+      duration: RESTYLE_MS,
+      easing: EASE,
+    });
+  }, [draftId]);
+
+  /**
+   * The article into the DOM, block by block.
+   *
+   * A layout effect, not an effect: it has to be done before the browser
+   * paints, or a keystroke shows one frame of the previous article. And it is
+   * declared above the two scroll-keeping effects below on purpose — effects
+   * run in source order, so by the time they look at the scroller the new
+   * content is already in it.
+   */
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (el) morphChildren(el, previewBody);
+  }, [previewBody]);
+
+  useLayoutEffect(() => {
+    const key = `${theme.id}|${densityName}`;
+    if (key === styleKeyRef.current) return;
+    styleKeyRef.current = key;
+    restylingRef.current = true;
+    // Cross-fade the restyle. The article's innerHTML is replaced wholesale in
+    // this same commit, so there is no "before" left to fade out of: the new
+    // setting comes up from dimmed instead, which is enough to read as one
+    // article changing clothes rather than two articles swapped.
+    //
+    // A script-driven animation rather than a CSS transition, because this has
+    // to fire again on the very next switch — and a transition that starts from
+    // the value it is already at does nothing at all.
+    animate(bodyRef.current, [{ opacity: RESTYLE_FROM }, { opacity: 1 }], {
+      duration: RESTYLE_MS,
+      easing: EASE,
+    });
+    // Two frames: one for the new body to lay out, one for the ResizeObserver
+    // it wakes to have had its say
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        restylingRef.current = false;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [theme.id, densityName]);
+
   // A re-rendered body, a phone⇄desktop switch, a device switch or a refit
   // invalidates every anchor offset, and calls for one realignment
   useEffect(() => {
     anchorsRef.current = null;
-    scheduleRef.current();
-  }, [body, layout, device, fit]);
+    // A new body is not always new writing. While the studio is open, and for
+    // the moment a theme or density switch takes to settle, it is the same
+    // article restyled — and realigning would drag it to wherever the source
+    // pane sits, which is the top, since nobody is typing
+    if (!picking && !restylingRef.current) scheduleRef.current(true);
+  }, [body, layout, device, fit, picking]);
+
+  /**
+   * Keep the reader where they were across a restyle — a studio tweak, or a
+   * theme or density switch.
+   *
+   * Setting innerHTML empties the scroller for an instant, and an empty
+   * scroller clamps its offset to zero — which is why a restyle used to land
+   * the article back at the top, away from the very paragraph being looked at.
+   * So remember the offset and put it back in the same frame, before any paint.
+   */
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll || (!picking && !restylingRef.current)) return;
+    if (Math.abs(scroll.scrollTop - keptTopRef.current) > 1) scroll.scrollTop = keptTopRef.current;
+  }, [body, picking]);
 
   // Async height changes — image decoding, font loading — invalidate them too
   useEffect(() => {
@@ -297,11 +590,148 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
     if (!el) return;
     const ro = new ResizeObserver(() => {
       anchorsRef.current = null;
+      // A restyle that changes a margin changes the article's height, and
+      // realigning on that would pull the reader back to the source pane's
+      // position — the top — mid-edit. Hold them where they were instead
+      if (pickingRef.current || restylingRef.current) {
+        const scroll = scrollRef.current;
+        if (scroll && Math.abs(scroll.scrollTop - keptTopRef.current) > 1) {
+          scroll.scrollTop = keptTopRef.current;
+        }
+        return;
+      }
       scheduleRef.current();
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  /**
+   * Picking, while the theme studio is open: mark the element under the
+   * pointer and hand a click to the studio.
+   *
+   * The mark is a box of its own laid over the article, not a style on the
+   * element: an outline on the element itself sat right on top of the very
+   * borders being tuned, and read as part of the theme. The box is tinted and
+   * labelled, the way a style inspector marks things, so nobody mistakes it
+   * for the article. It goes away on the click that picks, so the element can
+   * be seen clean while its colours change, and comes back only when the
+   * pointer moves on to something else.
+   *
+   * Placed by offsetTop/offsetLeft summed up to the scroll container, not by
+   * getBoundingClientRect: the Duo views scale the whole device with CSS
+   * zoom, and layout offsets are the one coordinate system zoom leaves alone.
+   */
+  const [mark, setMark] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    section: SectionId;
+  } | null>(null);
+  /** The element the mark belongs to (kept through a click, so the mark
+   *  stays down until the pointer reaches a different one) */
+  const litRef = useRef<Element | null>(null);
+  useEffect(() => {
+    const root = bodyRef.current;
+    const scroller = scrollRef.current;
+    if (!root || !scroller || !picking) return;
+    const boxOf = (el: Element) => {
+      if (!(el instanceof HTMLElement)) return null;
+      let top = 0;
+      let left = 0;
+      let node: HTMLElement | null = el;
+      while (node && node !== scroller) {
+        top += node.offsetTop;
+        left += node.offsetLeft;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      if (node !== scroller) return null;
+      return { top, left, width: el.offsetWidth, height: el.offsetHeight };
+    };
+    /**
+     * What the pointer means. The gaps between blocks are the body element
+     * itself; a pointer there means the divider sitting in that gap if there
+     * is one, or else the nearest block within a few pixels.
+     *
+     * The divider needs the help: a 1px rule under the phone screen's
+     * `zoom: 0.92` is less than a pixel tall, and WebKit's hit test never
+     * lands on it at all. So look for the blocks above and below the pointer
+     * and take any divider between them in document order.
+     *
+     * Everything goes through elementFromPoint rather than element rects:
+     * inside a zoomed subtree WebKit's getBoundingClientRect and the event's
+     * clientY are not in the same coordinate space, and elementFromPoint is
+     * the browser's own hit test in the event's own coordinates.
+     */
+    const topLevel = (n: Element): Element => {
+      let cur = n;
+      while (cur.parentElement && cur.parentElement !== root) cur = cur.parentElement;
+      return cur;
+    };
+    const probe = (e: MouseEvent, dir: -1 | 1) => {
+      for (let d = 3; d <= 42; d += 3) {
+        const hit = document.elementFromPoint(e.clientX, e.clientY + dir * d);
+        if (hit && hit !== root && root.contains(hit)) return { hit, block: topLevel(hit), d };
+      }
+      return null;
+    };
+    const isDivider = (n: Element) => n.tagName === 'HR' || (n.tagName === 'P' && !n.hasAttribute('data-line'));
+    const targetOf = (e: MouseEvent): Element | null => {
+      if (!(e.target instanceof Element)) return null;
+      if (e.target !== root) return e.target;
+      const up = probe(e, -1);
+      const down = probe(e, 1);
+      if (up && down && up.block !== down.block) {
+        for (let n = up.block.nextElementSibling; n && n !== down.block; n = n.nextElementSibling) {
+          if (isDivider(n)) return n;
+        }
+      }
+      const near = [up, down].filter((p) => p && p.d <= 18).sort((a, b) => a!.d - b!.d)[0];
+      return near ? near.hit : null;
+    };
+    const onOver = (e: MouseEvent) => {
+      const target = targetOf(e);
+      if (!target) {
+        litRef.current = null;
+        setMark(null);
+        return;
+      }
+      const hit = sectionAt(target, root);
+      if (hit.el === litRef.current) return;
+      litRef.current = hit.el;
+      const box = boxOf(hit.el);
+      setMark(box ? { ...box, section: hit.section } : null);
+    };
+    const onLeave = () => {
+      litRef.current = null;
+      setMark(null);
+    };
+    const onClick = (e: MouseEvent) => {
+      if (!(e.target instanceof Element)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMark(null);
+      pickRef.current?.(sectionAt(targetOf(e) ?? root, root).section);
+    };
+    root.addEventListener('mouseover', onOver);
+    root.addEventListener('mouseleave', onLeave);
+    root.addEventListener('click', onClick);
+    return () => {
+      root.removeEventListener('mouseover', onOver);
+      root.removeEventListener('mouseleave', onLeave);
+      root.removeEventListener('click', onClick);
+      litRef.current = null;
+      setMark(null);
+    };
+  }, [picking]);
+
+  // A new body (every studio edit is one) replaces the element the mark was
+  // measured from, so the mark would point at where it used to be
+  useEffect(() => {
+    litRef.current = null;
+    setMark(null);
+  }, [body, layout, device, fit]);
 
   // Follow the article theme in the status bar and desktop window chrome
   useEffect(() => {
@@ -325,7 +755,7 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
 
   return (
     <section
-      className="split-pane surface preview-side"
+      className="split-pane preview-side"
       ref={paneRef}
       data-width={layout}
       data-device={device}
@@ -334,35 +764,77 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
         {/* What is being previewed, rather than the word "preview" — which of
             the twelve themes is on, and at which density. With the theme rail
             folded into a popover, this is the only place that still says. */}
-        <span className="pane-path" title="在顶栏的「排版」里更换">
-          <span className="seg last">{theme.name}</span>
-          <span className="seg">{densityName}</span>
-        </span>
+        {/* While the studio is open this says what a click would style. It
+            takes the theme name's place rather than crowding in beside the
+            device switcher: the name is right there in the studio's own
+            header, and the two together left neither of them readable */}
+        {picking ? (
+          <span className="pane-pick" aria-live="polite">
+            {mark ? `点一下改「${SECTION_TITLE[mark.section]}」` : '点元素改样式'}
+          </span>
+        ) : (
+          <Tooltip content="换主题、密度和界面外观" shortcut={hintFor('typeset')} side="bottom">
+            <button
+              className="pane-path pane-path-btn"
+              onClick={onOpenTypeset}
+              aria-haspopup="dialog"
+              data-typeset-trigger
+            >
+              {/* Keyed on the name so a theme switch replays the slide */}
+              <span className="seg last" key={theme.name}>
+                {theme.name}
+              </span>
+              <span className="seg">{densityName}</span>
+            </button>
+          </Tooltip>
+        )}
         <div className="pane-head-right">
-          {hasImage && <span className="pane-stat warn">含图片 · 建议公众号内单独上传</span>}
+          {hasImage && (
+            /* A sentence that is always true while the article has a picture
+               is not news, and this one sat in the middle of the head
+               competing with the device switcher for the whole session. It is
+               a mark now: present, findable, and silent until asked. */
+            <Tooltip content="正文里有图片。公众号里单独上传一次，读者看到的清晰度更好" side="bottom">
+              <span className="pane-stat warn" tabIndex={0} role="note" aria-label="正文含图片">
+                <span className="pane-stat-dot" aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
           <div
             className="segmented device-switch"
             role="radiogroup"
             aria-label="预览机型"
             style={{ '--seg-n': DEVICES.length, '--seg-i': deviceIndex } as React.CSSProperties}
           >
-            {DEVICES.map((d) => (
-              <button
-                key={d.id}
-                role="radio"
-                aria-checked={device === d.id}
-                className={`seg-btn ${device === d.id ? 'active' : ''}`}
-                title={d.hint}
-                onClick={() => setDevice(d.id)}
-              >
-                {d.name}
-              </button>
+            {DEVICES.map((d, i) => (
+              <Tooltip key={d.id} content={d.hint} side="bottom">
+                <button
+                  role="radio"
+                  aria-checked={device === d.id}
+                  tabIndex={device === d.id ? 0 : -1}
+                  className={`seg-btn ${device === d.id ? 'active' : ''}`}
+                  onKeyDown={(e) => {
+                    // A radiogroup is one tab stop; ←→ move within it
+                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                    if (!step) return;
+                    e.preventDefault();
+                    pickDevice(DEVICES[(i + step + DEVICES.length) % DEVICES.length].id);
+                  }}
+                  onClick={() => pickDevice(d.id)}
+                >
+                  {d.name}
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>
       </div>
       <div className="phone-stage scroll-thin" ref={stageRef}>
-        <div className="phone-frame" style={device === 'duo' || device === 'duo-open' ? { zoom: fit } : undefined}>
+        <div
+          className="phone-frame"
+          ref={frameRef}
+          style={device === 'duo' || device === 'duo-open' ? { zoom: fit } : undefined}
+        >
           {/* Side buttons (phone mode): on the iPhone, action and volume left,
               power right; the Duo views move them to where its edges carry them */}
           <span className="side-btn action" aria-hidden="true"></span>
@@ -443,11 +915,20 @@ export default function PreviewPane({ body, theme, hasImage, densityName, resize
                   </span>
                 </div>
               </div>
-              <div
-                className="check-body"
-                ref={bodyRef}
-                dangerouslySetInnerHTML={{ __html: previewBody }}
-              />
+              {/* Empty in JSX: its children are the article, written by the
+                  morph effect above. React must never own them — it would
+                  reconcile against a tree it did not build and throw the whole
+                  thing away on the first render that disagreed. */}
+              <div className={`check-body ${picking ? 'picking' : ''}`} ref={bodyRef} />
+              {mark && (
+                <div
+                  className="pick-mark"
+                  style={{ top: mark.top, left: mark.left, width: mark.width, height: mark.height }}
+                  aria-hidden="true"
+                >
+                  <span className="pick-tag">{SECTION_TITLE[mark.section]}</span>
+                </div>
+              )}
               {/* Article footer: share / save / recommend / like, at the end of the content */}
               <div className="article-footer">
                 <div className="actions">

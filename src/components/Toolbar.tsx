@@ -1,13 +1,26 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { ArrowCircleUp, ClipboardText, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import Tooltip from './Tooltip';
+import Spinner from './Spinner';
+import { EXIT_POPOVER, usePresence } from '../usePresence';
+import { hintFor } from '../shortcuts';
 import { chord } from '../platform';
 
 interface Props {
   viewMode: 'split' | 'preview';
   onViewMode: (m: 'split' | 'preview') => void;
-  status: string | null;
   /** Name of the open draft — the toolbar doubles as the window title */
   docName: string;
+  /**
+   * The folder(s) the draft sits in, outermost first.
+   *
+   * The editor's pane head used to show this, on a row the format strip now
+   * occupies. It belongs here anyway: this bar already names the open file, so
+   * the path simply grows a head — 系列 / 第一篇：从零开始 — instead of the same
+   * draft being named in two places. A draft at the root of the workspace has
+   * no folders and reads exactly as it did.
+   */
+  docFolders: string[];
   /** A write is still in flight (the save indicator breathes) */
   saving: boolean;
   onCopy: () => void;
@@ -20,7 +33,7 @@ interface Props {
    * disk. A long image is the one thing the folder does not already contain.
    */
   onExportImage: () => void;
-  /** An export is running: disable the button so it cannot be fired twice */
+  /** An export is running: the button keeps its label and spins instead */
   exporting: boolean;
   /** A copy is running (remote images have to be fetched first) */
   copying: boolean;
@@ -28,8 +41,6 @@ interface Props {
   onPublish: () => void;
   /** Open the drafts box: what is already up there, and what to overwrite */
   onOpenDraftBox: () => void;
-  /** Open settings (公众号凭据 lives there) */
-  onOpenSettings: () => void;
   /**
    * A newer release is waiting.
    *
@@ -42,10 +53,15 @@ interface Props {
   /** Is the agent panel expanded */
   agentOpen: boolean;
   onToggleAgent: () => void;
+  /** The typeset popover. Owned by App because ⌘⇧T and the preview head's
+   *  theme name both open it, and this bar is not the only way in any more */
+  typesetOpen: boolean;
+  onTypesetOpen: (open: boolean) => void;
   /** Themes / density / body options / appearance, rendered into a popover.
    *  Given the popover's own close handle, so a control inside it can dismiss
-   *  it on its way to opening something else (see the agent theme button) */
-  typeset: (close: () => void) => ReactNode;
+   *  it on its way to opening something else (see the agent theme button), and
+   *  the presence state, which it writes onto its root so it can animate shut */
+  typeset: (close: () => void, state: 'enter' | 'exit') => ReactNode;
 }
 
 const MODES = [
@@ -68,12 +84,19 @@ const MODES = [
  *
  * Left says what you are editing, right says what you can do to it, with a
  * single filled button for the one destructive-ish action worth emphasizing.
+ *
+ * The right end is four objects, not eight buttons: the mode switch, a capsule
+ * for how the piece is set and who else may touch it (排版 / Agent), a capsule
+ * for what comes out of it (长图 / 复制正文 / 草稿箱), and the one filled button.
+ * Eight equally-spaced controls read as a list of eight things to consider;
+ * two capsules and a switch read as three, and each capsule's sunken track says
+ * where a group starts and ends without a divider having to be drawn.
  */
 export default function Toolbar({
   viewMode,
   onViewMode,
-  status,
   docName,
+  docFolders,
   saving,
   onCopy,
   onExportImage,
@@ -81,48 +104,57 @@ export default function Toolbar({
   copying,
   onPublish,
   onOpenDraftBox,
-  onOpenSettings,
   hasUpdate,
   onOpenUpdate,
   agentOpen,
   onToggleAgent,
+  typesetOpen,
+  onTypesetOpen,
   typeset,
 }: Props) {
-  const [typesetOpen, setTypesetOpen] = useState(false);
   const typesetRef = useRef<HTMLDivElement>(null);
+  const typesetPresence = usePresence(typesetOpen, EXIT_POPOVER);
 
   // Click outside / Esc closes the popover
   useEffect(() => {
     if (!typesetOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!typesetRef.current?.contains(e.target as Node)) setTypesetOpen(false);
+    // Listen on pointerdown, not click: the preview head's theme name opens
+    // this popover from outside the toolbar, and React flushes the effect
+    // that registers this listener before that same click has finished
+    // bubbling to the document — so a click listener would close the
+    // popover in the very event that opened it. By the time pointerdown
+    // fires for the *next* press, the popover really is open, and a press
+    // on any opener is excluded so it toggles rather than fights itself.
+    const onDocClick = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (typesetRef.current?.contains(target)) return;
+      if (target?.closest('[data-typeset-trigger]')) return;
+      onTypesetOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTypesetOpen(false);
+      if (e.key === 'Escape') onTypesetOpen(false);
     };
-    document.addEventListener('click', onDocClick);
+    document.addEventListener('pointerdown', onDocClick);
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('pointerdown', onDocClick);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [typesetOpen]);
+  }, [typesetOpen, onTypesetOpen]);
 
   const modeIndex = MODES.findIndex((m) => m.id === viewMode);
 
   return (
     <header className="toolbar" data-tauri-drag-region="deep">
       <div className="brand">
-        {/* Seal-style wordmark: flat, no glowing badge. The 火 is drawn as
-            stroked paths rather than <text> so it matches the app icon exactly
-            and does not depend on which CJK serif the system happens to have. */}
+        {/* Horizon mark, identical to public/favicon.svg and the app icon.
+            Colors are fixed brand colors, not theme tokens, so the mark reads
+            the same in every theme. */}
         <span className="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3.4"
-               strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9.4 9.2 8.1 12.6" />
-            <path d="M22.6 9.2 23.9 12.6" />
-            <path d="M17.4 7.4c0 5.9-2.3 11.2-6.9 16.6" />
-            <path d="M15.9 16.2 22.8 24" />
+          <svg viewBox="0 0 100 100">
+            <rect width="100" height="100" rx="22" fill="#F1ECE3" />
+            <path d="M18 58A32 32 0 0 1 82 58Z" fill="#C4482A" />
+            <rect x="14" y="64" width="72" height="10" rx="5" fill="#6E2715" />
           </svg>
         </span>
         <span className="brand-name">火星编辑器</span>
@@ -134,6 +166,9 @@ export default function Toolbar({
           <div className="tb-doc">
             <span className={`tb-dot ${saving ? 'saving' : ''}`} aria-hidden="true" />
             <span className="tb-doc-name" title={saving ? '正在保存…' : '已保存到工作区'}>
+              {docFolders.map((seg, i) => (
+                <span key={`${i}:${seg}`} className="tb-doc-folder">{`${seg} / `}</span>
+              ))}
               {docName}
             </span>
           </div>
@@ -142,89 +177,123 @@ export default function Toolbar({
 
       <div className="toolbar-right">
         {hasUpdate && (
-          <button className="btn update-pill" onClick={onOpenUpdate} title="有新版本可以安装">
-            <ArrowCircleUp size={15} weight="bold" />
-            新版本
-          </button>
+          <Tooltip content="有新版本可以安装">
+            <button className="btn update-pill" onClick={onOpenUpdate}>
+              <ArrowCircleUp size={15} weight="bold" />
+              新版本
+            </button>
+          </Tooltip>
         )}
 
+        {/* What you are looking at */}
         <div
           className="segmented"
-          role="tablist"
+          role="radiogroup"
           aria-label="工作区模式"
           style={{ '--seg-n': MODES.length, '--seg-i': modeIndex } as React.CSSProperties}
         >
-          {MODES.map((m) => (
-            <button
+          {MODES.map((m, i) => (
+            <Tooltip
               key={m.id}
-              role="tab"
-              aria-selected={viewMode === m.id}
-              className={`seg-btn ${viewMode === m.id ? 'active' : ''}`}
-              onClick={() => onViewMode(m.id)}
+              content={m.id === 'split' ? '源码和预览并排' : '只看预览'}
+              shortcut={hintFor('viewMode')}
             >
-              {m.name}
-            </button>
+              <button
+                role="radio"
+                aria-checked={viewMode === m.id}
+                tabIndex={viewMode === m.id ? 0 : -1}
+                className={`seg-btn ${viewMode === m.id ? 'active' : ''}`}
+                onKeyDown={(e) => {
+                  // One tab stop for the group; ←→ move inside it
+                  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                  if (!step) return;
+                  e.preventDefault();
+                  onViewMode(MODES[(i + step + MODES.length) % MODES.length].id);
+                }}
+                onClick={() => onViewMode(m.id)}
+              >
+                {m.name}
+              </button>
+            </Tooltip>
           ))}
         </div>
 
-        {/* Themes, density, body options and the shell's own light/dark */}
-        <div className="menu-wrap" ref={typesetRef}>
-          <button
-            className={`btn ${typesetOpen ? 'active' : ''}`}
-            aria-haspopup="dialog"
-            aria-expanded={typesetOpen}
-            title="文章主题、排版密度、界面外观"
-            onClick={() => setTypesetOpen((v) => !v)}
-          >
-            <TextAa size={15} weight="bold" />
-            排版
-          </button>
-          {typesetOpen && typeset(() => setTypesetOpen(false))}
+        {/* Capsule A — how the piece is set, and who else may touch it.
+            Local agent: runs the claude / codex already on this machine.
+            No model is wired into the editor itself. */}
+        <div className="tb-group capsule">
+          {/* Themes, density, body options and the shell's own light/dark */}
+          <div className="menu-wrap" ref={typesetRef}>
+            <Tooltip content="文章主题、排版密度、界面外观" shortcut={hintFor('typeset')}>
+              <button
+                className={`btn ${typesetOpen ? 'active' : ''}`}
+                aria-haspopup="dialog"
+                aria-expanded={typesetOpen}
+                onClick={() => onTypesetOpen(!typesetOpen)}
+              >
+                <TextAa size={15} weight="bold" />
+                排版
+              </button>
+            </Tooltip>
+            {typesetPresence.mounted && typeset(() => onTypesetOpen(false), typesetPresence.state)}
+          </div>
+
+          <Tooltip content="让本地的 claude / codex 在这个工作区里改稿" shortcut={hintFor('agent')}>
+            <button
+              className={`btn ${agentOpen ? 'active' : ''}`}
+              onClick={onToggleAgent}
+              aria-pressed={agentOpen}
+            >
+              <Sparkle size={15} weight="bold" />
+              Agent
+            </button>
+          </Tooltip>
         </div>
 
-        {/* Credentials and anything else configured once and then forgotten.
-            Icon only: it is not part of the writing loop, and a labelled
-            button here would compete with the four that are. */}
-        <button className="btn icon" onClick={onOpenSettings} title="设置（公众号凭据）" aria-label="设置">
-          <GearSix size={15} weight="bold" />
-        </button>
+        {/* Capsule B — what comes out of the finished piece */}
+        <div className="tb-group capsule">
+          <Tooltip content="把整篇正文渲染成一张长图 PNG" shortcut={hintFor('longImage')}>
+            <button
+              className={`btn ${exporting ? 'busy' : ''}`}
+              onClick={onExportImage}
+              disabled={exporting}
+              aria-busy={exporting}
+            >
+              {exporting ? <Spinner /> : <ImageSquare size={15} weight="bold" />}
+              长图
+            </button>
+          </Tooltip>
 
-        {/* Local agent: runs the claude / codex already on this machine.
-            No model is wired into the editor itself. */}
-        <button
-          className={`btn ${agentOpen ? 'active' : ''}`}
-          onClick={onToggleAgent}
-          aria-pressed={agentOpen}
-          title="让本地的 claude / codex 在这个工作区里改稿"
-        >
-          <Sparkle size={15} weight="bold" />
-          Agent
-        </button>
+          <Tooltip content={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`} shortcut={hintFor('copy')}>
+            <button
+              className={`btn ${copying ? 'busy' : ''}`}
+              onClick={onCopy}
+              disabled={copying}
+              aria-busy={copying}
+            >
+              {copying ? <Spinner /> : <ClipboardText size={15} weight="bold" />}
+              复制正文
+            </button>
+          </Tooltip>
 
-        <button className="btn" onClick={onExportImage} disabled={exporting} title="把整篇正文渲染成一张长图 PNG">
-          <ImageSquare size={15} weight="bold" />
-          {exporting ? '渲染中…' : '长图'}
-        </button>
+          {/* The drafts box is otherwise only visible inside the WeChat console,
+              so after a few pushes it is unclear which version is up there. Also
+              where an article is picked to overwrite rather than duplicate. */}
+          <Tooltip content="草稿箱：看看公众号上已有哪些草稿">
+            <button className="btn" onClick={onOpenDraftBox} aria-label="草稿箱">
+              <Stack size={15} weight="bold" />
+              草稿箱
+            </button>
+          </Tooltip>
+        </div>
 
-        <button className="btn" onClick={onCopy} disabled={copying} title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}>
-          <ClipboardText size={15} weight="bold" />
-          {copying ? '处理中…' : '复制正文'}
-        </button>
-
-        {/* The drafts box is otherwise only visible inside the WeChat console,
-            so after a few pushes it is unclear which version is up there. Also
-            where an article is picked to overwrite rather than duplicate. */}
-        <button className="btn icon" onClick={onOpenDraftBox} title="草稿箱：看看公众号上已有哪些草稿" aria-label="草稿箱">
-          <Stack size={15} weight="bold" />
-        </button>
-
-        <button className="btn primary" onClick={onPublish} title="换图后直接推进公众号草稿箱">
-          <PaperPlaneTilt size={15} weight="bold" />
-          推草稿
-        </button>
+        <Tooltip content="换图后直接推进公众号草稿箱" shortcut={hintFor('publish')}>
+          <button className="btn primary" onClick={onPublish}>
+            <PaperPlaneTilt size={15} weight="bold" />
+            推草稿
+          </button>
+        </Tooltip>
       </div>
-
-      {status && <span className="status show">{status}</span>}
     </header>
   );
 }

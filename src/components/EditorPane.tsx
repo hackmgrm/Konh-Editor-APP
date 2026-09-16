@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowCounterClockwise, Code, CodeBlock, Link, ListBullets, ListChecks, ListDashes, Minus, Quotes, Table, TextB, TextH, TextHFour, TextHOne, TextHThree, TextHTwo, TextItalic } from '@phosphor-icons/react';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
@@ -10,11 +10,18 @@ import { languages } from '@codemirror/language-data';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import { registerImageFiles } from '../images';
+import Tooltip from './Tooltip';
+import { EASE, EXIT_POPOVER, animate, usePresence } from '../usePresence';
+import { hintFor } from '../shortcuts';
 import type { ScrollSyncChannel } from '../scrollSync';
 
 /* One size for every Phosphor icon; the H1–H4 menu items each use the glyph
    that matches their level. */
-const ICON = 16;
+/* Icon weight, one rule for the app: a control gets `bold` at 15, a glyph
+   naming a file or a piece of content gets `regular` at 14. The format strip
+   is controls, so it is bold — which also stops it reading as a row of
+   hairlines once the toolbar dims away from the caret. */
+const ICON = 15;
 const HEADING_ICON = { 1: TextHOne, 2: TextHTwo, 3: TextHThree, 4: TextHFour } as const;
 
 /**
@@ -111,8 +118,10 @@ interface Props {
   collapsed: boolean;
   /** Editor-side width, as a percentage */
   widthPct: number;
-  /** A write is still pending (App owns the debounce; the toolbar shows it too) */
-  saving: boolean;
+  /** The heading outline drawer. Owned by App so ⌘⇧O and the command palette
+   *  can reach it too */
+  outlineOpen: boolean;
+  onOutlineOpen: (open: boolean) => void;
   /**
    * An outside jump request (clicking an image in the file tree lands on its
    * reference). The nonce distinguishes "the same line, requested again" —
@@ -122,7 +131,19 @@ interface Props {
 }
 
 const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
-  { value, onChange, onAddImage, imageNames, draftId, sync, collapsed, widthPct, saving, jumpRequest },
+  {
+    value,
+    onChange,
+    onAddImage,
+    imageNames,
+    draftId,
+    sync,
+    collapsed,
+    widthPct,
+    outlineOpen,
+    onOutlineOpen,
+    jumpRequest,
+  },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -237,6 +258,10 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       return line + frac;
     };
     const onScroll = () => {
+      // A scroll here may be the reader's, or it may be this pane following
+      // the preview — the event is identical either way. The channel decides,
+      // and while the preview has the wheel this reports nothing
+      if (!syncRef.current.canDrive('editor')) return;
       const max = scroller.scrollHeight - scroller.clientHeight;
       const atBottom = max > 0 && scroller.scrollTop >= max - 2;
       const atTop = scroller.scrollTop <= 2;
@@ -248,12 +273,56 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
         endPosition: max > 0 ? positionAt(max) : position,
         atTop,
         atBottom,
+        source: 'editor',
       });
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
+    /**
+     * Preview → editor.
+     *
+     * The other direction, and the one that was missing: reading the rendered
+     * article and wanting to fix a sentence meant scrolling the preview and
+     * then hunting for the same paragraph in the source. The preview sends
+     * back a source position and this puts the editor's top edge on it.
+     *
+     * `scrollTop` rather than a CodeMirror `scrollIntoView` dispatch: an
+     * effect that arrives sixty times a second must not go through the
+     * editor's transaction system, and this pane is a follower here — nothing
+     * about the document or the selection is changing.
+     */
+    let raf = 0;
+    const follow = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const channel = syncRef.current;
+        if (!channel.shouldFollow('editor')) return;
+        const { position, atTop, atBottom } = channel.state;
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        if (atTop) {
+          if (scroller.scrollTop !== 0) scroller.scrollTop = 0;
+          return;
+        }
+        if (atBottom) {
+          scroller.scrollTop = max;
+          return;
+        }
+        const doc = view.state.doc;
+        const line = Math.min(doc.lines, Math.max(1, Math.floor(position) + 1));
+        const block = view.lineBlockAt(doc.line(line).from);
+        const frac = Math.min(1, Math.max(0, position - Math.floor(position)));
+        const top = view.documentPadding.top + block.top + block.height * frac;
+        if (Math.abs(scroller.scrollTop - top) < 0.5) return;
+        scroller.scrollTop = Math.min(max, Math.max(0, top));
+      });
+    };
+    const unsubscribe = syncRef.current.subscribe(follow);
+
     return () => {
+      unsubscribe();
+      if (raf) cancelAnimationFrame(raf);
       scroller.removeEventListener('scroll', onScroll);
       view.destroy();
       viewRef.current = null;
@@ -290,6 +359,21 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId, value]);
+
+  /**
+   * Cross-fade the editor when the draft under it changes.
+   *
+   * Switching drafts replaces the whole document in one dispatch, and a page
+   * of text swapped for a different page of text between two frames reads as a
+   * glitch rather than as navigation. The new text comes up from dimmed
+   * instead — short enough that it never feels like waiting.
+   */
+  useLayoutEffect(() => {
+    animate(hostRef.current, [{ opacity: 0.42 }, { opacity: 1 }], {
+      duration: 140,
+      easing: EASE,
+    });
+  }, [draftId]);
 
   // Outside jump: land on the given line and center it.
   // Declared after the content sync on purpose — on a cross-draft jump the new
@@ -350,14 +434,6 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
    * question is never "how many characters", it is "how long is this to read".
    */
   const readMinutes = Math.max(1, Math.round(charCount / 400));
-  /** Where this draft sits in the workspace, as breadcrumb segments */
-  const pathSegs = useMemo(() => {
-    const segs = draftId.split('/').filter(Boolean);
-    const last = segs.pop();
-    // The tree shows a text file by its title, so drop the extension here too
-    if (last) segs.push(last.replace(/\.(md|markdown|txt)$/i, ''));
-    return segs;
-  }, [draftId]);
   /** WeChat caps a body at 20k characters: warn at 18000, red line at 20000 */
   const WARN_LIMIT = 18000;
   const HARD_LIMIT = 20000;
@@ -416,8 +492,9 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
 
   /** Heading-level menu open state */
   const [headingOpen, setHeadingOpen] = useState(false);
-  /** Outline drawer open state */
-  const [outlineOpen, setOutlineOpen] = useState(false);
+  const headingPresence = usePresence(headingOpen, EXIT_POPOVER);
+  /** The drawer folds shut over its own height, so it outlives `outlineOpen` */
+  const outlinePresence = usePresence(outlineOpen, 180);
   const headingWrapRef = useRef<HTMLDivElement>(null);
   // Click outside to close
   useEffect(() => {
@@ -439,6 +516,8 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   /** Pull a heading outline (line number → title) out of the markdown; with the
    *  drawer closed, do not scan the document at all */
   const outline = useMemo(() => {
+    // Nothing to scan with the drawer shut — but keep scanning while it folds,
+    // or it empties out mid-animation
     if (!outlineOpen) return [];
     const items: { level: number; text: string; line: number }[] = [];
     value.split('\n').forEach((line, i) => {
@@ -467,60 +546,112 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   ];
 
   const toolbarBtns: { key: string; title: string; icon: React.ReactNode; onClick: () => void }[] = [
-    { key: 'bold', title: '加粗', icon: <TextB size={ICON} />, onClick: () => wrapSelection('**', '**') },
-    { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} />, onClick: () => wrapSelection('*', '*') },
-    { key: 'code', title: '行内代码', icon: <Code size={ICON} />, onClick: () => wrapSelection('`', '`') },
-    { key: 'quote', title: '引用', icon: <Quotes size={ICON} />, onClick: () => prefixLine('> ') },
-    { key: 'list', title: '无序列表', icon: <ListBullets size={ICON} />, onClick: () => prefixLine('- ') },
-    { key: 'task', title: '待办事项', icon: <ListChecks size={ICON} />, onClick: () => prefixLine('- [ ] ') },
-    { key: 'fence', title: '代码块', icon: <CodeBlock size={ICON} />, onClick: () => insertBlock('\n```ts\n\n```\n') },
-    { key: 'table', title: '表格', icon: <Table size={ICON} />, onClick: insertTable },
-    { key: 'link', title: '链接', icon: <Link size={ICON} />, onClick: () => wrapSelection('[', '](https://)') },
-    { key: 'hr', title: '分割线', icon: <Minus size={ICON} />, onClick: () => insertBlock('\n---\n') },
-    { key: 'undo', title: '撤销', icon: <ArrowCounterClockwise size={ICON} />, onClick: undoEdit },
+    { key: 'bold', title: '加粗', icon: <TextB size={ICON} weight="bold" />, onClick: () => wrapSelection('**', '**') },
+    { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} weight="bold" />, onClick: () => wrapSelection('*', '*') },
+    { key: 'code', title: '行内代码', icon: <Code size={ICON} weight="bold" />, onClick: () => wrapSelection('`', '`') },
+    { key: 'quote', title: '引用', icon: <Quotes size={ICON} weight="bold" />, onClick: () => prefixLine('> ') },
+    { key: 'list', title: '无序列表', icon: <ListBullets size={ICON} weight="bold" />, onClick: () => prefixLine('- ') },
+    { key: 'task', title: '待办事项', icon: <ListChecks size={ICON} weight="bold" />, onClick: () => prefixLine('- [ ] ') },
+    { key: 'fence', title: '代码块', icon: <CodeBlock size={ICON} weight="bold" />, onClick: () => insertBlock('\n```ts\n\n```\n') },
+    { key: 'table', title: '表格', icon: <Table size={ICON} weight="bold" />, onClick: insertTable },
+    { key: 'link', title: '链接', icon: <Link size={ICON} weight="bold" />, onClick: () => wrapSelection('[', '](https://)') },
+    { key: 'hr', title: '分割线', icon: <Minus size={ICON} weight="bold" />, onClick: () => insertBlock('\n---\n') },
+    { key: 'undo', title: '撤销', icon: <ArrowCounterClockwise size={ICON} weight="bold" />, onClick: undoEdit },
   ];
 
   return (
     <section
       ref={ref}
-      className={`split-pane surface editor-side ${collapsed ? 'collapsed' : ''}`}
+      className={`split-pane editor-side ${collapsed ? 'collapsed' : ''}`}
       style={{ width: `${widthPct}%` }}
     >
       <div className="pane-head">
-        {/* Where the draft lives, rather than the word "source". The toolbar
-            already names the open file; what it cannot say is which folder of a
-            nested workspace you are actually in. */}
-        <span className="pane-path" title={draftId}>
-          {pathSegs.map((seg, i) => (
-            <span key={i} className={i === pathSegs.length - 1 ? 'seg last' : 'seg'}>
-              {seg}
-            </span>
-          ))}
-          {saving && <span className="pane-saving">保存中</span>}
-        </span>
+        {/* The format strip lives in the head now, on the left the folder
+            breadcrumb used to hold: one row of chrome above the writing
+            instead of two. Which folder the draft sits in moved up to the
+            toolbar, beside the file's name, where the save dot already is. */}
+        <div className="md-toolbar" role="toolbar" aria-label="Markdown 格式">
+          {/* Heading-level dropdown */}
+          <div className="md-toolbar-dropdown" ref={headingWrapRef}>
+            <Tooltip content="标题（H1–H4）">
+              <button
+                className="md-toolbar-btn"
+                aria-label="标题"
+                aria-expanded={headingOpen}
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setHeadingOpen((v) => !v);
+                }}
+              >
+                <TextH size={ICON} />
+              </button>
+            </Tooltip>
+            {headingPresence.mounted && (
+              <div className="popover md-toolbar-menu" role="menu" data-state={headingPresence.state}>
+                {headingLevels.map((h) => {
+                  const HeadingIcon = HEADING_ICON[h.level as keyof typeof HEADING_ICON];
+                  return (
+                    <button
+                      key={h.level}
+                      className="menu-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setHeadingOpen(false);
+                        prefixLine(h.prefix);
+                      }}
+                    >
+                      <HeadingIcon size={17} className="menu-icon" />
+                      {h.label.split('·')[1]?.trim()}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {toolbarBtns.map((b) => (
+            <Tooltip key={b.key} content={b.title}>
+              <button className="md-toolbar-btn" aria-label={b.title} onClick={b.onClick}>
+                {b.icon}
+              </button>
+            </Tooltip>
+          )).reduce<React.ReactNode[]>((acc, btn, i) => {
+            // Logical clusters: bold|italic|code · quote|list|task · fence|table|link|rule · undo
+            const groupEnd = [2, 5, 9];
+            acc.push(btn);
+            if (groupEnd.includes(i)) acc.push(<span key={`d${i}`} className="md-toolbar-divider"></span>);
+            return acc;
+          }, [])}
+        </div>
         <div className="pane-head-right">
-          <button
-            className={`ghost-btn ${outlineOpen ? 'on' : ''}`}
-            title="大纲"
-            aria-label="大纲"
-            aria-expanded={outlineOpen}
-            onClick={() => setOutlineOpen((v) => !v)}
+          <Tooltip content="大纲" shortcut={hintFor('outline')}>
+            <button
+              className={`ghost-btn ${outlineOpen ? 'on' : ''}`}
+              aria-label="大纲"
+              aria-expanded={outlineOpen}
+              onClick={() => onOutlineOpen(!outlineOpen)}
+            >
+              <ListDashes size={15} weight="bold" />
+            </button>
+          </Tooltip>
+          <Tooltip
+            content={
+              countLevel === 'over'
+                ? '已超过微信 2 万字上限'
+                : countLevel === 'warn'
+                  ? '接近微信 2 万字上限'
+                  : '正文字数，不算空白'
+            }
           >
-            <ListDashes size={15} weight="bold" />
-          </button>
-          <span
-            className={countClass}
-            title={countLevel === 'over' ? '已超过微信 2 万字上限' : countLevel === 'warn' ? '接近微信 2 万字上限' : undefined}
-          >
-            {charCount} 字
-          </span>
-          <span className="pane-stat" title="按每分钟 400 字估算">
-            约 {readMinutes} 分钟
-          </span>
+            <span className={countClass}>{charCount} 字</span>
+          </Tooltip>
+          <Tooltip content="按每分钟 400 字估算">
+            <span className="pane-stat">约 {readMinutes} 分钟</span>
+          </Tooltip>
         </div>
       </div>
-      {outlineOpen && (
-        <div className="outline-drawer scroll-thin">
+      {outlinePresence.mounted && (
+        <div className="outline-drawer scroll-thin" data-state={outlinePresence.state}>
           {outline.length === 0 ? (
             <p className="outline-empty">还没有标题。用 <code>#</code> 开一行，大纲就长出来了。</p>
           ) : (
@@ -537,57 +668,6 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
           )}
         </div>
       )}
-      {/* Markdown format toolbar */}
-      <div className="md-toolbar" role="toolbar" aria-label="Markdown 格式">
-        {/* Heading-level dropdown */}
-        <div className="md-toolbar-dropdown" ref={headingWrapRef}>
-          <button
-            className="md-toolbar-btn"
-            title="标题（H1–H4）"
-            aria-label="标题"
-            aria-expanded={headingOpen}
-            aria-haspopup="menu"
-            onClick={(e) => {
-              e.stopPropagation();
-              setHeadingOpen((v) => !v);
-            }}
-          >
-            <TextH size={ICON} />
-          </button>
-          {headingOpen && (
-            <div className="popover md-toolbar-menu" role="menu">
-              {headingLevels.map((h) => {
-                const HeadingIcon = HEADING_ICON[h.level as keyof typeof HEADING_ICON];
-                return (
-                  <button
-                    key={h.level}
-                    className="menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setHeadingOpen(false);
-                      prefixLine(h.prefix);
-                    }}
-                  >
-                    <HeadingIcon size={17} className="menu-icon" />
-                    {h.label.split('·')[1]?.trim()}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        {toolbarBtns.map((b) => (
-          <button key={b.key} className="md-toolbar-btn" title={b.title} aria-label={b.title} onClick={b.onClick}>
-            {b.icon}
-          </button>
-        )).reduce<React.ReactNode[]>((acc, btn, i) => {
-          // Logical clusters: bold|italic|code · quote|list|task · fence|table|link|rule · undo
-          const groupEnd = [2, 5, 9];
-          acc.push(btn);
-          if (groupEnd.includes(i)) acc.push(<span key={`d${i}`} className="md-toolbar-divider"></span>);
-          return acc;
-        }, [])}
-      </div>
       <div className="code-edit" ref={hostRef}></div>
     </section>
   );

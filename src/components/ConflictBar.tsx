@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { WarningCircle } from '@phosphor-icons/react';
+import { usePresence } from '../usePresence';
 import type { Conflict, Draft } from '../store/useVault';
 
 interface Props {
@@ -22,11 +24,18 @@ interface Props {
  */
 export default function ConflictBar({ conflicts, drafts, onTakeDisk, onKeepMine }: Props) {
   const items = Object.values(conflicts);
-  if (!items.length) return null;
+  // Answering the last conflict used to make the bar vanish between two frames
+  // and pull the whole window up by its height, mid-read. It rolls up instead —
+  // which means it has to outlive the state, so the last non-empty list is kept
+  const { mounted, state } = usePresence(items.length > 0, 180);
+  const lastItems = useRef(items);
+  if (items.length) lastItems.current = items;
+  if (!mounted) return null;
+  const shown = items.length ? items : lastItems.current;
 
   return (
-    <div className="conflict-bar">
-      {items.map((c) => {
+    <div className="conflict-bar" data-state={state}>
+      {shown.map((c) => {
         const name = drafts.find((d) => d.id === c.id)?.name ?? c.id;
         return (
           <div key={c.id} className="conflict-row">
@@ -34,10 +43,14 @@ export default function ConflictBar({ conflicts, drafts, onTakeDisk, onKeepMine 
             <span className="conflict-text">
               「{name}」在工作区里被改过了，你这边也有没保存的修改
             </span>
-            <button type="button" onClick={() => onKeepMine(c.id)}>
+            {/* Both are ordinary .btn now. The bar used to grow its own pair
+                of buttons — same shape, different paddings, no focus ring and
+                no disabled state — for no reason other than that it was
+                written first */}
+            <button type="button" className="btn primary" onClick={() => onKeepMine(c.id)}>
               保留我的
             </button>
-            <button type="button" className="ghost" onClick={() => onTakeDisk(c.id)}>
+            <button type="button" className="btn conflict-ghost" onClick={() => onTakeDisk(c.id)}>
               用磁盘上的
             </button>
           </div>

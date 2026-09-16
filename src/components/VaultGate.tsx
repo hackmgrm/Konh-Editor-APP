@@ -40,7 +40,7 @@ export default function VaultGate({ error, onChoose }: Props) {
           因为就是普通文件，你可以在这个目录里开一个 claude 或 codex 让它改稿，
           这边会实时跟着变；也建议 <code>git init</code> 一下，改坏了能退回去。
         </p>
-        <button type="button" className="vault-gate-btn" onClick={onChoose}>
+        <button type="button" className="btn primary vault-gate-btn" onClick={onChoose}>
           <FolderOpen size={18} weight="fill" />
           选择文件夹
         </button>

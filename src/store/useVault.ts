@@ -75,6 +75,22 @@ export function useVault() {
   /** Ids (= relative paths) of drafts changed but not yet written */
   const dirtyRef = useRef<Set<string>>(new Set());
   const saveTimer = useRef<number | undefined>(undefined);
+  /** A flush is out over IPC right now */
+  const flushingRef = useRef(false);
+  /**
+   * Is there anything not on disk?
+   *
+   * The dirty set is a ref on purpose — neither typing nor scrolling should
+   * re-render the tree — which left the UI with no way to see it, so the save
+   * indicator used to be a 700ms timer started by any edit: it said "probably
+   * saved by now" rather than "saved". This is the ref's emptiness published
+   * as state, updated at the handful of places that touch it, so the dot goes
+   * out when the write actually lands and stays on if it does not.
+   */
+  const [pending, setPending] = useState(false);
+  const syncPending = useCallback(() => {
+    setPending(dirtyRef.current.size > 0 || flushingRef.current);
+  }, []);
 
   /* ---------- Opening the vault ---------- */
 
@@ -90,6 +106,7 @@ export function useVault() {
       }
       await api.rememberVault(target);
       dirtyRef.current.clear();
+      setPending(false);
       setConflicts({});
       setTree(data.tree);
       setDrafts(data.drafts);
@@ -121,9 +138,9 @@ export function useVault() {
 
   /* ---------- Writing to disk ---------- */
 
-  const flush = useCallback(async () => {
-    const target = dirRef.current;
-    if (!target) return;
+  /** The write itself. Split out only so `flush` can bracket it with the
+   *  in-flight flag without a `try` wrapped around forty lines */
+  const writeDirty = useCallback(async (target: string) => {
     for (const id of [...dirtyRef.current]) {
       const draft = draftsRef.current.find((d) => d.id === id);
       if (!draft) {
@@ -151,6 +168,19 @@ export function useVault() {
       }
     }
   }, []);
+
+  const flush = useCallback(async () => {
+    const target = dirRef.current;
+    if (!target) return;
+    flushingRef.current = true;
+    syncPending();
+    try {
+      await writeDirty(target);
+    } finally {
+      flushingRef.current = false;
+      syncPending();
+    }
+  }, [writeDirty, syncPending]);
 
   const scheduleFlush = useCallback(() => {
     window.clearTimeout(saveTimer.current);
@@ -185,9 +215,10 @@ export function useVault() {
     (id: string, content: string) => {
       setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, content } : d)));
       dirtyRef.current.add(id);
+      syncPending();
       scheduleFlush();
     },
-    [scheduleFlush],
+    [scheduleFlush, syncPending],
   );
 
   /** Create one under `parent` (omit for the root) */
@@ -269,18 +300,20 @@ export function useVault() {
   /** Delete a file or folder (folders take their contents). Confirmation is the
    *  caller's job */
   const removeEntry = useCallback(
-    async (path: string) => {
+    async (path: string): Promise<boolean> => {
       const target = dirRef.current;
-      if (!target) return;
-      await api.deleteEntry(target, path);
+      if (!target) return false;
+      const trashed = await api.deleteEntry(target, path);
       const inside = (p: string) => p === path || p.startsWith(`${path}/`);
       dirtyRef.current = new Set([...dirtyRef.current].filter((p) => !inside(p)));
+      syncPending();
       setDrafts((prev) => prev.filter((d) => !inside(d.id)));
       setImages((prev) => Object.fromEntries(Object.entries(prev).filter(([p]) => !inside(p))));
       setConflicts((prev) => Object.fromEntries(Object.entries(prev).filter(([p]) => !inside(p))));
       await refreshTree();
+      return trashed;
     },
-    [refreshTree],
+    [refreshTree, syncPending],
   );
 
   const revealEntry = useCallback(async (path: string) => {
@@ -350,6 +383,7 @@ export function useVault() {
         if (!onDisk.has(draft.id)) {
           // Gone from the tree = deleted, or moved outside the workspace
           dirtyRef.current.delete(draft.id);
+          setPending(dirtyRef.current.size > 0);
           setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
           setConflicts((prev) => {
             const rest = { ...prev };
@@ -462,6 +496,7 @@ export function useVault() {
       const c = prev[id];
       if (c) {
         dirtyRef.current.delete(id);
+        setPending(dirtyRef.current.size > 0);
         setDrafts((ds) =>
           ds.map((d) =>
             d.id === id ? { ...d, content: c.diskContent, updatedAt: c.diskUpdatedAt } : d,
@@ -483,6 +518,7 @@ export function useVault() {
         if (c) {
           setDrafts((ds) => ds.map((d) => (d.id === id ? { ...d, updatedAt: c.diskUpdatedAt } : d)));
           dirtyRef.current.add(id);
+          syncPending();
           scheduleFlush();
         }
         const next = { ...prev };
@@ -490,7 +526,7 @@ export function useVault() {
         return next;
       });
     },
-    [scheduleFlush],
+    [scheduleFlush, syncPending],
   );
 
   return {
@@ -502,6 +538,8 @@ export function useVault() {
     images,
     prefs,
     conflicts,
+    /** Something is waiting to be written, or is being written right now */
+    pending,
     chooseVault,
     setDraftContent,
     newDraft,

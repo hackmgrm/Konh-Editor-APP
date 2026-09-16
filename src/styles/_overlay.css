@@ -1,0 +1,215 @@
+/* ============================================================
+   11 · Floating layers: tooltip, command palette
+   ------------------------------------------------------------
+   Both live in a portal on <body>. The four panels are frosted `.surface`
+   elements, and a backdrop-filter makes an element the containing block for
+   its fixed descendants — anything positioned against the window has to be
+   outside them or it gets clipped to a pane.
+   ============================================================ */
+
+/* ---------------- Tooltip ----------------
+   Same dark capsule as a toast, one size down. It is a label for a glyph, so
+   it stays on one line and never grows into a paragraph. */
+
+.tooltip {
+  position: fixed;
+  z-index: 300;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 260px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  background: #2b2723;
+  color: #f6f1e8;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-3);
+  pointer-events: none;
+  animation: tip-in var(--t-fast) var(--ease);
+}
+
+:root[data-appearance='dark'] .tooltip {
+  background: #322d28;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tooltip-text {
+  min-width: 0;
+}
+
+/* The shortcut, trailing and dimmed: present for the day you go looking for
+   it, quiet enough to be ignored every other day */
+.tooltip-key {
+  flex: none;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0;
+  color: rgba(246, 241, 232, 0.55);
+}
+
+/* Each side rises from the edge it is attached to, so the capsule reads as
+   belonging to the button rather than appearing next to it */
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tip-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.tooltip[data-state='exit'] {
+  animation: tip-out 140ms var(--ease-in-out) forwards;
+}
+
+/* ---------------- Command palette ----------------
+   ⌘K. Drops from 18% down the window rather than sitting in the middle: you
+   read it top-down, and the list below it wants the room. */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 18vh 24px 24px;
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: scrim-in var(--t-base) var(--ease);
+}
+
+.palette-backdrop[data-state='exit'] {
+  animation: scrim-out 140ms var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+
+.palette {
+  width: min(520px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  transform-origin: top center;
+}
+
+.palette[data-state='exit'] {
+  animation: pop-out 140ms var(--ease-in-out) forwards;
+}
+
+.palette-input {
+  flex: none;
+  width: 100%;
+  height: 46px;
+  padding: 0 16px;
+  border: none;
+  border-bottom: 1px solid var(--line-hair);
+  background: transparent;
+  color: var(--text-1);
+  font-size: 14px;
+  outline: none;
+}
+
+.palette-input::placeholder {
+  color: var(--text-3);
+}
+
+.palette-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.palette-section {
+  padding: 9px 10px 4px;
+}
+
+.palette-empty {
+  padding: 22px 12px 26px;
+  text-align: center;
+  font-size: var(--fs-md);
+  color: var(--text-3);
+}
+
+/* One row. `.menu-item` carries the shape; this adds the two-column body a
+   draft needs — its name, and the folder it lives in. */
+.palette-row {
+  gap: 10px;
+}
+
+.palette-row[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+.palette-row[aria-selected='true'] .palette-path {
+  color: var(--accent-hi);
+  opacity: 0.7;
+}
+
+.palette-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-path {
+  margin-left: auto;
+  padding-left: 14px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.palette-key {
+  flex: none;
+  margin-left: auto;
+  padding-left: 14px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* A row carrying both a path and a shortcut would fight over the right edge;
+   only one of them is ever present, so the second just follows the first */
+.palette-path + .palette-key {
+  margin-left: 0;
+  padding-left: 10px;
+}
+
+.palette-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line-hair);
+  background: var(--sunken);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.palette-foot kbd {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

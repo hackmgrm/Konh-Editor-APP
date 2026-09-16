@@ -1,7 +1,9 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { Check, Sparkle, Trash } from '@phosphor-icons/react';
-import { DENSITIES, darkThemes, lightThemes, type Theme } from '../theme';
+import { useLayoutEffect, useRef } from 'react';
+import { Check, Eyedropper, PencilSimple, SlidersHorizontal, Sparkle, Trash } from '@phosphor-icons/react';
+import { DENSITIES, darkThemes, lightThemes, punkThemes, type Theme } from '../theme';
+import { sampleHtmlFor } from '../themeSample';
 import type { Appearance } from '../store/appearance';
+import Tooltip from './Tooltip';
 
 interface Props {
   themeId: string;
@@ -11,6 +13,11 @@ interface Props {
   onDeleteTheme: (id: string) => void;
   /** Hand the agent panel a half-written request for a new theme */
   onAskAgent: () => void;
+  /** Open the theme studio — on one of your own themes, or (no id) starting
+   *  from whichever theme is in use */
+  onOpenStudio: (id?: string) => void;
+  /** Read a theme off a published article (see themeSniff.ts) */
+  onSniffTheme: () => void;
   /** Density preset id (see DENSITIES in theme.ts) */
   densityId: string;
   onDensityChange: (id: string) => void;
@@ -21,6 +28,78 @@ interface Props {
   /** Light/dark of the app shell itself — not part of the draft */
   appearance: Appearance;
   onAppearance: (a: Appearance) => void;
+  /** Enter / exit, from the toolbar's presence hook — see usePresence.ts */
+  state: 'enter' | 'exit';
+}
+
+/**
+ * ←→ inside a radiogroup.
+ *
+ * A group of radios is one tab stop by convention, with the arrows moving
+ * between them — which the segmented controls here look exactly like and did
+ * not behave like. Returns the id to move to, or null if the key was not an
+ * arrow.
+ */
+function arrowPick<T extends { id: string }>(
+  e: React.KeyboardEvent,
+  options: readonly T[],
+  current: number,
+): T | null {
+  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+  if (!step) return null;
+  e.preventDefault();
+  return options[(current + step + options.length) % options.length];
+}
+
+/**
+ * Fit the miniature to the card it is printed on.
+ *
+ * Each thumb lays its article out at `--thumb-page` (a real article width) and
+ * then scales it down, so the only scale that shows the whole page and no more
+ * is `cardInnerWidth / pageWidth`. That number cannot be written in CSS —
+ * `calc()` will not divide two lengths into the unitless value `scale()` takes
+ * — and every hard-coded guess was wrong: the popover's own scrollbar eats
+ * 10px of the grid, which at four across is ~2.5px per card, which is exactly
+ * how much of every sample was running off the right edge.
+ *
+ * So measure. One observer on the list, watching the first thumb: the four
+ * grids share a width, so one card's width is every card's width.
+ *
+ * Returns the ref to hang on the element that owns `--thumb-scale`.
+ */
+function useThumbScale() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const list = ref.current;
+    if (!list) return;
+    const thumb = list.querySelector<HTMLElement>('.theme-thumb');
+    if (!thumb) return;
+
+    // The page width lives in CSS, so it stays in one place
+    const page = parseFloat(getComputedStyle(list).getPropertyValue('--thumb-page')) || 360;
+
+    const fit = (w: number) => {
+      if (w > 0) list.style.setProperty('--thumb-scale', String(w / page));
+    };
+
+    // Before the first paint. `offsetWidth` rather than getBoundingClientRect:
+    // the popover opens on a `scale(.96)` pop-in, and a rect read mid-animation
+    // is the animated rect — which would bake the first frame of the animation
+    // into the scale and leave every card 4% short for the rest of its life.
+    fit(thumb.offsetWidth);
+
+    const ro = new ResizeObserver(([entry]) => {
+      // ResizeObserver reports layout sizes, unrounded and untouched by the
+      // pop-in transform, so this corrects the rounding in offsetWidth too.
+      const box = entry.borderBoxSize?.[0];
+      fit(box ? box.inlineSize : (entry.target as HTMLElement).offsetWidth);
+    });
+    ro.observe(thumb);
+    return () => ro.disconnect();
+  }, []);
+
+  return ref;
 }
 
 const APPEARANCES: { id: Appearance; name: string }[] = [
@@ -32,10 +111,11 @@ const APPEARANCES: { id: Appearance; name: string }[] = [
 /**
  * Everything about how things look, in one popover.
  *
- * Each theme card is a miniature sheet of paper drawn with that theme's own
- * tokens — its paper color, its heading face, its accent rule, two body
- * lines. That beats a list of names: you can see what separates the themes
- * without having to switch to each one.
+ * Each theme card is a real article rendered with that theme and scaled down
+ * (see themeSample.ts) — its paper, its heading decoration, its quote, its
+ * list, at its own leading. That beats a list of names, and it beats the
+ * hand-drawn swatch it replaces: a swatch could only show the things that are
+ * easy to draw, which were never the things that separate two themes.
  *
  * Light and dark are grouped separately. Dark cards carry a lot of visual
  * weight and mixed into the light ones they read as errors.
@@ -50,70 +130,24 @@ const APPEARANCES: { id: Appearance; name: string }[] = [
  * out, pressing anywhere in the panel that is not itself a control would drag
  * the window instead of doing nothing.
  */
-/**
- * The heading of the sample sheet, drawn the way this theme draws a heading.
- *
- * The card used to show the same "Aa" in every theme, with only the colours
- * changing — which was an honest picture back when only colours changed. Now
- * that a theme picks how a heading is marked out, the card has to say which one
- * it picked, or the twelve cards still read as twelve colours.
- */
-function headingSample(th: Theme): { style: CSSProperties; prefix: ReactNode; center: boolean } {
-  const style: CSSProperties = { fontFamily: th.heading.font, color: th.heading.color };
-  let prefix: ReactNode = null;
-  const decor = th.heading.decor ?? 'none';
-  const center = decor === 'center-rule' || th.heading.align === 'center';
-  switch (decor) {
-    case 'band':
-      style.background = th.accentSoft ?? th.accent;
-      style.padding = '1px 5px';
-      style.borderRadius = '4px';
-      break;
-    case 'underline':
-    case 'rule':
-    case 'center-rule':
-      style.borderBottom = `2px solid ${th.accent}`;
-      style.paddingBottom = '2px';
-      break;
-    case 'accent-bar':
-      style.borderTop = `2px solid ${th.accent}`;
-      style.paddingTop = '3px';
-      break;
-    case 'left-bar':
-      style.borderLeft = `3px solid ${th.accent}`;
-      style.paddingLeft = '5px';
-      break;
-    case 'boxed':
-      style.border = `1.5px solid ${th.accent}`;
-      style.padding = '0 5px';
-      style.borderRadius = '3px';
-      break;
-    case 'numbered':
-      prefix = <span style={{ color: th.accent }}>01</span>;
-      break;
-    case 'marker':
-      prefix = <span style={{ color: th.accent }}>{th.heading.markerGlyph ?? '▍'}</span>;
-      break;
-  }
-  return { style, prefix, center };
-}
-
 export default function TypesetPopover({
   themeId,
   onThemeChange,
   customThemes,
   onDeleteTheme,
   onAskAgent,
+  onOpenStudio,
+  onSniffTheme,
   densityId,
   onDensityChange,
   linkFootnotes,
   onLinkFootnotes,
   appearance,
   onAppearance,
+  state,
 }: Props) {
   const renderCard = (th: Theme, mine = false) => {
     const active = th.id === themeId;
-    const sample = headingSample(th);
     return (
       <div key={th.id} className="theme-slot">
         <button
@@ -123,16 +157,19 @@ export default function TypesetPopover({
           title={`${th.name} — ${th.description}`}
           onClick={() => onThemeChange(th.id)}
         >
-          <span className="swatch" style={{ background: th.body.bg ?? '#ffffff' }}>
-            <span className={`swatch-head ${sample.center ? 'center' : ''}`}>
-              {sample.prefix}
-              <span className="swatch-aa" style={sample.style}>
-                Aa
-              </span>
-            </span>
-            <span className="swatch-bar" style={{ background: th.accent }} />
-            <span className="swatch-line" style={{ background: th.body.color }} />
-            <span className="swatch-line short" style={{ background: th.body.color }} />
+          {/* The paper, then a real article on it, scaled down. aria-hidden
+              because the name below and the button's own title already say
+              which theme this is — a screen reader reading the sample text
+              twenty times over is noise, not information. */}
+          <span
+            className="theme-thumb"
+            style={{ background: th.body.bg ?? '#ffffff' }}
+            aria-hidden="true"
+          >
+            <span
+              className="theme-thumb-page"
+              dangerouslySetInnerHTML={{ __html: sampleHtmlFor(th) }}
+            />
           </span>
           {active && (
             <span className="swatch-check" aria-hidden="true">
@@ -144,18 +181,32 @@ export default function TypesetPopover({
         {/* Only the agent's own themes can be thrown away; a preset is the
             floor the workspace falls back to */}
         {mine && (
-          <button
-            className="theme-drop"
-            title={`删掉「${th.name}」`}
-            aria-label={`删掉主题 ${th.name}`}
-            onClick={() => onDeleteTheme(th.id)}
-          >
-            <Trash size={10} weight="bold" />
-          </button>
+          <Tooltip content={`在主题工坊里改「${th.name}」`} side="top">
+            <button
+              className="theme-edit"
+              aria-label={`编辑主题 ${th.name}`}
+              onClick={() => onOpenStudio(th.id)}
+            >
+              <PencilSimple size={10} weight="bold" />
+            </button>
+          </Tooltip>
+        )}
+        {mine && (
+          <Tooltip content={`删掉「${th.name}」`} side="top">
+            <button
+              className="theme-drop"
+              aria-label={`删掉主题 ${th.name}`}
+              onClick={() => onDeleteTheme(th.id)}
+            >
+              <Trash size={10} weight="bold" />
+            </button>
+          </Tooltip>
         )}
       </div>
     );
   };
+
+  const listRef = useThumbScale();
 
   const densityIndex = Math.max(0, DENSITIES.findIndex((d) => d.id === densityId));
   const appearanceIndex = Math.max(0, APPEARANCES.findIndex((a) => a.id === appearance));
@@ -163,17 +214,53 @@ export default function TypesetPopover({
   return (
     <div
       className="popover typeset-pop scroll-thin"
+      data-state={state}
       role="dialog"
       aria-label="排版与外观"
       data-tauri-drag-region="false"
     >
       <section className="typeset-group">
         <span className="eyebrow">文章主题</span>
-        <div role="radiogroup" aria-label="文章主题">
+        {/* The presets are a floor, not a ceiling: past them is a theme you tune
+            yourself, one read off an article you liked, or a JSON file the
+            agent writes — all three the same file on disk. They sit above the
+            grid because they are the answer to "none of these is it", which is
+            a thing you know before you have scrolled the whole list */}
+        {/* One row of three, not three stacked cards. Each used to take two
+            lines — icon, title, and a sentence of description — which is 96px
+            of explanation above a grid of twelve themes, and pushed the grid
+            itself below the fold of the popover. The sentence moves into the
+            tooltip, where it is still one hover away on the day it is needed. */}
+        <div className="theme-ways">
+          <Tooltip content="从当前主题出发，每个元素的颜色、字号、间距、装饰都能改" side="bottom">
+            <button className="theme-ask" onClick={() => onOpenStudio()}>
+              <SlidersHorizontal size={13} weight="bold" />
+              <span>自己调</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="粘一篇排版好看的公众号文章，把它的排版扒成主题" side="bottom">
+            <button className="theme-ask" onClick={onSniffTheme}>
+              <Eyedropper size={13} weight="bold" />
+              <span>从链接扒</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="说清你想要的气质，它写成主题文件，预览立刻就变" side="bottom">
+            <button className="theme-ask" onClick={onAskAgent}>
+              <Sparkle size={13} weight="fill" />
+              <span>让 Agent 做</span>
+            </button>
+          </Tooltip>
+        </div>
+        <div className="theme-list" role="radiogroup" aria-label="文章主题" ref={listRef}>
           <div className="typeset-sub">浅色</div>
           <div className="theme-grid">{lightThemes.map((th) => renderCard(th))}</div>
           <div className="typeset-sub">深色</div>
           <div className="theme-grid">{darkThemes.map((th) => renderCard(th))}</div>
+          {/* Its own section rather than a corner of 浅色: the four differ from
+              each other by palette, which is not the axis the rest of the list
+              is sorted on */}
+          <div className="typeset-sub">Punk</div>
+          <div className="theme-grid">{punkThemes.map((th) => renderCard(th))}</div>
           {customThemes.length > 0 && (
             <>
               <div className="typeset-sub">我的</div>
@@ -181,15 +268,6 @@ export default function TypesetPopover({
             </>
           )}
         </div>
-        {/* The twelve presets are a floor, not a ceiling: anything past them is
-            a JSON file the agent writes while you watch the preview change */}
-        <button className="theme-ask" onClick={onAskAgent}>
-          <Sparkle size={13} weight="fill" />
-          <span>
-            让 Agent 做一个
-            <span className="theme-ask-sub">说清你想要的气质，它写成主题文件，预览立刻就变</span>
-          </span>
-        </button>
       </section>
 
       {/* Density scales font size / leading / spacing together within one
@@ -207,7 +285,12 @@ export default function TypesetPopover({
               key={d.id}
               role="radio"
               aria-checked={densityId === d.id}
+              tabIndex={densityId === d.id ? 0 : -1}
               className={`seg-btn ${densityId === d.id ? 'active' : ''}`}
+              onKeyDown={(e) => {
+                const next = arrowPick(e, DENSITIES, densityIndex);
+                if (next) onDensityChange(next.id);
+              }}
               onClick={() => onDensityChange(d.id)}
             >
               {d.name}
@@ -248,7 +331,12 @@ export default function TypesetPopover({
               key={a.id}
               role="radio"
               aria-checked={appearance === a.id}
+              tabIndex={appearance === a.id ? 0 : -1}
               className={`seg-btn ${appearance === a.id ? 'active' : ''}`}
+              onKeyDown={(e) => {
+                const next = arrowPick(e, APPEARANCES, appearanceIndex);
+                if (next) onAppearance(next.id);
+              }}
               onClick={() => onAppearance(a.id)}
             >
               {a.name}

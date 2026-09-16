@@ -25,9 +25,9 @@
   display: flex;
   justify-content: center;
   align-items: stretch;
-  /* A pool of light behind the device, so it reads as standing on a surface */
-  background:
-    radial-gradient(560px 320px at 50% 14%, var(--accent-softer), transparent 70%);
+  /* No fill of its own: the stage is the sheet. A pool of light used to sit
+     behind the device, and with the pane's hairlines gone it read as a
+     second, warmer rectangle inside the preview rather than as light. */
 }
 
 /* ---------------- iPhone frame ----------------
@@ -49,6 +49,27 @@
     inset 0 0 0 3px rgba(0, 0, 0, 0.55);
 }
 
+/* ---------------- The device in the dark ----------------
+   The frame's deepest band is #1d1a17 and the canvas behind it is #141311:
+   nine values apart. In dark mode the phone simply dissolved into the
+   background from the middle down — the screen floated, and nothing said
+   where the body ended. Two additions, both of them how an object actually
+   separates from a dark room: a rim of reflected light along the whole edge,
+   and a shadow deep enough to be seen against a near-black surface.
+
+   The rim is a fourth box-shadow rather than a border: a border would eat
+   into the 11px bezel, and the screen's own radius is measured off it. */
+:root[data-appearance='dark'] .phone-frame {
+  box-shadow:
+    0 0 0 1px rgba(255, 248, 238, 0.16),
+    0 2px 0 0 rgba(255, 248, 238, 0.05),
+    0 30px 80px -20px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.62);
+}
+
+/* And the pool it stands in comes up a stop, so the device has something to
+   stand *on*. accent-softer at 8% over a #141311 canvas is invisible. */
 /* Side buttons: action + volume on the left, power on the right */
 .phone-frame .side-btn {
   position: absolute;

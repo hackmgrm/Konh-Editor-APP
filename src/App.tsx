@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import EditorPane from './components/EditorPane';
 import FileTree from './components/FileTree';
-import PreviewPane from './components/PreviewPane';
+import PreviewPane, { DEVICES, readDevice, writeDevice, type PreviewDevice } from './components/PreviewPane';
 import TypesetPopover from './components/TypesetPopover';
 import Toolbar from './components/Toolbar';
 import DraftBoxDialog from './components/DraftBoxDialog';
@@ -11,7 +11,13 @@ import SettingsDialog from './components/SettingsDialog';
 import UpdateDialog from './components/UpdateDialog';
 import ConflictBar from './components/ConflictBar';
 import AgentPanel from './components/AgentPanel';
+import ThemeStudio from './components/ThemeStudio';
+import SniffThemeDialog from './components/SniffThemeDialog';
 import VaultGate from './components/VaultGate';
+import CommandPalette, { type PaletteItem } from './components/CommandPalette';
+import { Toaster, toast } from './toast';
+import { SHORTCUTS, useShortcuts } from './shortcuts';
+import { usePresence } from './usePresence';
 import {
   collectImageRefs,
   ensureHighlighter,
@@ -21,16 +27,19 @@ import {
   renderArticle,
 } from './markdown';
 import { copyRichText } from './clipboard';
-import { confirmDestructive } from './confirm';
+import { ConfirmHost, confirmDestructive } from './confirm';
 import { inlineRemoteImages } from './remoteImages';
 import { importArticle } from './reader';
 import { safeFileName, saveBlob } from './exchange';
 import { renderLongImage } from './longimage';
-import { DENSITIES, getDensity, getTheme } from './theme';
+import { DENSITIES, getDensity, getTheme, themes as presetThemes, type Theme } from './theme';
+import type { SectionId } from './themeFields';
 import { createScrollSyncChannel } from './scrollSync';
 import { useVault } from './store/useVault';
 import { useAppearance } from './store/appearance';
-import { deleteCustomTheme, ensureThemeGuide, useCustomThemes } from './store/customThemes';
+import { deleteCustomTheme, ensureThemeGuide, saveCustomTheme, useCustomThemes } from './store/customThemes';
+import { sniffThemeFromUrl } from './themeSniff';
+import { fetch as httpFetch } from '@tauri-apps/plugin-http';
 import { chord } from './platform';
 import { useUpdate } from './store/updater';
 import type { DraftTarget } from './publish';
@@ -118,18 +127,34 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /**
    * The "not on disk yet" indicator.
    *
-   * useVault's dirty set is a ref (neither scrolling nor typing should re-render
-   * the whole tree), so its changes are invisible from here. Instead this debounces
-   * on the body itself: light up on any edit, and 700ms after the last keystroke
-   * assume the 300ms debounced save has long since finished, and go out. The
-   * toolbar and the source pane share this one value.
+   * It reports `vault.pending` — the real thing: the dirty set is non-empty, or
+   * a write is out over IPC. It used to be a 700ms timer restarted by every
+   * keystroke, which meant the dot said "probably fine" and went out on
+   * schedule whether or not the file had been written, including when the write
+   * had failed.
+   *
+   * The one embellishment is a floor on how briefly it can appear. A small
+   * edit is saved within a frame or two of the debounce firing, and a dot that
+   * blinks for 40ms is worse than no dot: it registers as a flicker, and the
+   * eye goes to it without being able to read it. 300ms is about the shortest
+   * a state change can be shown and still be seen as a state.
    */
   const [saving, setSaving] = useState(false);
+  const savingSinceRef = useRef(0);
   useEffect(() => {
-    setSaving(true);
-    const timer = window.setTimeout(() => setSaving(false), 700);
+    if (vault.pending) {
+      savingSinceRef.current = performance.now();
+      setSaving(true);
+      return;
+    }
+    const left = 300 - (performance.now() - savingSinceRef.current);
+    if (left <= 0) {
+      setSaving(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSaving(false), left);
     return () => window.clearTimeout(timer);
-  }, [markdown]);
+  }, [vault.pending]);
 
   /** A copy is running (remote images have to be fetched first) */
   const [copying, setCopying] = useState(false);
@@ -155,7 +180,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
 
-  /** The toolbar pill is the whole announcement — see store/updater.ts */
+  /** The toolbar pill is the standing reminder — see store/updater.ts */
   const update = useUpdate();
   const hasUpdate =
     update.phase === 'available' || update.phase === 'downloading' || update.phase === 'ready';
@@ -166,11 +191,26 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /** A request composed for the agent elsewhere in the app, waiting to be
    *  finished by hand in the composer */
   const [agentSeed, setAgentSeed] = useState<{ text: string; at: number } | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   /** An export is running (long images and backup archives both take a while) */
   const [exporting, setExporting] = useState(false);
   /** Side-by-side / preview-only */
   const [viewMode, setViewMode] = useState<'split' | 'preview'>('split');
+  /**
+   * Overlay state that more than one control can reach.
+   *
+   * All three used to live inside the component that drew them, which was fine
+   * until a keyboard shortcut and the command palette also needed to open them
+   * — a piece of state with three owners has none.
+   */
+  const [typesetOpen, setTypesetOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [device, setDeviceState] = useState<PreviewDevice>(readDevice);
+  const setDevice = (next: PreviewDevice) => {
+    writeDevice(next);
+    setDeviceState(next);
+  };
+  /** The command palette: null closed, otherwise which list it is showing */
+  const [palette, setPalette] = useState<'all' | 'drafts' | null>(null);
   /** Editor width as a percentage; defaults to the preview's minimum */
   const [editorPct, setEditorPct] = useState<number>(() => {
     const w = window.innerWidth;
@@ -208,12 +248,31 @@ function Workspace({ vault }: { vault: VaultApi }) {
    *  null while the first read is still out */
   const loadedThemes = useCustomThemes();
   const customThemes = useMemo(() => loadedThemes ?? [], [loadedThemes]);
+  /**
+   * The theme studio (see components/ThemeStudio.tsx). `from` is where it
+   * started and `at` is its identity — a new value remounts it fresh.
+   * While it is open the preview draws with its draft rather than the
+   * chosen theme, which is the entire point of it sitting beside the preview.
+   */
+  const [studio, setStudio] = useState<{ from: Theme; at: number } | null>(null);
+  const [studioDraft, setStudioDraft] = useState<Theme | null>(null);
+  const [studioPick, setStudioPick] = useState<{ section: SectionId; at: number } | null>(null);
+  /** The theme the studio last saved, held until the watcher reads the file
+   *  back — without it the preview would flash to classic in between */
+  const [savedTheme, setSavedTheme] = useState<Theme | null>(null);
+  /** Dragging a slider re-renders the whole article; let that yield to the
+   *  drag the same way it yields to typing */
+  const liveDraft = useDeferredValue(studioDraft);
+
   /** A custom theme wins over a preset of the same name only because ids can
    *  never collide (see parseTheme); a deleted one falls back to classic */
-  const theme = useMemo(
-    () => customThemes.find((t) => t.id === themeId) ?? getTheme(themeId),
-    [themeId, customThemes],
+  const chosenTheme = useMemo(
+    () =>
+      customThemes.find((t) => t.id === themeId) ??
+      (savedTheme?.id === themeId ? savedTheme : getTheme(themeId)),
+    [themeId, customThemes, savedTheme],
   );
+  const theme = studio && liveDraft ? liveDraft : chosenTheme;
   const density = useMemo(() => getDensity(densityId), [densityId]);
   const densityName = useMemo(
     () => DENSITIES.find((d) => d.id === densityId)?.name ?? '标准',
@@ -245,18 +304,9 @@ function Workspace({ vault }: { vault: VaultApi }) {
     };
   }, [hlReady]);
 
-  const statusTimer = useRef<number | null>(null);
-  const flash = (msg: string) => {
-    setStatus(msg);
-    if (statusTimer.current) window.clearTimeout(statusTimer.current);
-    statusTimer.current = window.setTimeout(() => setStatus(null), 2200);
-  };
-  useEffect(
-    () => () => {
-      if (statusTimer.current) window.clearTimeout(statusTimer.current);
-    },
-    [],
-  );
+  /** Say something, briefly. The queue and the animation live in toast.tsx;
+   *  this name stays because two dozen call sites use it */
+  const flash = (msg: string) => toast(msg);
 
   /* ---------- Themes the agent makes ---------- */
 
@@ -317,6 +367,55 @@ function Workspace({ vault }: { vault: VaultApi }) {
     })();
   };
 
+  /**
+   * Open the studio on one of your own themes, or on the theme in use.
+   *
+   * A second open while one is already going would remount it and silently
+   * drop whatever was not saved, so that is refused instead. The agent panel
+   * steps aside: both are 340px columns, and the preview between them is
+   * what the studio is for.
+   */
+  const openStudio = (id?: string) => {
+    if (studio) {
+      flash('主题工坊已经开着');
+      return;
+    }
+    const from = (id && customThemes.find((t) => t.id === id)) || chosenTheme;
+    setStudioDraft(null);
+    setStudioPick(null);
+    setStudio({ from, at: Date.now() });
+    setAgentOpen(false);
+  };
+
+  /** The "paste a link" dialog for sniffing a theme off an article */
+  const [sniffOpen, setSniffOpen] = useState(false);
+
+  /**
+   * Read a published article's typesetting into a theme of your own, and open
+   * it in the studio — where it belongs, because a sniffed theme is a first
+   * draft by definition (see themeSniff.ts).
+   */
+  const runSniff = async (url: string, onProgress: (msg: string) => void): Promise<string[]> => {
+    if (studio) throw new Error('主题工坊开着，先存好或关掉它，再扒一个新的。');
+    onProgress('正在打开文章…');
+    const { theme, notes } = await sniffThemeFromUrl(url, (target, init) => httpFetch(target, init));
+    onProgress('正在存主题…');
+    const saved = await saveCustomTheme({ ...theme, id: `sniff-${Date.now().toString(36)}` });
+    setSavedTheme(saved);
+    vault.setPrefs({ themeId: saved.id });
+    setStudioDraft(null);
+    setStudioPick(null);
+    setStudio({ from: saved, at: Date.now() });
+    setAgentOpen(false);
+    return notes;
+  };
+
+  const closeStudio = () => {
+    setStudio(null);
+    setStudioDraft(null);
+    setStudioPick(null);
+  };
+
   /** Throw one away. If it was the one in use, the draft falls back to the
    *  default preset rather than silently keeping a theme that no longer exists */
   const dropTheme = (id: string) => {
@@ -362,10 +461,12 @@ function Workspace({ vault }: { vault: VaultApi }) {
     url: string,
     parent: string,
     withImages: boolean,
+    withTheme: boolean,
     onProgress: (msg: string) => void,
   ) => {
     const result = await importArticle(url, {
       withImages,
+      withTheme,
       addImage: vault.addImage,
       // The file names already in images/ — one import must not overwrite
       // pictures another one put there
@@ -376,7 +477,22 @@ function Workspace({ vault }: { vault: VaultApi }) {
     if (created) setActiveDraft(created.id);
     const note = result.saved ? `，存了 ${result.saved} 张图` : '';
     const missed = result.missed ? `（${result.missed} 张没抓到，正文里还是外链）` : '';
-    flash(`已导入「${created?.name ?? result.title}」${note}${missed}`);
+    // The theme is a second, independent outcome: it applies at once, and a
+    // failure to read one never touches the draft that did arrive
+    let styling = '';
+    if (result.theme) {
+      try {
+        const saved = await saveCustomTheme({ ...result.theme, id: `sniff-${Date.now().toString(36)}` });
+        setSavedTheme(saved);
+        vault.setPrefs({ themeId: saved.id });
+        styling = `，排版也扒成了主题「${saved.name}」`;
+      } catch (err) {
+        styling = `，主题存不下来：${err instanceof Error ? err.message : String(err)}`;
+      }
+    } else if (result.themeError) {
+      styling = `，但排版没扒到：${result.themeError}`;
+    }
+    flash(`已导入「${created?.name ?? result.title}」${note}${missed}${styling}`);
   };
 
   /** New folder */
@@ -427,23 +543,34 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /**
    * Delete a file or a folder.
    *
-   * This deletes a real file with no trash to recover it from, so every case
-   * asks first. Folders and still-referenced images each need their own
-   * wording — a vague confirmation is worse than none.
+   * It goes to the system trash now (see entry_delete in vault.rs), which is
+   * what makes the question a question about tidiness rather than about loss.
+   * It is still asked: a folder takes its contents, and an image the body
+   * still references leaves a placeholder behind — a vague confirmation is
+   * worse than none.
+   *
+   * A text draft also gets 撤销 on the toast, because the content is in memory
+   * at the moment it is deleted and putting it back is exact. Everything else
+   * is told where it went instead: the trash is a real undo for those, one
+   * window away, and offering a button that only half works would be worse
+   * than saying plainly what happened.
    */
   const handleDelete = (path: string) => {
     const name = baseName(path);
-    const isDir = !!findEntry(tree, path)?.isDir;
+    const entry = findEntry(tree, path);
+    const isDir = !!entry?.isDir;
     const stillUsed = images[path] && (usedImageRefs.has(name) || usedImageRefs.has(path));
+    /** Held before the delete: after it, the draft is gone from state */
+    const deleted = drafts.find((d) => d.id === path);
     const question = isDir
-      ? `删除文件夹「${name}」？里面的东西会一起删掉。`
+      ? `删除文件夹「${name}」？里面的东西会一起挪进废纸篓。`
       : stillUsed
         ? `「${name}」还被正文引用，删除后那里会变成占位提示。仍要删除？`
-        : `删除「${name}」？文件会从工作区里删掉。`;
+        : `删除「${name}」？文件会挪进系统废纸篓。`;
     void (async () => {
       if (!(await confirmDestructive(question))) return;
       try {
-        await vault.removeEntry(path);
+        const trashed = await vault.removeEntry(path);
         // The deleted item was the open draft (or the directory holding it):
         // the selection has to land on a file that really exists
         if (activeId === path || activeId.startsWith(`${path}/`)) {
@@ -451,7 +578,33 @@ function Workspace({ vault }: { vault: VaultApi }) {
           const next = remaining.length ? remaining[0] : await vault.newDraft('未命名草稿');
           if (next) setActiveDraft(next.id);
         }
-        flash(`已删除「${name}」`);
+        const where = trashed ? '已挪进废纸篓' : '已删除';
+        if (!deleted) {
+          toast(`${where}「${name}」`);
+          return;
+        }
+        toast(`${where}「${name}」`, {
+          action: {
+            label: '撤销',
+            onClick: () => {
+              void (async () => {
+                try {
+                  const back = await vault.newDraft(
+                    name.replace(/\.[^.]+$/, ''),
+                    deleted.content,
+                    path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '',
+                  );
+                  if (back) {
+                    setActiveDraft(back.id);
+                    toast(`「${back.name}」回来了`);
+                  }
+                } catch (err) {
+                  flash(err instanceof Error ? err.message : '撤销失败');
+                }
+              })();
+            },
+          },
+        });
       } catch (err) {
         flash(err instanceof Error ? err.message : '删除失败');
       }
@@ -517,11 +670,11 @@ function Workspace({ vault }: { vault: VaultApi }) {
       return;
     }
     void (async () => {
-      const question = `删除 ${unused.length} 张未被任何草稿引用的图片？`;
+      const question = `把 ${unused.length} 张未被任何草稿引用的图片挪进废纸篓？`;
       if (!(await confirmDestructive(question))) return;
       try {
         await Promise.all(unused.map((p) => vault.removeEntry(p)));
-        flash(`已清理 ${unused.length} 张未引用图片`);
+        flash(`已清理 ${unused.length} 张未引用图片，都在系统废纸篓里`);
       } catch {
         flash('部分图片删除失败');
       }
@@ -606,9 +759,34 @@ function Workspace({ vault }: { vault: VaultApi }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishOpen]);
 
-  /** Dragging the splitter: write the editor's DOM width directly so it tracks
-   *  the cursor, and fall back to state on mouseup */
-  const handleDrag = (clientX: number) => {
+  /**
+   * The two widths worth stopping on, as percentages of the split.
+   *
+   * Half and half is the obvious one. The other is the width at which the
+   * preview is exactly MIN_PREVIEW_PX — the narrowest a true phone measure
+   * fits into — which is the most useful position in the app and the one
+   * anybody dragging towards the right edge is actually aiming at. Landing on
+   * it by hand means hitting a single pixel.
+   */
+  const snapPoints = (railWidth: number) => [50, ((railWidth - MIN_PREVIEW_PX) / railWidth) * 100];
+  /** How near a snap point counts as aiming at it, in pixels of travel */
+  const SNAP_PX = 12;
+
+  /** The handle, for the snap pulse. `.split-bar` is written to directly for
+   *  the same reason the width is: no render belongs on a drag path */
+  const barRef = useRef<HTMLDivElement>(null);
+  /** Which snap point the handle is currently resting on, so the pulse fires
+   *  on arrival rather than on every frame spent inside the window */
+  const snappedRef = useRef<number | null>(null);
+
+  /**
+   * One frame of a drag: clamp, snap, write.
+   *
+   * Straight to the DOM, skipping React's render latency — a splitter that
+   * lags the cursor by a frame feels broken in a way that a slow anything else
+   * does not, because the pointer is right there to compare against.
+   */
+  const applyDrag = (clientX: number) => {
     const split = splitRef.current;
     const editor = editorRef.current;
     if (!split || !editor) return;
@@ -618,9 +796,35 @@ function Workspace({ vault }: { vault: VaultApi }) {
     // true phone measure available to the preview
     const minPct = (MIN_EDITOR_PX / rect.width) * 100;
     const maxPct = ((rect.width - MIN_PREVIEW_PX) / rect.width) * 100;
-    const clamped = Math.max(minPct, Math.min(maxPct, pct));
-    editor.style.width = `${clamped}%`; // Straight to the DOM, skipping React's render latency
+    let clamped = Math.max(minPct, Math.min(maxPct, pct));
+    const snapWindow = (SNAP_PX / rect.width) * 100;
+    const hit = snapPoints(rect.width).find((p) => Math.abs(clamped - p) <= snapWindow) ?? null;
+    if (hit !== null) clamped = Math.max(minPct, Math.min(maxPct, hit));
+    // A pulse on arrival, so the stop is felt rather than only obeyed. The
+    // class is taken off and re-added to restart the animation
+    if (hit !== snappedRef.current) {
+      snappedRef.current = hit;
+      const bar = barRef.current;
+      if (hit !== null && bar) {
+        bar.classList.remove('snapped');
+        void bar.offsetWidth;
+        bar.classList.add('snapped');
+      }
+    }
+    editor.style.width = `${clamped}%`;
     void editor.offsetHeight; // Force a reflow so the width transition is skipped
+  };
+
+  /** Latest pointer position, read once per frame */
+  const dragXRef = useRef(0);
+  const dragRafRef = useRef(0);
+  const scheduleDrag = (clientX: number) => {
+    dragXRef.current = clientX;
+    if (dragRafRef.current) return;
+    dragRafRef.current = requestAnimationFrame(() => {
+      dragRafRef.current = 0;
+      applyDrag(dragXRef.current);
+    });
   };
 
   /** Drag start/end: toggle the DOM class by hand (a ref triggers no render,
@@ -632,8 +836,13 @@ function Workspace({ vault }: { vault: VaultApi }) {
   };
 
   const endDrag = () => {
+    if (!draggingRef.current) return;
     draggingRef.current = false;
-    document.body.style.cursor = '';
+    snappedRef.current = null;
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = 0;
+    }
     document.body.style.userSelect = '';
     document.documentElement.classList.remove('split-dragging');
     setDraggingUi(false);
@@ -646,34 +855,39 @@ function Workspace({ vault }: { vault: VaultApi }) {
     }
   };
 
-  // Global drag listeners, mounted permanently; the callbacks check the flag
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (draggingRef.current) handleDrag(e.clientX);
-    };
-    const onUp = () => {
-      if (draggingRef.current) endDrag();
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, []);
-
-  /** Double-click the splitter to reset (to the preview's minimum width) */
-  const resetSplit = () => {
+  /** Put the editor at an exact percentage, without a transition (used by the
+   *  double-click reset and the arrow keys) */
+  const setSplitPct = (pct: number) => {
     const editor = editorRef.current;
     const split = splitRef.current;
     if (!editor || !split) return;
-    setDraggingUi(true);
     const rect = split.getBoundingClientRect();
-    const pct = Math.round(((rect.width - MIN_PREVIEW_PX) / rect.width) * 1000) / 10;
-    editor.style.width = `${pct}%`;
+    const minPct = (MIN_EDITOR_PX / rect.width) * 100;
+    const maxPct = ((rect.width - MIN_PREVIEW_PX) / rect.width) * 100;
+    const clamped = Math.round(Math.max(minPct, Math.min(maxPct, pct)) * 10) / 10;
+    setDraggingUi(true);
+    editor.style.width = `${clamped}%`;
     void editor.offsetHeight;
     setDraggingUi(false);
-    setEditorPct(pct);
+    setEditorPct(clamped);
+  };
+
+  /** Double-click the splitter to reset (to the preview's minimum width) */
+  const resetSplit = () => {
+    const split = splitRef.current;
+    if (!split) return;
+    const rect = split.getBoundingClientRect();
+    setSplitPct(((rect.width - MIN_PREVIEW_PX) / rect.width) * 100);
+  };
+
+  /** Arrow keys on the focused handle. 2% is a visible step without being a
+   *  jump — eight presses cross the useful range */
+  const nudgeSplit = (delta: number) => {
+    const editor = editorRef.current;
+    const split = splitRef.current;
+    if (!editor || !split) return;
+    const rect = split.getBoundingClientRect();
+    setSplitPct((editor.getBoundingClientRect().width / rect.width) * 100 + delta);
   };
 
   /**
@@ -684,13 +898,169 @@ function Workspace({ vault }: { vault: VaultApi }) {
 
   const isPreviewOnly = viewMode === 'preview';
 
+  /* ---------------- Keyboard, palette ---------------- */
+
+  /** A dialog or the palette owns the keyboard while it is up */
+  const overlayOpen =
+    publishOpen || draftBoxOpen || settingsOpen || updateOpen || importOpen || sniffOpen || !!palette;
+
+  const toggleAgent = () => {
+    setAgentOpen((v) => !v);
+    setAgentMounted(true);
+  };
+
+  useShortcuts(
+    {
+      viewMode: () => setViewMode((m) => (m === 'split' ? 'preview' : 'split')),
+      copy: () => void handleCopy(),
+      longImage: () => void handleExportImage(),
+      publish: () => setPublishOpen(true),
+      settings: () => setSettingsOpen(true),
+      agent: toggleAgent,
+      typeset: () => setTypesetOpen((v) => !v),
+      outline: () => setOutlineOpen((v) => !v),
+      palette: () => setPalette('all'),
+      quickOpen: () => setPalette('drafts'),
+      newDraft: () => handleNewDraft(''),
+    },
+    !overlayOpen,
+  );
+
+  /**
+   * What the palette can reach.
+   *
+   * Built in one place rather than assembled per section, because the ordering
+   * *is* the design: drafts first (the thing you are most often looking for),
+   * then the actions, then the three settings that are otherwise two clicks
+   * deep inside the typeset popover.
+   */
+  const draftItems = useMemo<PaletteItem[]>(
+    () =>
+      drafts.map((d) => ({
+        id: `draft:${d.id}`,
+        section: '草稿',
+        name: d.name,
+        path: d.id.includes('/') ? d.id.slice(0, d.id.lastIndexOf('/')) : undefined,
+        checked: d.id === activeId,
+        run: () => setActiveDraft(d.id),
+      })),
+    // setActiveDraft closes over vault.setPrefs, which is stable enough here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [drafts, activeId],
+  );
+
+  const paletteItems: PaletteItem[] =
+    palette === 'drafts'
+      ? draftItems
+      : [
+          ...draftItems,
+          {
+            id: 'act:new',
+            section: '动作',
+            name: SHORTCUTS.newDraft.label,
+            hint: SHORTCUTS.newDraft.hint,
+            run: () => handleNewDraft(''),
+          },
+          {
+            id: 'act:view',
+            section: '动作',
+            name: SHORTCUTS.viewMode.label,
+            hint: SHORTCUTS.viewMode.hint,
+            run: () => setViewMode((m) => (m === 'split' ? 'preview' : 'split')),
+          },
+          {
+            id: 'act:outline',
+            section: '动作',
+            name: SHORTCUTS.outline.label,
+            hint: SHORTCUTS.outline.hint,
+            run: () => setOutlineOpen((v) => !v),
+          },
+          {
+            id: 'act:copy',
+            section: '动作',
+            name: SHORTCUTS.copy.label,
+            hint: SHORTCUTS.copy.hint,
+            run: () => void handleCopy(),
+          },
+          {
+            id: 'act:long',
+            section: '动作',
+            name: SHORTCUTS.longImage.label,
+            hint: SHORTCUTS.longImage.hint,
+            run: () => void handleExportImage(),
+          },
+          {
+            id: 'act:publish',
+            section: '动作',
+            name: SHORTCUTS.publish.label,
+            hint: SHORTCUTS.publish.hint,
+            run: () => setPublishOpen(true),
+          },
+          { id: 'act:box', section: '动作', name: '草稿箱', run: () => setDraftBoxOpen(true) },
+          {
+            id: 'act:agent',
+            section: '动作',
+            name: SHORTCUTS.agent.label,
+            hint: SHORTCUTS.agent.hint,
+            run: toggleAgent,
+          },
+          { id: 'act:studio', section: '动作', name: '主题工坊', run: () => openStudio() },
+          { id: 'act:import', section: '动作', name: '从链接导入', run: () => {
+            setImportParent('');
+            setImportOpen(true);
+          } },
+          {
+            id: 'act:settings',
+            section: '动作',
+            name: SHORTCUTS.settings.label,
+            hint: SHORTCUTS.settings.hint,
+            run: () => setSettingsOpen(true),
+          },
+          ...[...presetThemes, ...customThemes].map((th) => ({
+            id: `theme:${th.id}`,
+            section: '主题',
+            name: th.name,
+            path: th.description,
+            checked: th.id === themeId,
+            run: () => vault.setPrefs({ themeId: th.id }),
+          })),
+          ...DENSITIES.map((d) => ({
+            id: `density:${d.id}`,
+            section: '密度',
+            name: d.name,
+            checked: d.id === densityId,
+            run: () => vault.setPrefs({ densityId: d.id }),
+          })),
+          ...DEVICES.map((d) => ({
+            id: `device:${d.id}`,
+            section: '机型',
+            name: d.name,
+            checked: d.id === device,
+            run: () => setDevice(d.id),
+          })),
+        ];
+
+  /* ---------------- Side panels ---------------- */
+
+  /**
+   * The studio has to outlive its own state by one animation.
+   *
+   * Everything it draws comes from `studio`, which is null the instant it is
+   * closed — so the last value is held here and rendered until the column has
+   * finished sliding shut. The key is unchanged, so nothing remounts.
+   */
+  const studioPresence = usePresence(!!studio, 340);
+  const lastStudio = useRef(studio);
+  if (studio) lastStudio.current = studio;
+  const shownStudio = studio ?? lastStudio.current;
+
   return (
     <div className="app">
       <Toolbar
         viewMode={viewMode}
         onViewMode={setViewMode}
-        status={status}
         docName={activeDraft?.name ?? ''}
+        docFolders={activeId.split('/').filter(Boolean).slice(0, -1)}
         saving={saving}
         onCopy={handleCopy}
         onExportImage={() => void handleExportImage()}
@@ -698,16 +1068,15 @@ function Workspace({ vault }: { vault: VaultApi }) {
         copying={copying}
         onPublish={() => setPublishOpen(true)}
         onOpenDraftBox={() => setDraftBoxOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
         hasUpdate={hasUpdate}
         onOpenUpdate={() => setUpdateOpen(true)}
         agentOpen={agentOpen}
-        onToggleAgent={() => {
-          setAgentOpen((v) => !v);
-          setAgentMounted(true);
-        }}
-        typeset={(close) => (
+        onToggleAgent={toggleAgent}
+        typesetOpen={typesetOpen}
+        onTypesetOpen={setTypesetOpen}
+        typeset={(close, state) => (
           <TypesetPopover
+            state={state}
             themeId={themeId}
             onThemeChange={(id) => vault.setPrefs({ themeId: id })}
             customThemes={customThemes}
@@ -715,6 +1084,14 @@ function Workspace({ vault }: { vault: VaultApi }) {
             onAskAgent={() => {
               close();
               askAgentForTheme();
+            }}
+            onOpenStudio={(id) => {
+              close();
+              openStudio(id);
+            }}
+            onSniffTheme={() => {
+              close();
+              setSniffOpen(true);
             }}
             densityId={densityId}
             onDensityChange={(id) => vault.setPrefs({ densityId: id })}
@@ -753,59 +1130,163 @@ function Workspace({ vault }: { vault: VaultApi }) {
           onDelete={handleDelete}
           onMove={handleMove}
           onCleanupImages={handleCleanupImages}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
-        <div className="split" ref={splitRef}>
-          <EditorPane
-            ref={editorRef}
-            value={markdown}
-            onChange={setMarkdown}
-            onAddImage={handleAddImage}
-            imageNames={imageNames}
-            draftId={activeId}
-            sync={scrollSync}
-            jumpRequest={jumpRequest}
-            collapsed={isPreviewOnly}
-            widthPct={editorPct}
-            saving={saving}
-          />
-          <div
-            className="split-bar"
-            title="拖动调整 · 双击复位"
-            onMouseDown={(e) => {
-              draggingRef.current = true;
-              document.body.style.cursor = 'col-resize';
-              document.body.style.userSelect = 'none';
-              document.documentElement.classList.add('split-dragging');
-              setDraggingUi(true);
-              handleDrag(e.clientX);
-            }}
-            onDoubleClick={resetSplit}
-          />
-          <PreviewPane
-            body={result.body}
-            theme={theme}
-            hasImage={result.hasImage}
-            densityName={densityName}
-            resizeKey={`${viewMode}:${editorPct}`}
-            sync={scrollSync}
-          />
+        {/*
+          The sheet. One frosted object holding the source, the preview and
+          whichever side column is open — instead of the three or four separate
+          cards this used to be, which spent the whole session telling you that
+          the window has parts.
+
+          `.split-main` is the resizable row inside it, and it is what the drag
+          measures against: the editor's width is a percentage of source +
+          preview, so opening the agent must not change what that percentage
+          means. Keeping the side slots as its siblings rather than its
+          children is what guarantees that.
+        */}
+        <div className="split">
+          <div className="split-main" ref={splitRef}>
+            <EditorPane
+              ref={editorRef}
+              value={markdown}
+              onChange={setMarkdown}
+              onAddImage={handleAddImage}
+              imageNames={imageNames}
+              draftId={activeId}
+              sync={scrollSync}
+              jumpRequest={jumpRequest}
+              collapsed={isPreviewOnly}
+              widthPct={editorPct}
+              outlineOpen={outlineOpen}
+              onOutlineOpen={setOutlineOpen}
+            />
+            {/*
+              Pointer Events with capture, rather than the old mousedown plus a
+              pair of document listeners: capture keeps every move going to this
+              element no matter what it passes over — an iframe, the CodeMirror
+              scroller, the window edge — which is the thing that used to lose
+              drags. It also makes the handle work under touch and pen for free.
+
+              A separator with a value is a real control: ←→ move it, and the
+              screen reader is told what it is rather than finding an unlabelled
+              div in the middle of the window.
+            */}
+            <div
+              ref={barRef}
+              className="split-bar"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整编辑器宽度"
+              aria-valuenow={Math.round(editorPct)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              tabIndex={0}
+              title="拖动调整 · 双击复位 · ←→ 微调"
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                // Capture is the whole point — it is what keeps the drag alive
+                // over the CodeMirror scroller and off the edge of the window.
+                // It throws for an id that is not a live pointer, and a drag
+                // should degrade to "uncaptured" rather than not start
+                try {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                } catch {
+                  /* not a live pointer */
+                }
+                e.currentTarget.focus();
+                draggingRef.current = true;
+                snappedRef.current = null;
+                document.body.style.userSelect = 'none';
+                document.documentElement.classList.add('split-dragging');
+                setDraggingUi(true);
+                applyDrag(e.clientX);
+              }}
+              onPointerMove={(e) => {
+                if (draggingRef.current) scheduleDrag(e.clientX);
+              }}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onKeyDown={(e) => {
+                const step = e.key === 'ArrowRight' ? 2 : e.key === 'ArrowLeft' ? -2 : 0;
+                if (step) {
+                  e.preventDefault();
+                  nudgeSplit(step);
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  resetSplit();
+                }
+              }}
+              onDoubleClick={resetSplit}
+            />
+            <PreviewPane
+              body={result.body}
+              theme={theme}
+              hasImage={result.hasImage}
+              densityName={densityName}
+              draftId={activeId}
+              device={device}
+              onDevice={setDevice}
+              onOpenTypeset={() => setTypesetOpen(true)}
+              resizeKey={`${viewMode}:${editorPct}`}
+              sync={scrollSync}
+              onPick={studio ? (section) => setStudioPick({ section, at: Date.now() }) : undefined}
+            />
+          </div>
+          {/* Both side columns open by growing their slot from zero width, so the
+              preview between them is pushed aside rather than jumping. The panel
+              inside keeps its own fixed width and never reflows. */}
+          {studioPresence.mounted && shownStudio && (
+            <div className={`side-slot studio ${studio ? 'open' : ''}`}>
+              <ThemeStudio
+                key={shownStudio.at}
+                from={shownStudio.from}
+                choices={[...presetThemes, ...customThemes]}
+                pick={studioPick}
+                onDraft={setStudioDraft}
+                onSaved={(th) => {
+                  setSavedTheme(th);
+                  vault.setPrefs({ themeId: th.id });
+                }}
+                onRestart={(th) => {
+                  setStudioDraft(null);
+                  setStudioPick(null);
+                  setStudio({ from: th, at: Date.now() });
+                }}
+                onClose={closeStudio}
+                onFlash={flash}
+              />
+            </div>
+          )}
+          {agentMounted && (
+            <div
+              className={`side-slot agent ${agentOpen ? 'open' : ''}`}
+              // Collapsed but mounted — a run in flight still reports into it.
+              // `inert` keeps it out of the tab order while it has no width.
+              inert={!agentOpen}
+            >
+              <AgentPanel
+                open={agentOpen}
+                vaultDir={vault.dir ?? ''}
+                activeId={activeId}
+                onClose={() => setAgentOpen(false)}
+                onBeforeRun={vault.flush}
+                seed={agentSeed}
+              />
+            </div>
+          )}
         </div>
-        {agentMounted && (
-          <AgentPanel
-            open={agentOpen}
-            vaultDir={vault.dir ?? ''}
-            activeId={activeId}
-            onClose={() => setAgentOpen(false)}
-            onBeforeRun={vault.flush}
-            seed={agentSeed}
-          />
-        )}
       </main>
+      <SniffThemeDialog open={sniffOpen} onClose={() => setSniffOpen(false)} onSniff={runSniff} />
       <ImportUrlDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         parent={importParent}
-        onImport={(url, withImages, onProgress) => runImport(url, importParent, withImages, onProgress)}
+        onImport={(url, withImages, withTheme, onProgress) =>
+          runImport(url, importParent, withImages, withTheme, onProgress)
+        }
       />
       <PublishDialog
         open={publishOpen}
@@ -854,6 +1335,14 @@ function Workspace({ vault }: { vault: VaultApi }) {
         }}
       />
       <UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} />
+      <CommandPalette
+        open={palette !== null}
+        onClose={() => setPalette(null)}
+        items={paletteItems}
+        placeholder={palette === 'drafts' ? '切换到哪篇草稿…' : '搜草稿、动作、主题…'}
+      />
+      <ConfirmHost />
+      <Toaster />
     </div>
   );
 }

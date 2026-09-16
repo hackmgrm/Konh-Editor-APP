@@ -23,6 +23,16 @@
   --surface-1: rgba(255, 253, 250, 0.76);  /* panels: frosted glass */
   --surface-2: #fffdfa;                    /* solid: cards / menus / inputs */
   --surface-3: rgba(255, 253, 250, 0.55);  /* lighter still: buttons at rest */
+  /* The writing surface. One step up from surface-1 and nothing else: the
+     four panels used to be cut from identical glass, so which one held the
+     work you were doing was decided only by where the caret happened to be.
+     Paper is brighter than the desk it lies on. */
+  --surface-raised: #fffefc;
+  /* The sheet the editor and preview share. Solid, not frosted: a translucent
+     fill over the canvas's ambient glows tinted every region a different
+     warmth, and with the hairlines gone those differences were all that was
+     left to see. One paper, one colour. */
+  --sheet: #fbf9f5;
   --sunken: rgba(60, 54, 44, 0.05);        /* recessed: segmented track, code bg */
   --sunken-strong: rgba(60, 54, 44, 0.09);
   --scrim: rgba(48, 38, 26, 0.3);          /* modal backdrop */
@@ -35,7 +45,15 @@
   /* ---- Text ---- */
   --text-1: #2f2b25;
   --text-2: #6e6a60;
-  --text-3: #a49e92;
+  /* Was #a49e92, which measured 2.26:1 on the canvas — under every threshold
+     there is. This clears 3:1 against both the canvas and a panel, which is
+     the floor for the 10.5px meta text it is used for. */
+  --text-3: #8f897d;
+  /* Eyebrows and pane titles: uppercase, tracked out, 10.5px. Set in text-3
+     they were the least legible type in the window while also being the
+     labels that say what each region *is* — so they get their own value,
+     between text-2 and text-3. */
+  --text-eyebrow: #7d786d;
 
   /* ---- Accent (terracotta, the brand color) ---- */
   --accent: #d97757;
@@ -72,6 +90,21 @@
   /* Inner highlight along the top edge: gives frosted panels thickness
      instead of reading as a flat translucent rectangle. */
   --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+
+  /* ---- Type sizes ----
+     The chrome used to carry nine different sizes between 9.5 and 13.5px, all
+     hand-picked one rule at a time, and the difference between 11 and 11.5 is
+     not a difference anybody can see — it is only a difference two labels side
+     by side can be *wrong* about. Four steps is what this interface actually
+     needs: a whisper, a caption, the default, and a mild emphasis.
+
+     Nothing in the article uses these. The rendered body is styled entirely by
+     inline values from theme.ts, because it has to survive being pasted into
+     WeChat's editor, and those numbers are pixel contracts — see markdown.ts. */
+  --fs-xs: 10.5px;   /* eyebrows, meta, keyboard hints */
+  --fs-sm: 11.5px;   /* captions, secondary rows */
+  --fs-md: 12.5px;   /* the default for controls and body copy in panels */
+  --fs-lg: 13.5px;   /* dialog headings, a lead paragraph */
 
   /* ---- Radii ---- */
   --r-xs: 6px;
@@ -130,10 +163,18 @@
   --serif: Georgia, 'Liberation Serif', 'Songti SC', 'Source Han Serif SC',
     'Noto Serif CJK SC', SimSun, 'Times New Roman', serif;
 
-  /* ---- Layout constants ---- */
-  --rail-gap: 12px;
+  /* ---- Layout constants ----
+     The rail sits directly against the sheet: what separates them is the
+     sheet's own edge and the shadow under it, not a gutter and not a line.
+     The token stays because the stacked layout under 900px still opens a gap
+     between them (see styles.css). */
+  --rail-gap: 0px;
   --shell-pad: 14px;
-  --head-h: 40px;
+  /* The pane heads and the rail's head. Four pixels taller than the 40 it was
+     while the heads still had a rule under them: with the rule gone, air is
+     the only thing left holding the eyebrow off the content below it, so it
+     has to be enough air to read as deliberate. */
+  --head-h: 44px;
   /* Borderless macOS window: the traffic lights float over the top-left
      corner, so the toolbar has to yield this much room to them. */
   --traffic-pad: 0px;
@@ -144,7 +185,10 @@
    title bar above our toolbar and has nothing floating over it, so reserving
    the gap there would just be 74px of dead space at the left end. */
 :root.is-tauri[data-os='mac'] {
-  --traffic-pad: 74px;
+  /* tauri.conf.json pins the lights at x 16 (y 25 centres them on the 46px
+     toolbar): the zoom button ends at 76px, so the 12px toolbar padding on
+     top of this leaves a 20px gap to the brand */
+  --traffic-pad: 84px;
 }
 
 :root[data-appearance='dark'] {
@@ -158,6 +202,10 @@
   --surface-1: rgba(38, 35, 31, 0.72);
   --surface-2: #262320;
   --surface-3: rgba(255, 248, 238, 0.045);
+  /* Same relationship, the other way up: in the dark the lit surface is the
+     one nearer the light, so it gains rather than loses */
+  --surface-raised: #2a2723;
+  --sheet: #211f1b;
   --sunken: rgba(255, 248, 238, 0.055);
   --sunken-strong: rgba(255, 248, 238, 0.1);
   --scrim: rgba(8, 7, 6, 0.55);
@@ -168,7 +216,8 @@
 
   --text-1: #ece6db;
   --text-2: #a09a8e;
-  --text-3: #6d6860;
+  --text-3: #7a7469;
+  --text-eyebrow: #8d8880;
 
   --accent: #e28a63;
   --accent-hi: #f0a37f;

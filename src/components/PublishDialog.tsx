@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowCounterClockwise, CheckCircle, GearSix, PaperPlaneTilt, Stack, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, CheckCircle, GearSix, PaperPlaneTilt, Stack } from '@phosphor-icons/react';
+import Modal from './Modal';
+import Spinner from './Spinner';
 import { prepareImage } from '../images';
 import { publishToDraft, type DraftTarget } from '../publish';
 import { isConfigured } from '../wechat';
@@ -63,6 +65,22 @@ export default function PublishDialog({
   const [progress, setProgress] = useState('');
   const [probe, setProbe] = useState<{ kind: 'ok' | 'warn' | 'fail'; message: string } | null>(null);
   const coverRef = useRef<HTMLInputElement>(null);
+  /**
+   * How far the image upload has got, read out of the progress line.
+   *
+   * publishToDraft reports free text because that is what it has to say; the
+   * one stage that knows a ratio writes it as `7/12`, so the bar takes it from
+   * there and runs indeterminate for every other stage rather than inventing a
+   * number for "正在获取 access_token…".
+   */
+  const uploadRatio = (() => {
+    const m = /(\d+)\/(\d+)/.exec(progress);
+    if (!m) return null;
+    const total = Number(m[2]);
+    return total > 0 ? Math.min(1, Number(m[1]) / total) : null;
+  })();
+  /** The title is what a push is actually about, so that is where focus lands */
+  const titleRef = useRef<HTMLInputElement>(null);
 
   /*
    * Follow the open draft's title each time the dialog opens.
@@ -80,18 +98,6 @@ export default function PublishDialog({
       setProgress('');
     }
   }, [open, defaultTitle, target, targetDigest]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      // No closing mid-push, or it looks cancelled while the request is still in flight
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
 
   const configured = isConfigured(cfg);
 
@@ -169,160 +175,177 @@ export default function PublishDialog({
    * clean them up when it finishes.
    */
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={target ? '更新公众号草稿' : '推送到公众号草稿箱'}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
-          <h2>{target ? '更新草稿' : '推送到草稿箱'}</h2>
-          <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
-          </button>
-        </header>
-
-        <div className="modal-body">
-          <section className="form-section">
-            <div className="form-section-label">推到哪里</div>
-            {/* Which draft this push lands in. A new one by default; pointed at
-                an existing one, it says so plainly and offers the way back —
-                overwriting the wrong article is not something to discover
-                afterwards. */}
-            <div className="target-line">
-              {target ? (
-                <>
-                  <span className="target-badge">覆盖</span>
-                  <span className="target-title" title={target.title}>
-                    {target.title || '（无标题）'}
-                  </span>
-                  <button type="button" className="btn" onClick={onClearTarget} disabled={busy}>
-                    <ArrowCounterClockwise size={14} weight="bold" />
-                    改为新建
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="form-hint">在草稿箱里新建一篇</span>
-                  <button type="button" className="btn target-pick" onClick={onOpenDraftBox} disabled={busy}>
-                    <Stack size={14} weight="bold" />
-                    改为更新已有草稿
-                  </button>
-                </>
-              )}
-            </div>
-          </section>
-
-          <section className="form-section">
-            <div className="form-section-label">这一篇</div>
-            <label className="field">
-              <span>标题</span>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={32} placeholder="必填，最多 32 字" />
-            </label>
-            <label className="field">
-              <span>摘要</span>
-              <input value={digest} onChange={(e) => setDigest(e.target.value)} maxLength={120} placeholder="留空则取正文开头" />
-            </label>
-            <div className="field">
-              <span>封面</span>
-              <div className="cover-picker">
-                <input
-                  ref={coverRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void pickCover(file);
-                    e.target.value = '';
-                  }}
-                />
-                {cover && <img className="cover-thumb" src={cover.dataUrl} alt="封面预览" />}
-                <button type="button" className="btn" onClick={() => coverRef.current?.click()}>
-                  {cover ? '换一张' : '选择封面'}
-                </button>
-                {cover ? (
-                  <button type="button" className="link-btn" onClick={() => setCover(null)}>
-                    {target ? '改用草稿原封面' : '改用正文第一张图'}
-                  </button>
-                ) : (
-                  <span className="form-hint">{target ? '不选则保留草稿原封面' : '不选则用正文第一张图'}</span>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="form-section">
-            <div className="form-section-label">推给哪个号</div>
-            {/* Just enough to catch "wrong account" before the push, and one
-                way through to where it is changed — the credentials themselves
-                are in the settings dialog */}
-            <div className="account-line">
-              <span className={`account-dot ${configured ? 'ok' : 'off'}`} aria-hidden="true" />
-              {configured ? (
-                <>
-                  <code className="account-appid">{cfg.appid}</code>
-                  <span className="form-hint">凭据已配置</span>
-                </>
-              ) : (
-                <span className="form-hint">还没填凭据，推不上去</span>
-              )}
-              <button type="button" className="btn account-settings" onClick={onOpenSettings}>
-                <GearSix size={14} weight="bold" />
-                {configured ? '改凭据' : '去填'}
-              </button>
-            </div>
-          </section>
-
-          <section className="form-section">
-            <div className="form-section-label">发布设置</div>
-            <label className="field">
-              <span>作者</span>
-              <input
-                value={cfg.author}
-                onChange={(e) => patchWechatConfig({ author: e.target.value })}
-                maxLength={16}
-                placeholder="可空，最多 16 字"
-              />
-            </label>
-            <label className="field">
-              <span>原文链接</span>
-              <input
-                value={cfg.sourceUrl}
-                onChange={(e) => patchWechatConfig({ sourceUrl: e.target.value.trim() })}
-                placeholder="可空，显示为「阅读原文」"
-              />
-            </label>
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={cfg.openComment}
-                onChange={(e) => patchWechatConfig({ openComment: e.target.checked })}
-              />
-              <span>打开留言</span>
-            </label>
-          </section>
-        </div>
-
-        <footer className="modal-foot">
+    <Modal
+      open={open}
+      onClose={onClose}
+      busy={busy}
+      title={target ? '更新草稿' : '推送到草稿箱'}
+      initialFocus={titleRef}
+      onSubmit={() => void handlePublish()}
+      foot={
+        <>
           {probe && (
             <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
               {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
               {probe.message}
             </span>
           )}
-          {busy && progress && <span className="form-progress">{progress}</span>}
-          <button className="btn" onClick={onClose} disabled={busy}>
+          {busy && progress && (
+            /* A bar, not a sentence. "正在上传图片 7/12…" was the only thing
+               that said work was happening, and a line of text that rewrites
+               itself every few hundred milliseconds is read as flicker, not as
+               progress. The stage name stays under the bar, where it says
+               *what* rather than *how far*. */
+            <span className="publish-progress">
+              <span className="update-bar">
+                <span
+                  className={`update-bar-fill ${uploadRatio === null ? 'indeterminate' : ''}`}
+                  style={uploadRatio === null ? undefined : { width: `${Math.round(uploadRatio * 100)}%` }}
+                />
+              </span>
+              <span className="form-progress">{progress}</span>
+            </span>
+          )}
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
             取消
           </button>
-          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy}>
-            <PaperPlaneTilt size={15} weight="bold" />
-            {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
+          <button className={`btn primary ${busy ? 'busy' : ''}`} type="submit" disabled={busy} aria-busy={busy}>
+            {busy ? <Spinner /> : <PaperPlaneTilt size={15} weight="bold" />}
+            {target ? '更新这篇草稿' : '推到草稿箱'}
           </button>
-        </footer>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <section className="form-section">
+        <div className="form-section-label">推到哪里</div>
+        {/* Which draft this push lands in. A new one by default; pointed at
+            an existing one, it says so plainly and offers the way back —
+            overwriting the wrong article is not something to discover
+            afterwards. */}
+        <div className="target-line">
+          {target ? (
+            <>
+              <span className="target-badge">覆盖</span>
+              <span className="target-title" title={target.title}>
+                {target.title || '（无标题）'}
+              </span>
+              <button type="button" className="btn" onClick={onClearTarget} disabled={busy}>
+                <ArrowCounterClockwise size={14} weight="bold" />
+                改为新建
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="form-hint">在草稿箱里新建一篇</span>
+              <button type="button" className="btn target-pick" onClick={onOpenDraftBox} disabled={busy}>
+                <Stack size={14} weight="bold" />
+                改为更新已有草稿
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="form-section">
+        <div className="form-section-label">这一篇</div>
+        <label className="field">
+          <span>标题</span>
+          <input
+          ref={titleRef}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={32}
+          placeholder="必填，最多 32 字"
+        />
+        </label>
+        <label className="field">
+          <span>摘要</span>
+          <input value={digest} onChange={(e) => setDigest(e.target.value)} maxLength={120} placeholder="留空则取正文开头" />
+        </label>
+        <div className="field">
+          <span>封面</span>
+          <div className="cover-picker">
+            <input
+              ref={coverRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void pickCover(file);
+                e.target.value = '';
+              }}
+            />
+            {/* The slot is always there. It used to appear only once a cover
+                was chosen, which shoved 选择封面 and the hint 64px to the right
+                at the moment of the click that chose it. */}
+            <span className={`cover-slot ${cover ? 'filled' : ''}`} aria-hidden={!cover}>
+              {cover && <img className="cover-thumb" src={cover.dataUrl} alt="封面预览" />}
+            </span>
+            <button type="button" className="btn" onClick={() => coverRef.current?.click()}>
+              {cover ? '换一张' : '选择封面'}
+            </button>
+            {cover ? (
+              <button type="button" className="link-btn" onClick={() => setCover(null)}>
+                {target ? '改用草稿原封面' : '改用正文第一张图'}
+              </button>
+            ) : (
+              <span className="form-hint">{target ? '不选则保留草稿原封面' : '不选则用正文第一张图'}</span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="form-section">
+        <div className="form-section-label">推给哪个号</div>
+        {/* Just enough to catch "wrong account" before the push, and one
+            way through to where it is changed — the credentials themselves
+            are in the settings dialog */}
+        <div className="account-line">
+          <span className={`account-dot ${configured ? 'ok' : 'off'}`} aria-hidden="true" />
+          {configured ? (
+            <>
+              <code className="account-appid">{cfg.appid}</code>
+              <span className="form-hint">凭据已配置</span>
+            </>
+          ) : (
+            <span className="form-hint">还没填凭据，推不上去</span>
+          )}
+          <button type="button" className="btn account-settings" onClick={onOpenSettings}>
+            <GearSix size={14} weight="bold" />
+            {configured ? '改凭据' : '去填'}
+          </button>
+        </div>
+      </section>
+
+      <section className="form-section">
+        <div className="form-section-label">发布设置</div>
+        <label className="field">
+          <span>作者</span>
+          <input
+            value={cfg.author}
+            onChange={(e) => patchWechatConfig({ author: e.target.value })}
+            maxLength={16}
+            placeholder="可空，最多 16 字"
+          />
+        </label>
+        <label className="field">
+          <span>原文链接</span>
+          <input
+            value={cfg.sourceUrl}
+            onChange={(e) => patchWechatConfig({ sourceUrl: e.target.value.trim() })}
+            placeholder="可空，显示为「阅读原文」"
+          />
+        </label>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={cfg.openComment}
+            onChange={(e) => patchWechatConfig({ openComment: e.target.checked })}
+          />
+          <span>打开留言</span>
+        </label>
+      </section>
+    </Modal>
   );
 }
