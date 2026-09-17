@@ -156,7 +156,7 @@ export default function CommandPalette({ open, onClose, items, placeholder }: Pr
                   onMouseMove={() => setIndex(i)}
                   onClick={() => pick(item)}
                 >
-                  {item.checked && <Check size={12} weight="bold" className="menu-icon" />}
+                  {item.checked && <Check size={14} weight="regular" className="menu-icon" />}
                   <span className="palette-name">{item.name}</span>
                   {item.path && <span className="palette-path">{item.path}</span>}
                   {item.hint && <span className="palette-key">{item.hint}</span>}

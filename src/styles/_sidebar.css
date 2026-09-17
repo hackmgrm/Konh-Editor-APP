@@ -67,9 +67,12 @@
     color var(--t-fast) var(--ease);
 }
 
+/* A place, not an action. The folder the workspace lives in is the least
+   surprising thing on the rail; it is labelled, not highlighted. */
 .tree-vault > svg:first-child {
   flex: none;
-  color: var(--accent);
+  color: var(--text-2);
+  transition: color var(--t-fast) var(--ease);
 }
 
 /* The chevron sits at the far right and darkens on hover — the part that says
@@ -83,12 +86,13 @@
 
 .tree-vault:hover {
   background: var(--surface-2);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  border-color: var(--line-strong);
+  color: var(--text-1);
 }
 
+.tree-vault:hover > svg:first-child,
 .tree-vault:hover .tree-vault-caret {
-  color: var(--accent);
+  color: var(--text-1);
 }
 
 .tree-vault-name {
@@ -158,8 +162,17 @@
   pointer-events: none;
 }
 
+/* Selected, not alarming. Which draft is open is structure — you chose it,
+   you know where it is — so the row is a recess in the rail rather than a
+   terracotta stripe; the bar at its left edge and the weight of the name are
+   what separate it from the row merely under the pointer. */
 .tree-file.active {
-  background: var(--accent-soft);
+  /* One step past the hover fill, not the same one: the row under the pointer
+     and the row you are editing have to be two different things, and with the
+     terracotta gone the depth of the recess is what says which is which.
+     `--sunken` alone was invisible against hover, and in the dark palette it
+     was barely visible at all. */
+  background: var(--sunken-strong);
 }
 
 /* The short bar down the left of the selected row: lighter than recoloring
@@ -172,7 +185,7 @@
   width: 2.5px;
   height: 14px;
   border-radius: var(--r-full);
-  background: var(--accent);
+  background: var(--text-2);
   transform: translateY(-50%);
   animation: bar-grow var(--t-base) var(--spring);
 }
@@ -209,7 +222,7 @@
 }
 
 .tree-file.active .tree-file-main > svg {
-  color: var(--accent);
+  color: var(--text-2);
 }
 
 /* The caret occupies a fixed slot: files have none, but still have to line
@@ -246,7 +259,7 @@
 
 .tree-file.active .tree-file-name {
   font-weight: 600;
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
 /* Secondary info: word count / dimensions / time. Fades out on hover to
@@ -316,7 +329,7 @@
 
 .tree-file-actions button:hover {
   background: var(--surface-2);
-  color: var(--accent-hi);
+  color: var(--text-1);
   box-shadow: var(--shadow-1);
 }
 
@@ -385,14 +398,16 @@
     color var(--t-fast) var(--ease);
 }
 
+/* The chip's own tint is the thing asking to be noticed; the broom and the
+   sentence are just what it says. */
 .tree-cleanup > svg {
   flex: none;
-  color: var(--accent);
+  color: var(--text-2);
 }
 
 .tree-cleanup:hover {
   background: var(--accent-soft);
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
 /* Foot of the rail. It sits below the scroll area rather than inside it, so it

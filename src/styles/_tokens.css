@@ -62,6 +62,22 @@
   --accent-softer: rgba(217, 119, 87, 0.06);
   --accent-ring: rgba(217, 119, 87, 0.28);
   --on-accent: #fffaf7;
+  /* The first-run screen's two pieces of warm light: one wide pool behind the
+     title block, one close glow under the brand mark. The pool is written as a
+     whole gradient rather than one colour because a plain two-stop radial ends
+     with a non-zero slope and draws a visible circle on the paper — the extra
+     stops ease it out. Every stop repeats the accent hue at falling alpha, and
+     none of them is `transparent`: that keyword interpolates through
+     rgba(0,0,0,0) in WebKit and greys the whole falloff. */
+  --gate-glow: radial-gradient(
+    closest-side,
+    rgba(217, 119, 87, 0.09) 0%,
+    rgba(217, 119, 87, 0.056) 38%,
+    rgba(217, 119, 87, 0.022) 64%,
+    rgba(217, 119, 87, 0.006) 84%,
+    rgba(217, 119, 87, 0) 100%
+  );
+  --gate-mark-glow: rgba(217, 119, 87, 0.35);
 
   /* ---- Semantic ---- */
   --warn: #a8700c;
@@ -225,6 +241,17 @@
   --accent-softer: rgba(226, 138, 99, 0.08);
   --accent-ring: rgba(226, 138, 99, 0.34);
   --on-accent: #201510;
+  /* Lower in the dark: the same 9% pool over a #141311 canvas reads as a
+     muddy brown smear rather than as light. */
+  --gate-glow: radial-gradient(
+    closest-side,
+    rgba(226, 138, 99, 0.06) 0%,
+    rgba(226, 138, 99, 0.038) 38%,
+    rgba(226, 138, 99, 0.015) 64%,
+    rgba(226, 138, 99, 0.004) 84%,
+    rgba(226, 138, 99, 0) 100%
+  );
+  --gate-mark-glow: rgba(226, 138, 99, 0.3);
 
   --warn: #d9a445;
   --warn-soft: rgba(217, 164, 69, 0.14);

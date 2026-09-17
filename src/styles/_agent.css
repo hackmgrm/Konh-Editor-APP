@@ -410,8 +410,8 @@
 }
 
 .agent-beat.tool:hover .agent-tool-icon {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  color: var(--text-2);
 }
 
 .agent-tool-verb {
@@ -608,10 +608,12 @@
   color: var(--text-2);
 }
 
+/* Its menu is open. One step deeper than the hover it grew out of, and no
+   colour: which model is selected is said by the chip's own text. */
 .agent-chip.on {
-  border-color: var(--accent-ring);
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  border-color: var(--line-strong);
+  background: var(--sunken-strong);
+  color: var(--text-1);
 }
 
 /* Nothing was picked here, so what the chip names is the CLI's own setting.
@@ -764,8 +766,10 @@
   background: var(--sunken);
 }
 
+/* The session you are in. A recess, one step past the hover — selection in
+   this app is structure, not attention. */
 .agent-history-row.active {
-  background: var(--accent-soft);
+  background: var(--sunken-strong);
 }
 
 .agent-history-open {

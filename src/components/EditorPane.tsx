@@ -23,7 +23,7 @@ import type { ScrollSyncChannel } from '../scrollSync';
    naming a file or a piece of content gets `regular` at 14. The format strip
    is controls, so it is bold — which also stops it reading as a row of
    hairlines once the toolbar dims away from the caret. */
-const ICON = 15;
+const ICON = 16;
 const HEADING_ICON = { 1: TextHOne, 2: TextHTwo, 3: TextHThree, 4: TextHFour } as const;
 
 /**
@@ -66,7 +66,12 @@ const editorTheme = EditorView.theme({
   // second 0.93 compounds and a plain fence comes out a step smaller than the
   // fence above it with `ts` on it. The size belongs to the line here, so the
   // spans inside give it up.
-  '.cm-fenced span': { fontSize: '1em' },
+  // …and give up the pill with it: `t.monospace` now draws inline code as a
+  // chip on a sunken ground, and a fenced block is tagged monospace line by
+  // line and token by token — left alone, every keyword and string inside a
+  // block would come out as its own little rounded box. The block is the
+  // code; the chip belongs to the run of code sitting inside a sentence.
+  '.cm-fenced span': { fontSize: '1em', background: 'none', padding: '0', borderRadius: '0' },
   // Line numbers are scaffolding, not content: you look for one when you need
   // it and never otherwise. At full --text-3 the column read as another line
   // of meta running down the page, so it is mixed most of the way out —
@@ -189,12 +194,32 @@ const markdownHighlight = HighlightStyle.define([
   { tag: t.strong, fontWeight: '700', color: 'var(--text-1)' },
   { tag: t.emphasis, fontStyle: 'italic' },
   { tag: t.strikethrough, textDecoration: 'line-through', color: 'var(--text-3)' },
-  { tag: [t.link, t.url], color: 'var(--accent-hi)', textUnderlineOffset: '2px' },
+  // Underlined, not coloured. A link in the source is not somewhere you can
+  // go — there is nothing to click here — so it is marked the way print marks
+  // one: the text stays text, and a hairline under it says where it ends.
+  {
+    tag: [t.link, t.url],
+    color: 'var(--text-1)',
+    textDecoration: 'underline',
+    textDecorationColor: 'var(--line-strong)',
+    textUnderlineOffset: '3px',
+  },
   // The one place the mono face survives. @lezer/markdown puts `monospace` on
   // inline code *and* on the text inside a fenced block, so this single rule
   // covers both. Slightly down-sized: a monospace face set at the body's own
   // size always looks a size too big beside proportional text.
-  { tag: t.monospace, color: 'var(--accent-hi)', fontFamily: 'var(--mono)', fontSize: '0.93em' },
+  // Inline code reads as a chip cut into the paper rather than as coloured
+  // text: same ink as the prose around it, set apart by the ground it sits
+  // on. `.cm-fenced span` above cancels the ground inside fenced blocks.
+  {
+    tag: t.monospace,
+    color: 'var(--text-1)',
+    background: 'var(--sunken)',
+    borderRadius: '2px',
+    padding: '0 3px',
+    fontFamily: 'var(--mono)',
+    fontSize: '0.93em',
+  },
   { tag: t.quote, color: 'var(--text-2)', fontStyle: 'italic' },
   { tag: t.contentSeparator, color: 'var(--text-3)' },
   // Every markdown marker lands here (#, **, >, -, ```): present, recessive.
@@ -682,17 +707,17 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
   ];
 
   const toolbarBtns: { key: string; title: string; icon: React.ReactNode; onClick: () => void }[] = [
-    { key: 'bold', title: '加粗', icon: <TextB size={ICON} weight="bold" />, onClick: () => wrapSelection('**', '**') },
-    { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} weight="bold" />, onClick: () => wrapSelection('*', '*') },
-    { key: 'code', title: '行内代码', icon: <Code size={ICON} weight="bold" />, onClick: () => wrapSelection('`', '`') },
-    { key: 'quote', title: '引用', icon: <Quotes size={ICON} weight="bold" />, onClick: () => prefixLine('> ') },
-    { key: 'list', title: '无序列表', icon: <ListBullets size={ICON} weight="bold" />, onClick: () => prefixLine('- ') },
-    { key: 'task', title: '待办事项', icon: <ListChecks size={ICON} weight="bold" />, onClick: () => prefixLine('- [ ] ') },
-    { key: 'fence', title: '代码块', icon: <CodeBlock size={ICON} weight="bold" />, onClick: () => insertBlock('\n```ts\n\n```\n') },
-    { key: 'table', title: '表格', icon: <Table size={ICON} weight="bold" />, onClick: insertTable },
-    { key: 'link', title: '链接', icon: <Link size={ICON} weight="bold" />, onClick: () => wrapSelection('[', '](https://)') },
-    { key: 'hr', title: '分割线', icon: <Minus size={ICON} weight="bold" />, onClick: () => insertBlock('\n---\n') },
-    { key: 'undo', title: '撤销', icon: <ArrowCounterClockwise size={ICON} weight="bold" />, onClick: undoEdit },
+    { key: 'bold', title: '加粗', icon: <TextB size={ICON} weight="regular" />, onClick: () => wrapSelection('**', '**') },
+    { key: 'italic', title: '斜体', icon: <TextItalic size={ICON} weight="regular" />, onClick: () => wrapSelection('*', '*') },
+    { key: 'code', title: '行内代码', icon: <Code size={ICON} weight="regular" />, onClick: () => wrapSelection('`', '`') },
+    { key: 'quote', title: '引用', icon: <Quotes size={ICON} weight="regular" />, onClick: () => prefixLine('> ') },
+    { key: 'list', title: '无序列表', icon: <ListBullets size={ICON} weight="regular" />, onClick: () => prefixLine('- ') },
+    { key: 'task', title: '待办事项', icon: <ListChecks size={ICON} weight="regular" />, onClick: () => prefixLine('- [ ] ') },
+    { key: 'fence', title: '代码块', icon: <CodeBlock size={ICON} weight="regular" />, onClick: () => insertBlock('\n```ts\n\n```\n') },
+    { key: 'table', title: '表格', icon: <Table size={ICON} weight="regular" />, onClick: insertTable },
+    { key: 'link', title: '链接', icon: <Link size={ICON} weight="regular" />, onClick: () => wrapSelection('[', '](https://)') },
+    { key: 'hr', title: '分割线', icon: <Minus size={ICON} weight="regular" />, onClick: () => insertBlock('\n---\n') },
+    { key: 'undo', title: '撤销', icon: <ArrowCounterClockwise size={ICON} weight="regular" />, onClick: undoEdit },
   ];
 
   return (
@@ -737,7 +762,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
                         prefixLine(h.prefix);
                       }}
                     >
-                      <HeadingIcon size={17} className="menu-icon" />
+                      <HeadingIcon size={16} className="menu-icon" />
                       {h.label.split('·')[1]?.trim()}
                     </button>
                   );
@@ -767,7 +792,7 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
               aria-expanded={outlineOpen}
               onClick={() => onOutlineOpen(!outlineOpen)}
             >
-              <ListDashes size={15} weight="bold" />
+              <ListDashes size={16} weight="regular" />
             </button>
           </Tooltip>
           <Tooltip

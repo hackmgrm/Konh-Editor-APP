@@ -230,7 +230,7 @@ export default function PublishDialog({
                 {target.title || '（无标题）'}
               </span>
               <button type="button" className="btn" onClick={onClearTarget} disabled={busy}>
-                <ArrowCounterClockwise size={14} weight="bold" />
+                <ArrowCounterClockwise size={14} weight="regular" />
                 改为新建
               </button>
             </>
@@ -238,7 +238,7 @@ export default function PublishDialog({
             <>
               <span className="form-hint">在草稿箱里新建一篇</span>
               <button type="button" className="btn target-pick" onClick={onOpenDraftBox} disabled={busy}>
-                <Stack size={14} weight="bold" />
+                <Stack size={14} weight="regular" />
                 改为更新已有草稿
               </button>
             </>
@@ -312,7 +312,7 @@ export default function PublishDialog({
             <span className="form-hint">还没填凭据，推不上去</span>
           )}
           <button type="button" className="btn account-settings" onClick={onOpenSettings}>
-            <GearSix size={14} weight="bold" />
+            <GearSix size={14} weight="regular" />
             {configured ? '改凭据' : '去填'}
           </button>
         </div>

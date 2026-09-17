@@ -184,7 +184,7 @@ export default function DraftBoxDialog({ open, onClose, onPickTarget, onOpenSett
             {/* A caret, not an arrow: it sits a few pixels from the dialog's
                 own ✕ and two full-length arrows side by side read as a pair of
                 equals rather than "back out of this one thing" */}
-            <CaretLeft size={15} weight="bold" />
+            <CaretLeft size={16} weight="regular" />
           </button>
         )
       }
@@ -234,7 +234,7 @@ export default function DraftBoxDialog({ open, onClose, onPickTarget, onOpenSett
         <section className="form-section">
           <p className="form-note">还没填公众号凭据，读不到草稿箱。</p>
           <button type="button" className="btn" onClick={onOpenSettings}>
-            <GearSix size={14} weight="bold" />
+            <GearSix size={14} weight="regular" />
             去填凭据
           </button>
         </section>
@@ -293,7 +293,7 @@ export default function DraftBoxDialog({ open, onClose, onPickTarget, onOpenSett
                     aria-label="在浏览器里打开"
                     onClick={() => void openExternal(row.article.url)}
                   >
-                    <ArrowSquareOut size={14} weight="bold" />
+                    <ArrowSquareOut size={16} weight="regular" />
                   </button>
                 )}
                 <button type="button" className="btn primary" onClick={() => pick(row)} title="用当前正文覆盖这一篇">

@@ -80,7 +80,7 @@ export default function SniffThemeDialog({ open, onClose, onSniff }: Props) {
       onSubmit={() => void run()}
       title={
         <>
-          <Eyedropper size={15} weight="bold" />
+          <Eyedropper size={16} weight="regular" />
           扒一个主题
         </>
       }

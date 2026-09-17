@@ -195,7 +195,7 @@ export default function TypesetPopover({
               aria-label={`编辑主题 ${th.name}`}
               onClick={() => onOpenStudio(th.id)}
             >
-              <PencilSimple size={10} weight="bold" />
+              <PencilSimple size={11} weight="regular" />
             </button>
           </Tooltip>
         )}
@@ -206,7 +206,7 @@ export default function TypesetPopover({
               aria-label={`删掉主题 ${th.name}`}
               onClick={() => onDeleteTheme(th.id)}
             >
-              <Trash size={10} weight="bold" />
+              <Trash size={11} weight="regular" />
             </button>
           </Tooltip>
         )}
@@ -247,13 +247,13 @@ export default function TypesetPopover({
         <div className="theme-ways">
           <Tooltip content="从当前主题出发，每个元素的颜色、字号、间距、装饰都能改" side="bottom">
             <button className="theme-ask" onClick={() => onOpenStudio()}>
-              <SlidersHorizontal size={13} weight="bold" />
+              <SlidersHorizontal size={14} weight="regular" />
               <span>自己调</span>
             </button>
           </Tooltip>
           <Tooltip content="粘一篇排版好看的公众号文章，把它的排版扒成主题" side="bottom">
             <button className="theme-ask" onClick={onSniffTheme}>
-              <Eyedropper size={13} weight="bold" />
+              <Eyedropper size={14} weight="regular" />
               <span>从链接扒</span>
             </button>
           </Tooltip>

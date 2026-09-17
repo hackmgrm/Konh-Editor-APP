@@ -199,8 +199,10 @@
   transition: color var(--t-fast) var(--ease);
 }
 
+/* The ring and the check on the card already say which theme is on; the name
+   only has to be legible and a little heavier than its neighbours. */
 .theme-card.active .theme-card-name {
-  color: var(--accent-hi);
+  color: var(--text-1);
   font-weight: 600;
 }
 
@@ -283,7 +285,7 @@
 }
 
 .theme-edit:hover {
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
 /* The way past the twelve presets. Full width under the grid, quiet enough
@@ -323,10 +325,12 @@
     transform var(--t-fast) var(--ease);
 }
 
+/* Neutral on hover: these are three ways of getting somewhere, not three
+   things asking to be pressed. */
 .theme-ask:hover {
-  border-color: var(--accent);
-  background: var(--accent-softer);
-  color: var(--accent-hi);
+  border-color: var(--line-strong);
+  background: var(--sunken);
+  color: var(--text-1);
 }
 
 .theme-ask:active {
@@ -335,7 +339,7 @@
 
 .theme-ask > svg {
   flex: none;
-  color: var(--accent);
+  color: var(--text-2);
 }
 
 .theme-ask > span {

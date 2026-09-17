@@ -163,7 +163,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
         <p className="form-note">
           在
           <a href={DEV_PROFILE_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
-            微信开发者控制台 <ArrowSquareOut size={11} weight="bold" />
+            微信开发者控制台 <ArrowSquareOut size={12} weight="regular" />
           </a>
           的「我的业务 → 公众号」里取（AppID、AppSecret、IP 白名单都在这里）。
           只存在这台电脑上，请求直接发给微信，不过任何第三方。
@@ -192,7 +192,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
               onClick={() => setShowSecret((v) => !v)}
               aria-label={showSecret ? '隐藏' : '显示'}
             >
-              {showSecret ? <EyeSlash size={15} /> : <Eye size={15} />}
+              {showSecret ? <EyeSlash size={16} /> : <Eye size={16} />}
             </button>
           </span>
         </label>
@@ -204,7 +204,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
           这一步<strong>不能跳过</strong>：出口 IP 不在白名单里，微信一律拒绝（40164），凭据填得再对也调不通。
           取到下面这个 IP，粘进
           <a href={DEV_PROFILE_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
-            控制台 <ArrowSquareOut size={11} weight="bold" />
+            控制台 <ArrowSquareOut size={12} weight="regular" />
           </a>
           「我的业务 → 公众号」里的「IP 白名单」保存，才算配置完。
         </p>
@@ -216,7 +216,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
             <>
               <code className="ip-badge">{egress.ip || '未知'}</code>
               <button className="btn" onClick={() => void copyIp()}>
-                <Copy size={13} weight="bold" />
+                <Copy size={14} weight="regular" />
                 {copied ? '已复制' : '复制'}
               </button>
             </>
@@ -240,7 +240,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
         <p className="form-note">
           「从链接导入」的正文提取走
           <a href={READER_HOME} target="_blank" rel="noopener noreferrer" className="ext-link">
-            Jina Reader <ArrowSquareOut size={11} weight="bold" />
+            Jina Reader <ArrowSquareOut size={12} weight="regular" />
           </a>
           —— 不填 key 也能用，每分钟 20 次。填一个免费 key 可以提到每分钟 500 次。
           这是本应用里唯一一处会经过第三方的请求，发过去的只有你要导入的那个网址。
@@ -306,7 +306,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
         <p className="form-note">
           更新包由构建时的签名密钥签过名，验不过的一律拒装。也可以直接去
           <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
-            发布页 <ArrowSquareOut size={11} weight="bold" />
+            发布页 <ArrowSquareOut size={12} weight="regular" />
           </a>
           看历史版本。
         </p>

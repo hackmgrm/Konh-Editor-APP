@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BatteryFull, CaretDown, CellSignalFull, WifiHigh } from '@phosphor-icons/react';
+import { CaretDown, Palette } from '@phosphor-icons/react';
+import { createPortal } from 'react-dom';
 import Tooltip from './Tooltip';
 import { extractTitle, stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
@@ -9,6 +10,159 @@ import { SECTION_TITLE, sectionAt, type SectionId } from '../themeFields';
 import { hintFor } from '../shortcuts';
 import { morphChildren } from '../morph';
 import { EASE, animate } from '../usePresence';
+
+/* ---------------- iOS status glyphs ----------------
+   Drawn here rather than taken from an icon set: the status bar is the one
+   place in this app that has to pass for a photograph of iOS, and no general
+   icon family draws these three shapes the way the system does. Each viewBox
+   is stated in device points at the size iOS draws the glyph, so _preview.css
+   can size them with `--pt` and they scale with the frame. `currentColor`
+   keeps them on the colour the article theme hands the bar. */
+
+/** Cellular: four bars, all filled because the mock is always at full signal.
+ *  Every number here is on a grid and has to stay on it, or the glyph reads as
+ *  hand-drawn at 4×: x steps by 4.5 (3 wide, 1.5 gap), height steps by 2.5
+ *  (4.5 → 12), every bar shares the bottom edge at y = 12 and the same 1 pt
+ *  radius. The tops then fall on one straight diagonal. 16.5 × 12 pt. */
+function StatusCellular() {
+  return (
+    <svg className="sb-cellular" viewBox="0 0 16.5 12" fill="currentColor" aria-hidden="true">
+      <rect x="0" y="7.5" width="3" height="4.5" rx="1" />
+      <rect x="4.5" y="5" width="3" height="7" rx="1" />
+      <rect x="9" y="2.5" width="3" height="9.5" rx="1" />
+      <rect x="13.5" y="0" width="3" height="12" rx="1" />
+    </svg>
+  );
+}
+
+/** Wi-Fi: traced off the system glyph, not estimated. `SF Symbols wifi` was
+ *  rendered at pointSize 1200 in .bold (NSImage(systemSymbolName:)), split into
+ *  its three connected components, and every boundary circle-fitted to under
+ *  0.4 px. What came back, in that pixel space:
+ *
+ *    common centre   (793.2, 1062)   all three arcs are concentric
+ *    apex            (793.2, 1132.4) the two straight side cuts converge BELOW
+ *                                    the arc centre, 70 px down — that is what
+ *                                    makes it a fan rather than a pie slice
+ *    side cuts       45.4° either side of vertical (a 90.8° fan)
+ *    outer band      r 957 → 757     thickness 200
+ *    middle band     r 604 → 411     thickness 193
+ *    wedge           r 261 down to the apex, filled
+ *    gaps            153 and 150     so thickness : gap = 1.31
+ *    corners         r 36 on all of them, including the apex
+ *
+ *  Scaled to a 12 pt ink height that is a 16.55 × 12 pt box. .bold rather than
+ *  .semibold (which measures 1.22): the reference photograph shows thick bands
+ *  and narrow gaps, and bold also survives antialiasing at this size.
+ *
+ *  Each band is ONE closed filled path — outer arc, rounded corner, straight
+ *  cut, rounded corner, inner arc, and back — so all three bands share the same
+ *  two straight sides. No strokes: a round-capped stroke ends perpendicular to
+ *  its arc, which is the wrong shape, and it cannot give the sides. The numbers
+ *  come from scratchpad/genwifi.py; re-run it to change anything. */
+function StatusWifi() {
+  return (
+    <svg className="sb-wifi" viewBox="0 0 16.546 12" fill="currentColor" aria-hidden="true">
+      <path d="M0.0598 3.5123A11.3591 11.3591 0 0 1 16.4861 3.5123A0.4273 0.4273 0 0 1 16.4771 4.1118L15.3947 5.1782A0.4273 0.4273 0 0 1 14.7851 5.1683A8.9852 8.9852 0 0 0 1.7609 5.1683A0.4273 0.4273 0 0 1 1.1513 5.1782L0.0689 4.1118A0.4273 0.4273 0 0 1 0.0598 3.5123Z" />
+      <path d="M3.0423 6.4564A7.1691 7.1691 0 0 1 13.5037 6.4564A0.4273 0.4273 0 0 1 13.4918 7.0530L12.4683 8.0613A0.4273 0.4273 0 0 1 11.8547 8.0470A4.8783 4.8783 0 0 0 4.6913 8.0470A0.4273 0.4273 0 0 1 4.0777 8.0613L3.0542 7.0530A0.4273 0.4273 0 0 1 3.0423 6.4564Z" />
+      <path d="M5.9338 9.3279A3.0979 3.0979 0 0 1 10.6122 9.3279A0.4273 0.4273 0 0 1 10.5894 9.9125L8.5729 11.8992A0.4273 0.4273 0 0 1 7.9731 11.8992L5.9566 9.9125A0.4273 0.4273 0 0 1 5.9338 9.3279Z" />
+    </svg>
+  );
+}
+
+/** Battery: a 25 × 12.5 pt outline at 40% with the terminal nub beside it, and
+ *  the charge as a solid inset fill — full, so it spans the whole inside. */
+function StatusBattery() {
+  return (
+    <svg className="sb-battery" viewBox="0 0 26.8 12.5" aria-hidden="true">
+      <rect
+        x="0.5"
+        y="0.5"
+        width="24"
+        height="11.5"
+        rx="3.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+        opacity="0.4"
+      />
+      <rect x="25.3" y="4" width="1.5" height="4.5" rx="0.75" fill="currentColor" opacity="0.4" />
+      <rect x="2" y="2" width="21" height="8.5" rx="2.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Keep-inside-the-window margin for the hint bubble */
+const HINT_PAD = 8;
+/** Gap between the capsule's bottom edge and the bubble */
+const HINT_GAP = 9;
+
+/**
+ * The one-time callout that points at the theme capsule.
+ *
+ * On <body> like every other floating layer, so the pane's clipping cannot
+ * reach it, and placed from the capsule's own rect — re-read whenever the pane
+ * changes size, because the splitter, the view mode and the side columns all
+ * move the capsule without moving the window. It renders nothing while the
+ * capsule has no box (the preview is not on screen).
+ */
+function TypesetHint({
+  paneRef,
+  onDismiss,
+}: {
+  paneRef: React.RefObject<HTMLElement | null>;
+  onDismiss: () => void;
+}) {
+  const [at, setAt] = useState<{ left: number; top: number; arrow: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    const place = () => {
+      const chip = pane.querySelector<HTMLElement>('[data-typeset-trigger]');
+      const r = chip?.getBoundingClientRect();
+      if (!r || r.width === 0 || r.height === 0) {
+        setAt(null);
+        return;
+      }
+      const w = bubbleRef.current?.offsetWidth ?? 300;
+      // Start where the capsule starts; the arrow finds the capsule's centre
+      // from there, however far the window edge pushed the bubble
+      const left = Math.max(HINT_PAD, Math.min(r.left, window.innerWidth - HINT_PAD - w));
+      const arrow = Math.max(14, Math.min(r.left + r.width / 2 - left, w - 14));
+      setAt({ left: Math.round(left), top: Math.round(r.bottom + HINT_GAP), arrow: Math.round(arrow) });
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(pane);
+    window.addEventListener('resize', place);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, [paneRef]);
+
+  return createPortal(
+    <div
+      ref={bubbleRef}
+      className="popover typeset-callout"
+      role="dialog"
+      aria-label="在这里换排版主题"
+      style={at ? { left: at.left, top: at.top } : { visibility: 'hidden', left: 0, top: 0 }}
+    >
+      <span className="typeset-callout-arrow" style={{ left: at?.arrow ?? 0 }} aria-hidden="true" />
+      <div className="typeset-callout-title">在这里换排版主题</div>
+      <div className="typeset-callout-body">十几套公众号主题、排版密度和界面外观都在这里。</div>
+      <div className="typeset-callout-foot">
+        <button type="button" className="typeset-callout-ok" onClick={onDismiss}>
+          知道了
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 interface Props {
   body: string;
@@ -29,6 +183,11 @@ interface Props {
   onDevice: (device: PreviewDevice) => void;
   /** Open the typeset popover — the theme name in this head is a way in */
   onOpenTypeset: () => void;
+  /** Whether that popover is up, so the capsule can show itself pressed */
+  typesetOpen: boolean;
+  /** Set while the one-time 「在这里换排版主题」 callout should show; called to
+   *  dismiss it for good (see store/onboarding.ts) */
+  onDismissTypesetHint?: () => void;
   /**
    * Layout-change signal (editor width and mode switching both change it):
    * a backstop for the ResizeObserver — dragging the splitter or switching
@@ -253,6 +412,8 @@ export default function PreviewPane({
   device,
   onDevice,
   onOpenTypeset,
+  typesetOpen,
+  onDismissTypesetHint,
   resizeKey,
   sync,
   onPick,
@@ -778,18 +939,22 @@ export default function PreviewPane({
               className="pane-path pane-path-btn"
               onClick={onOpenTypeset}
               aria-haspopup="dialog"
+              aria-expanded={typesetOpen}
               data-typeset-trigger
             >
+              <Palette size={14} weight="regular" className="pane-path-icon" aria-hidden="true" />
               {/* Keyed on the name so a theme switch replays the slide */}
               <span className="seg last" key={theme.name}>
                 {theme.name}
               </span>
               <span className="seg">{densityName}</span>
-              {/* The one mark that says this label opens something. Small and
-                  quiet enough to stay a caption until the pointer arrives. */}
+              {/* Says the capsule opens downward, not that it cycles */}
               <CaretDown size={10} weight="bold" className="pane-path-caret" aria-hidden="true" />
             </button>
           </Tooltip>
+        )}
+        {!picking && onDismissTypesetHint && (
+          <TypesetHint paneRef={paneRef} onDismiss={onDismissTypesetHint} />
         )}
         <div className="pane-head-right">
           {hasImage && (
@@ -886,9 +1051,9 @@ export default function PreviewPane({
               <span className="time">9:41</span>
               <span className="dynamic-island" aria-hidden="true"></span>
               <span className="sb-icons" aria-hidden="true">
-                <CellSignalFull size={13} weight="fill" />
-                <WifiHigh size={13} weight="bold" />
-                <BatteryFull size={17} weight="fill" />
+                <StatusCellular />
+                <StatusWifi />
+                <StatusBattery />
               </span>
               <svg className="sb-orb" viewBox="0 0 32 32" aria-hidden="true">
                 {/* Circle outline over the top and down both sides, to just below the middle */}

@@ -9,8 +9,9 @@
    The whole strip drags the window. That is `data-tauri-drag-region="deep"` on
    the header doing it, not CSS — `-webkit-app-region` is Electron's mechanism
    and does nothing here. Tauri excludes buttons, links and inputs from a drag
-   region on its own, so the controls keep working without opting out; only a
-   floating layer rendered inside the header has to (see TypesetPopover). */
+   region on its own, so the controls keep working without opting out — and
+   nothing floats inside the header any more: every layer the bar opens is a
+   portal on <body> (see Toolbar.tsx). */
 
 .toolbar {
   position: relative;
@@ -72,10 +73,10 @@
 }
 
 /* ---------------- Toolbar capsules ----------------
-   The right end is two capsules, not a row of chips. Each is the segmented
-   control's track — the same sunken groove, the same 2px inset — so the three
-   objects up there (mode switch, capsule, capsule) are one family, and the
-   groove itself says where a group starts and ends. That is what the hairline
+   The right end is capsules, not a row of chips. Each is the segmented
+   control's track — the same sunken groove, the same 2px inset — so the
+   objects up there (mode switch, Agent, 导出) are one family, and the groove
+   itself says where a group starts and ends. That is what the hairline
    divider used to do, and a groove does it without drawing a line.
 
    Inside, a button is a label until the pointer reaches it, and then it takes
@@ -83,8 +84,9 @@
    "this one's panel is open" are therefore the same shape, distinguished by
    the accent the open one writes on its text and glyph.
 
-   No overflow clipping here, ever: the typeset popover is rendered inside the
-   排版 button's .menu-wrap, which is a child of the first capsule. */
+   Nothing floats out of a capsule any more: the typeset popover and both
+   toolbar menus are portals on <body> (see Toolbar.tsx), so the groove never
+   has to worry about clipping one. */
 
 .toolbar .capsule .btn {
   height: 26px;
@@ -112,25 +114,38 @@
   color: var(--text-1);
 }
 
-/* Pressed, or a panel of its own is open — 排版 while its popover is up,
-   Agent while the column is out. Same tile as the hover, tinted. */
+/* Pressed, or a panel of its own is open — 导出 while its menu is down, Agent
+   while the column is out. The raised tile plus full-strength text says
+   "on"; the accent is kept for the primary and for things that need
+   attention, and an open menu is neither. */
 .toolbar .capsule .btn.active {
   background: var(--surface-2);
   box-shadow: var(--shadow-1);
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
 .toolbar .capsule .btn.active svg {
-  color: var(--accent);
+  color: var(--text-1);
 }
 
-/* A working button keeps its tile: 长图 and 复制正文 are `disabled` while they
-   run, and the default .btn:disabled dimming would make the spinner vanish
-   into the groove */
+/* A working button keeps its tile: 导出 spins while the copy or the render it
+   was asked for runs, and the default .btn:disabled dimming would make the
+   spinner vanish into the groove */
 .toolbar .capsule .btn.busy {
   background: var(--surface-2);
   box-shadow: var(--shadow-1);
   color: var(--text-1);
+}
+
+/* The mark that says a button opens something rather than doing it. Quieter
+   than the label it follows — one step down the text ramp — and tucked in,
+   because the default 6px gap makes ⌄ read as a second word.
+
+   It needs the `svg` in the selector to outrank `.toolbar .capsule .btn svg`
+   above, which deliberately drags every other glyph up to the label's colour. */
+.toolbar .btn svg.tb-caret {
+  color: var(--text-3);
+  margin-left: -2px;
 }
 
 /* 推草稿 no longer has to lift off the bar to be found, now that nothing else
@@ -139,6 +154,118 @@
 .toolbar .btn.primary,
 .toolbar .btn.primary:hover {
   box-shadow: var(--shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* ---------------- The primary, split ----------------
+   推草稿 does the thing; the 22px sliver beside it lists the one other place
+   pushing has ever led — 「查看草稿箱」, which is "what did I already send?"
+   and belongs behind the send button rather than in a row of exports.
+
+   One filled shape, divided rather than doubled: the wrapper owns the
+   elevation and the outer radius, the halves own nothing but their own fill,
+   and a hairline of the accent's own text colour marks the seam. Each half
+   lights on its own hover, which is the only thing that says there are two.
+
+   The caret keeps that same rest fill while its menu is down. Lighting it
+   would leave half a solid orange button glowing under a menu that is already
+   unmistakably hanging off it — the loudest possible way to say something the
+   menu has already said. */
+
+.tb-split {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
+}
+
+/* Neither half is allowed to state a radius in a rule that also matches a
+   state. `border-radius: 0` lived here once, sharing its rule with `:hover` —
+   which made it one class-level heavier than the per-corner rules below, so
+   the pointer arriving squared the button off. A shape is not a state: each
+   half names all four of its corners, once, at the full class list, and
+   nothing it can be doing outranks that.
+   Cut rather than drawn would be simpler — `overflow: hidden` on the wrapper —
+   except that the focus ring sits 2px *outside* the border box (see
+   :focus-visible in _base.css) and the wrapper would clip it off. */
+.toolbar .tb-split .btn.primary,
+.toolbar .tb-split .btn.primary:hover {
+  /* The lit top edge belongs on the halves, not on the wrapper: a child's
+     background paints over its parent's inset shadow, so up there it would be
+     invisible. It runs straight across the seam, which is what keeps the two
+     reading as one object. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  /* The press belongs to the whole control, not to half of it: scaling one
+     side would tear the seam open for the length of the animation */
+  transform: none;
+}
+
+/* Outer corners only, so the two halves close up into one rounded rectangle */
+.toolbar .tb-split .btn.primary.tb-split-main {
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
+.toolbar .tb-split .btn.primary.tb-split-more {
+  width: 22px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+/* The seam. `--on-accent` rather than white: in a dark appearance the ink on
+   the accent is dark, and a white hairline there would be a highlight running
+   down the middle of a button that has no light on it. */
+.toolbar .tb-split .btn.primary.tb-split-more,
+.toolbar .tb-split .btn.primary.tb-split-more:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 1px 0 0 color-mix(in srgb, var(--on-accent) 18%, transparent);
+}
+
+/* ---------------- Toolbar menus ----------------
+   导出's two items and the primary's one, on <body> so neither the bar nor a
+   capsule can clip them. Hung under the trigger and right-aligned to it by
+   Toolbar.tsx, which is what `transform-origin` here has to agree with: the
+   menu grows out of the corner it was opened from. */
+
+.tb-menu {
+  position: fixed;
+  min-width: 176px;
+  z-index: 120;
+  transform-origin: top right;
+}
+
+/* A menu item mid-work: the ring takes the icon's place and the row keeps its
+   label, exactly as the toolbar buttons these two replaced used to. The
+   `disabled` that stops a second press would otherwise dim the whole row. */
+.tb-menu .menu-item.busy {
+  opacity: 1;
+}
+
+.tb-menu .menu-item .spinner {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+/* ---------------- The typeset popover's anchor ----------------
+   An empty box laid exactly over the preview head's 「经典 · 标准 ⌄」 chip,
+   positioned by Toolbar.tsx. The popover inside it still says
+   `top: calc(100% + 8px); right: 0` (see _typeset.css) and so still lands
+   under its trigger, right-aligned — the box is only there to tell it which
+   trigger that is, now that it is no longer a sibling of one.
+
+   It must not eat the clicks in the strip of preview head it covers, hence
+   pointer-events; the popover itself takes them back. */
+
+.typeset-anchor {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.typeset-anchor > * {
+  pointer-events: auto;
 }
 
 /* The open draft: the toolbar is the window title, so it should say which
@@ -198,9 +325,10 @@
 .toolbar-right {
   display: flex;
   align-items: center;
-  /* Between the four objects: mode switch, capsule, capsule, 推草稿. Inside a
-     capsule it is 2px, which is what makes each one read as a single control
-     rather than as the buttons it contains. */
+  /* Between the four objects: mode switch, Agent, 导出, 推草稿. Inside a
+     capsule — and between the two halves of the split primary — it is 0 to
+     2px, which is what makes each one read as a single control rather than as
+     the buttons it contains. */
   gap: 10px;
   margin-left: auto;
   flex: none;
@@ -220,11 +348,6 @@
   padding: 2px;
   border-radius: var(--r-sm);
   background: var(--sunken);
-}
-
-.menu-wrap {
-  position: relative;
-  display: inline-flex;
 }
 
 /* ---------------- Workspace ----------------
@@ -502,66 +625,175 @@
   font-size: var(--fs-sm);
 }
 
-/* The preview's breadcrumb is also the way into the typeset popover: the theme
-   name is the thing you want to change when you are looking at the theme name.
-   Styled as text, because that is what it is — the hover tint is the only hint
-   that it does anything, which is the right amount for a label. */
+/* The preview's breadcrumb is also the way into the typeset popover — and,
+   with the toolbar's 排版 button gone, the only visible one. So it is drawn as
+   a control at rest, in the same language as the device switch beside it: a
+   sunken capsule the height of the segmented track, which says "this can be
+   pressed" without borrowing the accent a resting control has no claim to.
+   The theme name stays the subject; the palette glyph in front says what
+   kind of thing the capsule opens. */
 .pane-path-btn {
   border: none;
-  background: transparent;
-  /* No padding/margin reset here: this element also carries `.pane-path`,
-     which sets both — and sets a vertical padding the swap animation needs
-     (see there). Resetting them to 0 would put the glyphs back on the clip
-     edge. */
+  background: var(--sunken);
   font: inherit;
   cursor: pointer;
   text-align: left;
   border-radius: var(--r-sm);
   transition:
-    color var(--t-fast) var(--ease),
-    background var(--t-fast) var(--ease);
+    background var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
 }
 
-/* Room for the hover fill to sit around the words, taken back with the
-   matching negative margin so nothing moves when the tint appears. Written
-   with both classes because `.pane-path` further down the file sets the
-   vertical padding the swap animation needs, and a single class would lose
-   to it on source order. */
+/* Written with both classes because `.pane-path` further down the file sets
+   the box model for the plain breadcrumb, and a single class would lose to it
+   on source order.
+
+   Height matches the device switch (2px track + 2px button padding around a
+   13px line + 2px each side = 21px) so the two controls share one centre
+   line and one silhouette.
+
+   Content-width rather than filling the head: in 预览 mode the head is wide,
+   and a capsule stretched across it would stop reading as a button.
+
+   The head is tight at 1440px — a four-character theme name, the density
+   word, the image mark and four device labels leave barely a hundred pixels
+   for this. The capsule buys its padding back by bleeding into the head's
+   14px left padding and into the gap before the right-hand group, so the
+   words keep exactly the room they had as a bare caption.
+
+   The swap animation moves the theme name 4px down; as a bare caption this
+   box clipped in both axes and needed 8px of vertical slack for that travel.
+   Clipping only horizontally (a long name must still stop short of the
+   device switch) lets the glyph travel past a 21px box without shearing. */
 .pane-path.pane-path-btn {
-  padding: 8px 7px;
-  margin: -8px -7px;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 3px;
+  height: 21px;
+  padding: 0 5px 0 6px;
+  margin: 0 -12px 0 -9px;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.pane-path.pane-path-btn .seg {
+  line-height: 13px;
+}
+
+.pane-path.pane-path-btn .seg + .seg::before {
+  margin-right: 3px;
 }
 
 .pane-path-btn:hover {
-  background: var(--sunken);
+  background: var(--sunken-strong);
 }
 
-.pane-path-btn:hover .seg,
-.pane-path-btn:hover .seg.last {
-  color: var(--accent-hi);
+/* Open: the capsule is lifted like the segmented control's active thumb, so
+   the popover hanging under it reads as this control's contents */
+.pane-path-btn[aria-expanded='true'] {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
 }
 
 .pane-path-btn:focus-visible {
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
-/* The caret is the affordance, not a glyph in the label: it never shrinks,
-   it never wraps, and it only picks up the accent with the rest of the
-   control. Colour, not opacity — a composited layer at this size renders
-   the stroke visibly thicker in WebKit. */
+/* Colour, never opacity, on the glyphs — a composited layer at this size
+   renders the stroke visibly thicker in WebKit */
+.pane-path-icon {
+  flex: none;
+  margin-right: 1px;
+  color: var(--text-2);
+}
+
+.pane-path.pane-path-btn .seg.last {
+  color: var(--text-1);
+}
+
+.pane-path.pane-path-btn .seg:not(.last) {
+  color: var(--text-2);
+}
+
+/* The caret belongs to the word in front of it: pulled back inside the gap,
+   because every pixel it takes here is a pixel the density word loses when a
+   four-character theme name fills the head */
 .pane-path-caret {
   flex: none;
-  align-self: center;
-  /* Pulled back inside the breadcrumb's 5px gap: the caret belongs to the
-     word in front of it, and every pixel it takes here is a pixel the density
-     word loses when a four-character theme name fills the head. */
+  /* The glyph carries its own side bearing, so this still reads as a gap */
   margin-left: -2px;
-  color: var(--text-3);
-  transition: color var(--t-fast) var(--ease);
+  color: var(--text-2);
 }
 
-.pane-path-btn:hover .pane-path-caret {
+/* ---------------- Typeset hint ----------------
+   A one-time callout under the theme capsule for people who have never opened
+   it (see store/onboarding.ts). A popover in material, but it arrives without
+   the pop-in: it appears a moment after the workspace does, and motion on top
+   of that delay would be the app raising its voice. The arrow is the whole
+   point — it has to land on the capsule, so its x is set inline from the
+   capsule's rect. */
+.typeset-callout {
+  position: fixed;
+  /* Under the typeset popover (90) and every dialog, above the page */
+  z-index: 80;
+  /* As wide as its longest line, so the one-sentence body never wraps a
+     lone word onto a second line */
+  width: max-content;
+  max-width: 320px;
+  padding: 11px 12px 7px 13px;
+  animation: none;
+}
+
+.typeset-callout-arrow {
+  position: absolute;
+  top: -5px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  border-top-left-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.typeset-callout-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.4;
+}
+
+.typeset-callout-body {
+  margin-top: 3px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.typeset-callout-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+/* The one accent in the callout: it is the thing to do next */
+.typeset-callout-ok {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
   color: var(--accent-hi);
+  padding: 4px 8px;
+  margin-right: -6px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.typeset-callout-ok:hover {
+  background: var(--accent-softer);
 }
 
 /* ---------------- Side columns ----------------
@@ -762,14 +994,17 @@
 
 .pane-stat.warn:hover,
 .pane-stat.warn:focus-visible {
-  background: var(--accent-soft);
+  background: var(--warn-soft);
 }
 
+/* Amber, not terracotta: this is a reminder to upload the pictures by hand,
+   not the brand colour — with the rest of the head neutral, an accent dot
+   was the loudest thing in it */
 .pane-stat-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--warn);
 }
 
 /* ---------------- Toast ----------------

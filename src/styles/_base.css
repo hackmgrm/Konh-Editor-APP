@@ -200,16 +200,17 @@ select {
   opacity: 1;
 }
 
-/* Pressed state (a toolbar button whose panel is open) */
+/* Pressed state (a toolbar button whose panel is open). Same reasoning as
+   `.ghost-btn.on`: "this panel is open" is a state, not an alarm. */
 .btn.active {
-  background: var(--accent-soft);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  border-color: var(--line-strong);
+  color: var(--text-1);
 }
 
 .btn.active svg {
   opacity: 1;
-  color: var(--accent);
+  color: var(--text-1);
 }
 
 /* Square icon-only button */
@@ -238,10 +239,19 @@ select {
     transform var(--t-fast) var(--ease);
 }
 
-.ghost-btn:hover:not(:disabled),
+/* Neutral, both of them. A ghost button is chrome: waking up under the
+   pointer and being switched on are changes of state, not calls for
+   attention, and tinting every one of them terracotta left the accent
+   meaning nothing in particular. The pressed state simply sits one step
+   deeper than the hover it grew out of. */
+.ghost-btn:hover:not(:disabled) {
+  background: var(--sunken);
+  color: var(--text-1);
+}
+
 .ghost-btn.on {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  color: var(--text-1);
 }
 
 .ghost-btn:active:not(:disabled) {
@@ -450,14 +460,17 @@ select {
 }
 
 .menu-item:hover {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken);
+  color: var(--text-1);
 }
 
+/* The glyph says which item this is; it is not the item's state. Neutral, so
+   that the one accent left inside a menu — the check on the current value —
+   is the only thing the eye is pulled to. */
 .menu-item .menu-icon {
   flex: none;
-  color: var(--accent);
-  opacity: 0.85;
+  color: var(--text-2);
+  opacity: 1;
 }
 
 .menu-item .menu-hint {
@@ -605,8 +618,10 @@ select {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  /* A picture of what is missing, not an alert: the disc is a recess in the
+     surface and the glyph is secondary text */
+  background: var(--sunken);
+  color: var(--text-2);
   display: inline-flex;
   align-items: center;
   justify-content: center;

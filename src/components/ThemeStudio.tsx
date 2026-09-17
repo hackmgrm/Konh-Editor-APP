@@ -440,7 +440,7 @@ export default function ThemeStudio({
         <span>{label}</span>
         {changed && (
           <button type="button" className="st-reset" title="改回打开时的样子" aria-label={`还原${label}`} onClick={onReset}>
-            <ArrowCounterClockwise size={10} weight="bold" />
+            <ArrowCounterClockwise size={11} weight="regular" />
           </button>
         )}
       </div>
@@ -531,7 +531,7 @@ export default function ThemeStudio({
         <span className="st-mode">{editing ? (dirty ? '有改动未存' : '已存') : '新主题'}</span>
         <Tooltip content="关掉主题工坊" shortcut="Esc" side="left">
           <button className="ghost-btn st-close" onClick={() => void close()} aria-label="关掉主题工坊">
-            <X size={14} weight="bold" />
+            <X size={16} weight="regular" />
           </button>
         </Tooltip>
       </div>
@@ -587,7 +587,7 @@ export default function ThemeStudio({
           />
         </div>
         <label className="st-search">
-          <MagnifyingGlass size={12} weight="bold" />
+          <MagnifyingGlass size={14} weight="regular" />
           <input
             className="st-input"
             value={query}

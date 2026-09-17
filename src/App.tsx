@@ -16,7 +16,7 @@ import SniffThemeDialog from './components/SniffThemeDialog';
 import VaultGate from './components/VaultGate';
 import CommandPalette, { type PaletteItem } from './components/CommandPalette';
 import { Toaster, toast } from './toast';
-import { SHORTCUTS, useShortcuts } from './shortcuts';
+import { SHORTCUTS, hintFor, useShortcuts } from './shortcuts';
 import { usePresence } from './usePresence';
 import {
   collectImageRefs,
@@ -37,6 +37,7 @@ import type { SectionId } from './themeFields';
 import { createScrollSyncChannel } from './scrollSync';
 import { useVault } from './store/useVault';
 import { useAppearance } from './store/appearance';
+import { useTypesetHint } from './store/onboarding';
 import { deleteCustomTheme, ensureThemeGuide, saveCustomTheme, useCustomThemes } from './store/customThemes';
 import { sniffThemeFromUrl } from './themeSniff';
 import { fetch as httpFetch } from '@tauri-apps/plugin-http';
@@ -915,6 +916,30 @@ function Workspace({ vault }: { vault: VaultApi }) {
 
   const isPreviewOnly = viewMode === 'preview';
 
+  /**
+   * The one-time pointer at the theme capsule. With the toolbar's 排版 button
+   * gone the capsule is the only visible way to the themes, so a first launch
+   * points at it once. Not while the studio has the preview (the capsule is
+   * replaced by the pick prompt then) and not without a draft to preview.
+   */
+  const typesetHint = useTypesetHint(!studio && !!activeId);
+  const dismissTypesetHint = typesetHint.dismiss;
+  // Reaching the popover any way at all — capsule, shortcut, palette — is the
+  // lesson learnt
+  useEffect(() => {
+    if (typesetOpen) dismissTypesetHint();
+  }, [typesetOpen, dismissTypesetHint]);
+  // Someone who has moved between drafts twice is already finding their way
+  // around, and the callout has become furniture
+  const draftSwitches = useRef({ last: activeId, count: 0 });
+  useEffect(() => {
+    const seen = draftSwitches.current;
+    if (seen.last === activeId) return;
+    seen.last = activeId;
+    seen.count += 1;
+    if (seen.count >= 2) dismissTypesetHint();
+  }, [activeId, dismissTypesetHint]);
+
   /* ---------------- Keyboard, palette ---------------- */
 
   /** A dialog or the palette owns the keyboard while it is up */
@@ -1012,6 +1037,13 @@ function Workspace({ vault }: { vault: VaultApi }) {
             name: SHORTCUTS.publish.label,
             hint: SHORTCUTS.publish.hint,
             run: () => setPublishOpen(true),
+          },
+          {
+            id: 'act:typeset',
+            section: '动作',
+            name: '排版与主题',
+            hint: hintFor('typeset'),
+            run: () => setTypesetOpen(true),
           },
           { id: 'act:box', section: '动作', name: '草稿箱', run: () => setDraftBoxOpen(true) },
           {
@@ -1246,7 +1278,12 @@ function Workspace({ vault }: { vault: VaultApi }) {
               draftId={activeId}
               device={device}
               onDevice={setDevice}
-              onOpenTypeset={() => setTypesetOpen(true)}
+              onOpenTypeset={() => {
+                dismissTypesetHint();
+                setTypesetOpen(true);
+              }}
+              typesetOpen={typesetOpen}
+              onDismissTypesetHint={typesetHint.show ? dismissTypesetHint : undefined}
               resizeKey={`${viewMode}:${editorPct}`}
               sync={scrollSync}
               onPick={studio ? (section) => setStudioPick({ section, at: Date.now() }) : undefined}

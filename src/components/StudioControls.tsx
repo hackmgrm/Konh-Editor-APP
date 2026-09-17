@@ -351,7 +351,7 @@ export function BorderField({
     <div className="st-border">
       <div className="st-stepper" role="group" aria-label="粗细">
         <button type="button" onClick={() => step(-1)} aria-label="细一点">
-          <Minus size={10} weight="bold" />
+          <Minus size={12} weight="regular" />
         </button>
         {/* The number itself is the control, not just a readout: ↑↓ and the
             wheel are how anyone who has used a style inspector expects to
@@ -382,7 +382,7 @@ export function BorderField({
           {width}px
         </span>
         <button type="button" onClick={() => step(1)} aria-label="粗一点">
-          <Plus size={10} weight="bold" />
+          <Plus size={12} weight="regular" />
         </button>
       </div>
       <Select
@@ -604,7 +604,7 @@ export function ExtraEditor({
               aria-label={`删掉 ${r.k || '这一条'}`}
               onClick={() => update(rows.filter((x) => x.id !== r.id))}
             >
-              <X size={11} weight="bold" />
+              <X size={14} weight="regular" />
             </button>
           </Tooltip>
         </div>
@@ -614,7 +614,7 @@ export function ExtraEditor({
         className="st-extra-add"
         onClick={() => setRows([...rows, { k: '', v: '', id: ++rowSeq }])}
       >
-        <Plus size={11} weight="bold" />
+        <Plus size={12} weight="regular" />
         加一条 CSS
       </button>
     </div>

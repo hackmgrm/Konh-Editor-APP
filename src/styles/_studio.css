@@ -161,7 +161,7 @@
 }
 
 .st-select:hover {
-  border-color: var(--accent-ring);
+  border-color: var(--line-strong);
 }
 
 .st-select:focus-visible,
@@ -187,7 +187,7 @@
 
 .st-select:hover .st-select-caret,
 .st-select.open .st-select-caret {
-  color: var(--accent);
+  color: var(--text-1);
 }
 
 /* ---------------- The list ----------------
@@ -724,7 +724,7 @@
 }
 
 .slider:hover .slider-thumb {
-  border-color: var(--accent-ring);
+  border-color: var(--text-3);
 }
 
 .slider:focus-visible .slider-thumb {
@@ -814,13 +814,13 @@
 }
 
 .st-stepper button:hover {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken);
+  color: var(--text-1);
 }
 
 .st-stepper button:active {
-  background: var(--accent-ring);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  color: var(--text-1);
 }
 
 .st-stepper-value {
@@ -937,9 +937,9 @@
 }
 
 .st-extra-add:hover {
-  border-color: var(--accent);
-  color: var(--accent-hi);
-  background: var(--accent-softer);
+  border-color: var(--line-strong);
+  color: var(--text-1);
+  background: var(--sunken);
 }
 
 /* ---------------- Footer ---------------- */

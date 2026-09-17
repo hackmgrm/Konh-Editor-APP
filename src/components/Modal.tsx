@@ -173,7 +173,7 @@ export default function Modal({
           <h2 id={titleId}>{title}</h2>
           {headExtra}
           <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
+            <X size={16} weight="regular" />
           </button>
         </header>
         {onSubmit ? (

@@ -258,7 +258,7 @@ function ToolBeat({ beat }: { beat: Beat }) {
   return (
     <div className={`agent-beat tool${beat.bad ? ' bad' : ''}`} title={full}>
       <span className="agent-tool-icon" aria-hidden="true">
-        <Glyph size={11} weight="bold" />
+        <Glyph size={12} weight="regular" />
       </span>
       {beat.verb && <span className="agent-tool-verb">{beat.verb}</span>}
       {beat.text && <span className="agent-tool-target">{beat.text}</span>}
@@ -947,17 +947,17 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
             aria-label="历史会话"
             aria-pressed={historyOpen}
           >
-            <ClockCounterClockwise size={14} weight="bold" />
+            <ClockCounterClockwise size={16} weight="regular" />
           </button>
         </Tooltip>
         <Tooltip content="新对话">
           <button className="ghost-btn" onClick={startNew} disabled={running} aria-label="新对话">
-            <NotePencil size={14} weight="bold" />
+            <NotePencil size={16} weight="regular" />
           </button>
         </Tooltip>
         <Tooltip content="收起" shortcut={hintFor('agent')}>
           <button className="ghost-btn" onClick={onClose} aria-label="收起">
-            <X size={14} weight="bold" />
+            <X size={16} weight="regular" />
           </button>
         </Tooltip>
       </div>
@@ -1008,7 +1008,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
                 title="删掉这段记录"
                 onClick={() => dropSession(s.key)}
               >
-                <Trash size={12} weight="bold" />
+                <Trash size={14} weight="regular" />
               </button>
             </div>
           ))}
@@ -1102,7 +1102,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
           )}
           {activeId && (
             <div className="agent-context" title={`这轮会告诉它你正在看「${activeId}」`}>
-              <Paperclip size={11} weight="bold" />
+              <Paperclip size={12} weight="regular" />
               <span>{activeId}</span>
             </div>
           )}
@@ -1111,7 +1111,7 @@ export default function AgentPanel({ open, vaultDir, activeId, onClose, onBefore
               have to do before anything here works again. */}
           {lastFail[kind] === 'auth' && (
             <div className="agent-context warn">
-              <Warning size={11} weight="bold" />
+              <Warning size={12} weight="regular" />
               <span>
                 {kind} 需要先登录：<code>{loginCommand(kind)}</code>
               </span>

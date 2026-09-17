@@ -186,7 +186,7 @@ export default function UpdateDialog({ open, onClose }: Props) {
           <p className="form-note">
             也可以直接去
             <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
-              发布页 <ArrowSquareOut size={11} weight="bold" />
+              发布页 <ArrowSquareOut size={12} weight="regular" />
             </a>
             手动下载安装包。
           </p>

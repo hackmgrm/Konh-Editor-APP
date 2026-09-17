@@ -603,7 +603,7 @@ export default function FileTree({
           onNewDraft(parent);
         }}
       >
-        <FilePlus size={14} className="menu-icon" />
+        <FilePlus size={16} className="menu-icon" />
         新建草稿
         <span className="menu-hint">{hintFor("newDraft")}</span>
       </button>
@@ -615,7 +615,7 @@ export default function FileTree({
           onNewFolder(parent);
         }}
       >
-        <FolderPlus size={14} className="menu-icon" />
+        <FolderPlus size={16} className="menu-icon" />
         新建文件夹
       </button>
       <button
@@ -626,7 +626,7 @@ export default function FileTree({
           onImportUrl(parent);
         }}
       >
-        <Globe size={14} className="menu-icon" />
+        <Globe size={16} className="menu-icon" />
         从链接导入
       </button>
     </>
@@ -792,12 +792,12 @@ export default function FileTree({
         <span className="tree-file-actions">
           <Tooltip content="重命名" shortcut="F2" side="left">
             <button aria-label={`重命名 ${name}`} onClick={() => startRename(entry)}>
-              <PencilSimple size={12} weight="bold" />
+              <PencilSimple size={14} weight="regular" />
             </button>
           </Tooltip>
           <Tooltip content="删除" shortcut="Delete" side="left">
             <button aria-label={`删除 ${name}`} onClick={() => onDelete(path)}>
-              <Trash size={12} weight="bold" />
+              <Trash size={14} weight="regular" />
             </button>
           </Tooltip>
         </span>
@@ -838,7 +838,7 @@ export default function FileTree({
               setAddOpen((v) => !v);
             }}
           >
-            <Plus size={16} weight="bold" />
+            <Plus size={16} weight="regular" />
           </button>
         </Tooltip>
       </div>
@@ -879,7 +879,7 @@ export default function FileTree({
 
         {unusedImages.length > 0 && (
           <button className="tree-cleanup" onClick={onCleanupImages}>
-            <Broom size={14} weight="bold" />
+            <Broom size={14} weight="regular" />
             清理 {unusedImages.length} 张未引用图片
           </button>
         )}
@@ -949,7 +949,7 @@ export default function FileTree({
                           startRename(entry);
                         }}
                       >
-                        <PencilSimple size={14} className="menu-icon" />
+                        <PencilSimple size={16} className="menu-icon" />
                         重命名
                       </button>
                       <button
@@ -960,7 +960,7 @@ export default function FileTree({
                           onReveal(entry.path);
                         }}
                       >
-                        <FolderOpen size={14} className="menu-icon" />
+                        <FolderOpen size={16} className="menu-icon" />
                         在文件管理器中显示
                       </button>
                       <button
@@ -971,7 +971,7 @@ export default function FileTree({
                           onDelete(entry.path);
                         }}
                       >
-                        <Trash size={14} className="menu-icon" />
+                        <Trash size={16} className="menu-icon" />
                         删除
                       </button>
                     </>
