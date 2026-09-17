@@ -501,7 +501,10 @@ const listOpen =
       task: isTask,
       own,
     });
-    return `<${tag} style="${st(styles)}">`;
+    // A drawn number counts for itself; the browser's needs telling where to
+    // begin, or `5.` in the source comes out as `1.`
+    const from = ordered && !own && start !== 1 && Number.isFinite(start) ? ` start="${start}"` : '';
+    return `<${tag}${from} style="${st(styles)}">`;
   };
 
 md.renderer.rules.bullet_list_open = listOpen(false);
@@ -1558,7 +1561,10 @@ export function renderArticle(
     color: th.body.color,
     'word-break': 'break-word',
     ...(th.body.letterSpacing ? { 'letter-spacing': th.body.letterSpacing } : {}),
-    ...(th.body.bg ? { background: th.body.bg } : {}),
+    // A paper colour of its own makes the wrapper's edge visible, and text
+    // set flush against that edge reads as cropped. The preview pads its own
+    // paper; on a paste or a draft this section is the paper.
+    ...(th.body.bg ? { background: th.body.bg, padding: '24px 16px' } : {}),
   })}">${body}</section>`;
   return {
     body,
