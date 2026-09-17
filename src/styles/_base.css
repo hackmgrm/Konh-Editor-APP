@@ -144,6 +144,25 @@ select {
   transform: none;
 }
 
+/* Disabled-because-working keeps its full strength: a faded spinner reads
+ * as broken rather than busy */
+.btn:disabled.working {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* A long action in progress (copy with remote images, long-image render):
+ * the label swap alone is easy to miss when the eye has already moved on */
+.btn svg.spin {
+  animation: btn-spin 0.9s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .btn.primary {
   background: var(--accent);
   border-color: transparent;

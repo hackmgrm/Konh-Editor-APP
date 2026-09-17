@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import { ArrowCircleUp, CircleNotch, ClipboardText, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
 import { chord } from '../platform';
 
 interface Props {
@@ -201,14 +201,24 @@ export default function Toolbar({
           Agent
         </button>
 
-        <button className="btn" onClick={onExportImage} disabled={exporting} title="把整篇正文渲染成一张长图 PNG">
-          <ImageSquare size={15} weight="bold" />
+        <button
+          className={`btn ${exporting ? 'working' : ''}`}
+          onClick={onExportImage}
+          disabled={exporting}
+          title="把整篇正文渲染成一张长图 PNG"
+        >
+          {exporting ? <CircleNotch size={15} weight="bold" className="spin" /> : <ImageSquare size={15} weight="bold" />}
           {exporting ? '渲染中…' : '长图'}
         </button>
 
-        <button className="btn" onClick={onCopy} disabled={copying} title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}>
-          <ClipboardText size={15} weight="bold" />
-          {copying ? '处理中…' : '复制正文'}
+        <button
+          className={`btn ${copying ? 'working' : ''}`}
+          onClick={onCopy}
+          disabled={copying}
+          title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}
+        >
+          {copying ? <CircleNotch size={15} weight="bold" className="spin" /> : <ClipboardText size={15} weight="bold" />}
+          {copying ? '复制中…' : '复制正文'}
         </button>
 
         {/* The drafts box is otherwise only visible inside the WeChat console,
