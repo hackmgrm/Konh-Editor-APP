@@ -65,7 +65,13 @@ const baseName = (path: string) => path.split('/').pop() ?? path;
  * after the work it was supposed to cover.
  */
 function nextPaint(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+    // A hidden window gets no frames at all — and clicking copy, then switching
+    // straight to the WeChat tab, is how this gets used. Never wait on a paint
+    // nobody can see.
+    setTimeout(resolve, 100);
+  });
 }
 
 /** Find a node in the tree by its relative path */

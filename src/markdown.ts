@@ -99,9 +99,6 @@ interface Flow {
   row: number;
   /** Inside a thead (whose rows are never striped) */
   head: boolean;
-  /** Hidden paragraphs re-opened as an inline wrapper (see paragraph_open);
-   *  counts opens so paragraph_close knows which hidden closes to honour */
-  inlineP: number;
 }
 
 interface QuoteFrame {
@@ -122,7 +119,7 @@ interface ListFrame {
   own: boolean;
 }
 
-const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false, inlineP: 0 });
+const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false });
 
 /** The flow state, created on first use so every rule can assume it exists */
 function flow(env: Env): Flow {
@@ -390,33 +387,25 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
   // it has to be made here. Without it every list item holds a block-level
   // paragraph, which is what pushed a theme's own bullet onto a line of its own.
   //
-  // One exception: in a list that draws its own markers, the hidden paragraph
-  // is kept as an inline wrapper rather than dropped. Dropped, the item's text
-  // sits bare under <li> right after the marker span and any styled inline
-  // element — and a WeChat paste splits exactly there, putting the text after
-  // `**label**：` on a line of its own. An inline <p> is the structure a loose
-  // item already has, and loose items demonstrably paste intact.
-  if (tokens[idx].hidden) {
-    const list = flow(env).lists[flow(env).lists.length - 1];
-    if (list?.own && tokens[idx - 1]?.type === 'list_item_open') {
-      flow(env).inlineP++;
-      const b = env.theme.body;
-      return `<p style="${st({
-        'font-family': b.font,
-        'font-size': b.fontSize,
-        'line-height': b.lineHeight,
-        color: 'inherit',
-        margin: '0',
-        display: 'inline',
-      })}">`;
-    }
-    return '';
-  }
+  // One exception: in a list that draws its own markers, the paragraph that
+  // opens an item is kept as an inline wrapper. Dropped, the item's text sits
+  // bare under <li>, and a WeChat paste wraps everything from the first bare
+  // text node onward in a block of its own: `**label**：text` lands on two
+  // lines, and a plain item leaves its marker alone on the first. A loose item
+  // — marker, then an inline <p> — goes through the same paste intact (checked
+  // on a real paste), so a tight one is given the same shape. Items with no
+  // drawn marker are reshaped on the copy path instead (see clipboard.ts).
+  const list = flow(env).lists[flow(env).lists.length - 1];
+  const afterMarker = !!list?.own && tokens[idx - 1]?.type === 'list_item_open';
+  const tight = !!tokens[idx].hidden;
+  if (tight && !afterMarker) return '';
   const th = env.theme;
   const b = th.body;
   const nested = tokens[idx].level > 0;
   const line = tokens[idx].map?.[0];
-  const dl = line != null ? ` data-line="${line}"` : '';
+  // A tight item's <li> already carries this line; a second holder would only
+  // compete with it
+  const dl = line != null && !tight ? ` data-line="${line}"` : '';
   if (nested) {
     // Inside a list item, a table cell or a quote. A pull quote is the one
     // container that imposes its own size and alignment on what it holds —
@@ -426,8 +415,6 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
     // A loose list (blank lines between the items) keeps its paragraphs, and
     // the first of them has a marker sitting to its left; as a block it would
     // start on the line below it
-    const list = flow(env).lists[flow(env).lists.length - 1];
-    const afterMarker = !!list?.own && tokens[idx - 1]?.type === 'list_item_open';
     return `<p${dl} style="${st({
       'font-family': b.font,
       'font-size': pull ? quote.fontSize ?? b.fontSize : b.fontSize,
@@ -435,6 +422,9 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
       color: 'inherit',
       margin: '0',
       ...(afterMarker ? { display: 'inline' } : {}),
+      // The item's hanging indent is inherited by every block inside it, and
+      // would drag the first line of a second paragraph out past the text
+      ...(list?.own && !afterMarker ? { 'text-indent': '0' } : {}),
       ...(pull ? { 'text-align': 'center' } : {}),
     })}">`;
   }
@@ -455,12 +445,10 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
 md.renderer.rules.paragraph_close = ((tokens, idx, _o, env) => {
   if (env.footnote) return '';
   if (tokens[idx].hidden) {
-    // Close only what paragraph_open re-opened as an inline wrapper
-    if (flow(env).inlineP > 0) {
-      flow(env).inlineP--;
-      return '</p>';
-    }
-    return '';
+    // A hidden paragraph is open / inline / close, so the token three back
+    // says whether paragraph_open kept this one (see there)
+    const list = flow(env).lists[flow(env).lists.length - 1];
+    if (!list?.own || tokens[idx - 3]?.type !== 'list_item_open') return '';
   }
   return '</p>';
 }) as RenderRule;
@@ -1054,7 +1042,9 @@ md.renderer.rules.del_close = (() => '</del>') as RenderRule;
  * otherwise paste as a bold term on one line and its definition on the next.
  * Everywhere else the break is the single space CommonMark says it is.
  */
-const CJK_CHAR = /[\u3000-\u303f\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+// Curly quotes, the em dash and the ellipsis are general punctuation rather
+// than CJK, but in Chinese prose they are set as tight as any other character
+const CJK_CHAR = /[\u2014\u2018\u2019\u201c\u201d\u2026\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/;
 md.renderer.rules.softbreak = ((tokens, idx) => {
   // The characters visible on either side of the break, skipping the open and
   // close tags that carry no text of their own

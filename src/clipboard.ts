@@ -26,62 +26,37 @@ function isMarkerSpan(node: Node): boolean {
 }
 
 /**
- * Reshape list items into the single-unit form WeChat's editor keeps on one
- * line.
+ * Reshape the list items WeChat's editor would otherwise tear in two.
  *
- * A paste runs every <li> through the editor's normalizer: the first inline
- * node stays put and everything after it is rewrapped in a <section> — a
- * block — so an item like `**标签**：正文` ends up on two lines no matter how
- * the HTML was written (an inline <p> wrapper is dissolved on the way
- * through, and content already inside one element is left alone — both
- * observed on real pastes). Each item's inline run is therefore handed over
- * as a single <section>, and the theme's own marker spans are dropped: the
- * editor rebuilds native markers anyway, and one kept inside the section
- * would double the bullet.
+ * A paste runs every <li> through the editor's normalizer: element nodes at
+ * the head of the item stay put, and everything from the first bare text node
+ * onward is rewrapped in a block — so `**标签**：正文` ends up on two lines,
+ * and a task item leaves its checkbox and label above the rest.
+ *
+ * Two shapes are known to survive, both checked on real pastes. An item that
+ * opens with a drawn marker and keeps its text in an inline <p> comes through
+ * untouched, marker included — markdown.ts already renders those that way, and
+ * they are left alone here. An item with no drawn marker (a task list, or a
+ * theme that keeps the browser's numbers) has nothing in front of its text to
+ * hold the line, so its inline run is handed over as a single <section>, the
+ * one-unit form the editor produces itself.
  */
 export function prepareListsForPaste(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  /** Lists whose own markers were dropped — they need their native ones back */
-  const stripped = new Set<HTMLElement>();
   for (const li of Array.from(doc.querySelectorAll('li'))) {
+    if (li.firstChild && isMarkerSpan(li.firstChild)) continue;
     // The leading inline run: everything up to the first block child (a
-    // nested list, a table…). An inline <p> — what both tight and loose items
-    // wrap their content in — is dissolved into the run, so both shapes are
-    // handled the same way.
+    // nested list, a loose item's paragraphs, a table…)
     const run: ChildNode[] = [];
     for (const child of Array.from(li.childNodes)) {
-      if (child instanceof HTMLElement) {
-        const inlineP = child.tagName === 'P' && child.style.display === 'inline';
-        if (BLOCK_TAGS.has(child.tagName) && !inlineP) break;
-        if (inlineP) {
-          run.push(...child.childNodes);
-          child.remove();
-          continue;
-        }
-      }
+      if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName)) break;
       run.push(child);
     }
-    let droppedMarker = false;
-    const content: ChildNode[] = [];
-    for (const node of run) {
-      if (isMarkerSpan(node)) droppedMarker = true;
-      else content.push(node);
-    }
-    if (!content.length) continue;
+    if (!run.some((node) => node.textContent?.trim())) continue;
     const section = doc.createElement('section');
     li.insertBefore(section, run[0]);
-    for (const node of run) {
-      if (isMarkerSpan(node)) node.remove();
-      else section.appendChild(node);
-    }
-    // The hanging indent existed to line a wrapped line up with the marker
-    li.style.textIndent = '';
-    if (droppedMarker && li.parentElement) stripped.add(li.parentElement);
+    section.append(...run);
   }
-  // A list that drew its own markers hides the browser's (list-style:none);
-  // with the drawn ones gone the native markers have to come back. Task lists
-  // keep theirs hidden — ☑ / ☐ are the markers.
-  for (const list of stripped) list.style.listStyle = '';
   return doc.body.innerHTML;
 }
 
@@ -104,8 +79,11 @@ function htmlToPlainText(html: string): string {
 
 /** Copy rich text to the clipboard; returns whether it worked */
 export async function copyRichText(html: string): Promise<boolean> {
-  const clean = prepareListsForPaste(stripPreviewMeta(html));
-  const plain = htmlToPlainText(clean);
+  const stripped = stripPreviewMeta(html);
+  // The reshaping is for WeChat's HTML normalizer only; the plain-text flavour
+  // reads the article as rendered
+  const plain = htmlToPlainText(stripped);
+  const clean = prepareListsForPaste(stripped);
 
   // Preferred: the modern ClipboardItem API (Chrome 76+ / Edge, the browsers
   // people actually run the WeChat backend in)
