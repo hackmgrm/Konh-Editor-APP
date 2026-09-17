@@ -96,6 +96,9 @@ interface Flow {
   row: number;
   /** Inside a thead (whose rows are never striped) */
   head: boolean;
+  /** Hidden paragraphs re-opened as an inline wrapper (see paragraph_open);
+   *  counts opens so paragraph_close knows which hidden closes to honour */
+  inlineP: number;
 }
 
 interface QuoteFrame {
@@ -116,7 +119,7 @@ interface ListFrame {
   own: boolean;
 }
 
-const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false });
+const newFlow = (): Flow => ({ section: 0, quotes: [], lists: [], row: 0, head: false, inlineP: 0 });
 
 /** The flow state, created on first use so every rule can assume it exists */
 function flow(env: Env): Flow {
@@ -317,8 +320,30 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
   // A tight list's paragraphs are marked hidden by markdown-it, and its own
   // renderToken drops them — but overriding this rule bypasses that check, so
   // it has to be made here. Without it every list item holds a block-level
-  // paragraph, which is what pushed a theme's own bullet onto a line of its own
-  if (tokens[idx].hidden) return '';
+  // paragraph, which is what pushed a theme's own bullet onto a line of its own.
+  //
+  // One exception: in a list that draws its own markers, the hidden paragraph
+  // is kept as an inline wrapper rather than dropped. Dropped, the item's text
+  // sits bare under <li> right after the marker span and any styled inline
+  // element — and a WeChat paste splits exactly there, putting the text after
+  // `**label**：` on a line of its own. An inline <p> is the structure a loose
+  // item already has, and loose items demonstrably paste intact.
+  if (tokens[idx].hidden) {
+    const list = flow(env).lists[flow(env).lists.length - 1];
+    if (list?.own && tokens[idx - 1]?.type === 'list_item_open') {
+      flow(env).inlineP++;
+      const b = env.theme.body;
+      return `<p style="${st({
+        'font-family': b.font,
+        'font-size': b.fontSize,
+        'line-height': b.lineHeight,
+        color: 'inherit',
+        margin: '0',
+        display: 'inline',
+      })}">`;
+    }
+    return '';
+  }
   const th = env.theme;
   const b = th.body;
   const nested = tokens[idx].level > 0;
@@ -361,7 +386,14 @@ md.renderer.rules.paragraph_open = ((tokens, idx, _o, env) => {
 
 md.renderer.rules.paragraph_close = ((tokens, idx, _o, env) => {
   if (env.footnote) return '';
-  if (tokens[idx].hidden) return '';
+  if (tokens[idx].hidden) {
+    // Close only what paragraph_open re-opened as an inline wrapper
+    if (flow(env).inlineP > 0) {
+      flow(env).inlineP--;
+      return '</p>';
+    }
+    return '';
+  }
   return '</p>';
 }) as RenderRule;
 
@@ -906,6 +938,39 @@ md.renderer.rules.em_close = (() => '</em>') as RenderRule;
 md.renderer.rules.del_open = ((_t, _i, _o, env) =>
   `<del style="${st({ color: env.theme.delColor })}">`) as RenderRule;
 md.renderer.rules.del_close = (() => '</del>') as RenderRule;
+
+/**
+ * A soft break — a newline inside a paragraph — must not reach the copy as a
+ * raw \n: the preview collapses it the way any browser does, but a WeChat
+ * paste turns it into a hard line break, tearing the paragraph at every place
+ * the source happened to wrap. (Same WeChat behaviour the per-line code
+ * blocks work around; this is the paragraph's share of it.)
+ *
+ * Chinese prose wraps lines anywhere and sets no spaces, so between CJK
+ * characters the break vanishes outright — as does one before a colon, the
+ * `**term**\n: definition` shape every LLM draft writes, which would
+ * otherwise paste as a bold term on one line and its definition on the next.
+ * Everywhere else the break is the single space CommonMark says it is.
+ */
+const CJK_CHAR = /[\u3000-\u303f\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+md.renderer.rules.softbreak = ((tokens, idx) => {
+  // The characters visible on either side of the break, skipping the open and
+  // close tags that carry no text of their own
+  const nearest = (from: number, step: 1 | -1, pick: (s: string) => string) => {
+    for (let i = from; i >= 0 && i < tokens.length; i += step) {
+      const t = tokens[i];
+      if ((t.type === 'text' || t.type === 'code_inline') && t.content) return pick(t.content);
+    }
+    return '';
+  };
+  const prev = nearest(idx - 1, -1, (s) => s.trimEnd().slice(-1));
+  const next = nearest(idx + 1, 1, (s) => s.trimStart().slice(0, 1));
+  return next === ':' || next === '：' || (CJK_CHAR.test(prev) && CJK_CHAR.test(next)) ? '' : ' ';
+}) as RenderRule;
+
+/* The built-in hard break emits `<br>\n`; the stray \n is one more raw
+   newline for a WeChat paste to break on, right where a break already is */
+md.renderer.rules.hardbreak = (() => '<br>') as RenderRule;
 
 /* ==mark== highlight (markdown-it-mark) */
 md.renderer.rules.mark_open = ((_t, _i, _o, env) => {
