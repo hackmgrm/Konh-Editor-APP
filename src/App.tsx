@@ -57,6 +57,17 @@ type VaultApi = ReturnType<typeof useVault>;
 /** Image relative path → file name */
 const baseName = (path: string) => path.split('/').pop() ?? path;
 
+/**
+ * Yield until the browser has painted once: the rAF callback runs inside the
+ * frame, and the timer after it only after the frame (paint included) is done.
+ * Awaiting anything less leaves pending rendering unpainted behind the next
+ * synchronous block — which is how a loading state ends up appearing only
+ * after the work it was supposed to cover.
+ */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+}
+
 /** Find a node in the tree by its relative path */
 function findEntry(entries: Entry[], path: string): Entry | null {
   for (const e of entries) {
@@ -707,6 +718,10 @@ function Workspace({ vault }: { vault: VaultApi }) {
   const handleCopy = async () => {
     if (copying) return;
     setCopying(true);
+    // The loading state has to be painted before the heavy synchronous render
+    // starts; a plain await only reaches microtasks, which run before the
+    // browser gets its frame (rAF callback, then a timer after the paint)
+    await nextPaint();
     try {
       // The preview runs off a deferred value and the highlighter may still be
       // loading, so an export has to re-render from the current body
@@ -739,6 +754,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
    *  the deferred preview value) */
   const handleExportImage = async () => {
     setExporting(true);
+    // Same as the copy button: paint the loading state first
+    await nextPaint();
     try {
       await ensureHighlighter();
       const { body } = renderArticle(markdown, theme, imageIndex, density, renderOptions);
