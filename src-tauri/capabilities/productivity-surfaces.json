@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "productivity-surfaces",
+  "description": "快速添加与提醒窗口：只开放事件订阅和窗口拖动，不授予网络、文件、更新及账号插件权限。",
+  "windows": ["quickadd", "reminder"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}

@@ -1,7 +1,7 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,8 @@
     "app": "tauri dev",
     "app:build": "tauri build --no-sign",
     "tauri": "tauri",
-    "test:publishing": "node --experimental-strip-types --test src/uploadCache.test.ts src/publishJournal.test.ts src/store/contentState.test.ts src/preflight.test.ts src/articleIdentity.test.ts src/layoutResults.test.ts"
+    "test:publishing": "node --experimental-strip-types --test src/uploadCache.test.ts src/publishJournal.test.ts src/store/contentState.test.ts src/preflight.test.ts src/articleIdentity.test.ts src/layoutResults.test.ts",
+    "test:productivity": "node --experimental-strip-types --test src/productivity/*.test.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -27,13 +28,17 @@
     "@codemirror/language-data": "^6.5.2",
     "@codemirror/search": "^6.7.1",
     "@phosphor-icons/react": "^2.1.10",
+    "@supabase/supabase-js": "^2.116.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-http": "^2.5.9",
+    "@tauri-apps/plugin-notification": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
+    "chrono-node": "^2.10.1",
     "codemirror": "^6.0.2",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.0",
@@ -44,6 +49,7 @@
     "streamdown": "^2.5.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tauri-apps/cli": "^2.11.4",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^26.2.0",

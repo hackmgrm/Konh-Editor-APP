@@ -1,6 +1,6 @@
 [package]
 name = "konh-editor"
-version = "0.3.3"
+version = "0.4.0"
 description = "空核编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
@@ -22,7 +22,10 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = [] }
+tauri = { version = "2.11.3", features = ["tray-icon"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+tauri-plugin-notification = "2"
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-http = "2.5.9"
@@ -40,4 +43,9 @@ tempfile = "3.27.0"
 # In-app update. Desktop only: there is no such thing as sideloading a new
 # binary over yourself on iOS/Android, where the store owns that job.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+rodio = { version = "0.21", default-features = false, features = ["playback", "wav", "mp3", "vorbis", "flac"] }
 tauri-plugin-updater = "2.9.0"

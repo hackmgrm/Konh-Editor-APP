@@ -124,6 +124,25 @@
   display: inline-flex;
 }
 
+.toolbar-more {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 224px;
+  max-height: calc(100vh - 70px);
+  overflow-y: auto;
+}
+
+.toolbar-more .menu-item:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+@media (max-width: 1100px) {
+  .toolbar .brand-name { display: none; }
+  .toolbar-right { gap: 4px; }
+}
+
 /* ---------------- Workspace ---------------- */
 
 .workspace {

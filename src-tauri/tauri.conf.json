@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "KonhEditor",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "identifier": "com.konheditor.app",
   "build": {
     "frontendDist": "../dist",
@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "longDescription": "Markdown 写作，一键转成公众号内联样式富文本 —— 粘进公众号编辑器即可无损还原，也可以直接推送到草稿箱。草稿不藏在应用里，就是磁盘上的普通 .md 文件。",
+    "longDescription": "本地优先的写作与个人效率工作台：Markdown 写作、公众号排版与草稿推送，任务与日历、专注计时、桌面提醒和日记。可连接自己的账号服务实现多设备同步。",
     "createUpdaterArtifacts": true,
     "targets": [
       "app",

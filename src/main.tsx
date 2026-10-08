@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import App from './productivity/Shell';
 import { initAppConfig } from './store/appConfig';
 import { applyAppearance, getAppearance } from './store/appearance';
 import { applyPlatform } from './platform';

@@ -4,11 +4,11 @@
  * The drafts API is far stricter about `content` than a browser is, and
  * anything it dislikes comes back as 45166 "invalid content" without saying
  * what. This normalizes the constructs known to trip it, and reports size the
- * way WeChat measures it — so when something does go wrong you can at least
+ * as text and HTML separately — so when something does go wrong you can at least
  * see how big the body is instead of guessing.
  */
 
-/** WeChat's documented limits for a body: under 20k characters and under 1MB */
+/** Local guards: body text length and serialized HTML payload size. */
 export const MAX_CONTENT_CHARS = 20000;
 export const MAX_CONTENT_BYTES = 1024 * 1024;
 
@@ -25,9 +25,16 @@ function normalizeQuotes(html: string): string {
   return html.replace(/style="([^"]*)"/g, (_m, value: string) => `style="${value.replace(/'/g, '&#39;')}"`);
 }
 
-/** Body size the way WeChat measures it (UTF-8 bytes and characters) */
-export function contentSize(html: string): { chars: number; bytes: number } {
-  return { chars: html.length, bytes: new TextEncoder().encode(html).length };
+/** Text excludes markup/styles; bytes include the entire HTML sent to WeChat. */
+export function contentSize(html: string): { chars: number; htmlChars: number; bytes: number } {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  for (const el of Array.from(doc.querySelectorAll('script, style, template'))) el.remove();
+  const text = (doc.body.textContent ?? '').replace(/\s/g, '');
+  return {
+    chars: Array.from(text).length,
+    htmlChars: html.length,
+    bytes: new TextEncoder().encode(html).length,
+  };
 }
 
 /**
@@ -77,7 +84,7 @@ export function sanitizeForDraft(html: string): string {
 /** A sentence in plain words when the body exceeds WeChat's limits, else null */
 export function contentWarning(html: string): string | null {
   const { chars, bytes } = contentSize(html);
-  if (chars > MAX_CONTENT_CHARS) return `正文 ${chars} 字符，超过微信 2 万字符上限`;
-  if (bytes > MAX_CONTENT_BYTES) return `正文 ${Math.round(bytes / 1024)}KB，超过微信 1MB 上限`;
+  if (chars > MAX_CONTENT_CHARS) return `正文文字 ${chars} 字符（不含空白和排版代码），超过 2 万字符上限；请删减正文或分篇`;
+  if (bytes > MAX_CONTENT_BYTES) return `排版 HTML ${Math.round(bytes / 1024)}KB，超过微信 1MB 上限；请精简排版或减少图片，不代表正文文字过长`;
   return null;
 }

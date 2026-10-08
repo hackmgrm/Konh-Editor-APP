@@ -33,12 +33,15 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            rpm patchelf
+            rpm patchelf libasound2-dev libdbus-1-dev
 
       - run: npm ci
 
       - name: 发布与排版回归测试
         run: npm run test:publishing
+
+      - name: 效率中心回归测试
+        run: npm run test:productivity
 
       - name: 本机数据与文件操作测试
         working-directory: src-tauri

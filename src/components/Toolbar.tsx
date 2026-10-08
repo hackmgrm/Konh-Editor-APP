@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, CloudArrowUp, Crosshair, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, CloudArrowUp, Crosshair, DotsThree, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
 import { chord } from '../platform';
 
 interface Props {
@@ -101,6 +101,40 @@ export default function Toolbar({
 }: Props) {
   const [typesetOpen, setTypesetOpen] = useState(false);
   const typesetRef = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    moreRef.current?.querySelector<HTMLButtonElement>('.menu-item:not(:disabled)')?.focus();
+    const onClick = (event: MouseEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMoreOpen(false);
+        moreButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [moreOpen]);
+
+  useEffect(() => {
+    setMoreOpen(false);
+    setTypesetOpen(false);
+  }, [viewMode]);
+
+  const runMoreAction = (action: () => void) => {
+    setMoreOpen(false);
+    moreButtonRef.current?.focus();
+    action();
+  };
 
   // Click outside / Esc closes the popover
   useEffect(() => {
@@ -168,9 +202,6 @@ export default function Toolbar({
             </button>
           ))}
         </div>
-        <button className={`btn icon ${typewriterMode ? 'active' : ''}`} onClick={onToggleTypewriter} title="打字机模式：当前行保持在视野中央" aria-pressed={typewriterMode} aria-label="打字机模式"><Crosshair size={15} /></button>
-        <button className="btn icon" onClick={onOpenCloudinary} title="将当前文章的本地图片上传到 Cloudinary" aria-label="Cloudinary 图片托管"><CloudArrowUp size={15} /></button>
-
         {/* Themes, density, body options and the shell's own light/dark */}
         <div className="menu-wrap" ref={typesetRef}>
           <button
@@ -178,7 +209,7 @@ export default function Toolbar({
             aria-haspopup="dialog"
             aria-expanded={typesetOpen}
             title="文章主题、排版密度、界面外观"
-            onClick={() => setTypesetOpen((v) => !v)}
+            onClick={() => { setMoreOpen(false); setTypesetOpen((v) => !v); }}
           >
             <TextAa size={15} weight="bold" />
             排版
@@ -186,28 +217,14 @@ export default function Toolbar({
           {typesetOpen && typeset(() => setTypesetOpen(false))}
         </div>
 
-        {/* Credentials and anything else configured once and then forgotten.
-            Icon only: it is not part of the writing loop, and a labelled
-            button here would compete with the four that are. */}
-        <button className="btn icon" onClick={onOpenSettings} title="设置（公众号凭据）" aria-label="设置">
-          <GearSix size={15} weight="bold" />
-        </button>
-
-        {/* Local agent: runs the claude / codex already on this machine.
-            No model is wired into the editor itself. */}
         <button
           className={`btn ${agentOpen ? 'active' : ''}`}
           onClick={onToggleAgent}
           aria-pressed={agentOpen}
-          title="让本地的 claude / codex 在这个工作区里改稿"
+          title="打开 AI 写作助手"
         >
           <Sparkle size={15} weight="bold" />
           Agent
-        </button>
-
-        <button className="btn" onClick={onExportImage} disabled={exporting} title="把整篇正文渲染成一张长图 PNG">
-          <ImageSquare size={15} weight="bold" />
-          {exporting ? '渲染中…' : '长图'}
         </button>
 
         <button className="btn" onClick={onCopy} disabled={copying} title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}>
@@ -215,21 +232,39 @@ export default function Toolbar({
           {copying ? '处理中…' : '复制正文'}
         </button>
 
-        {/* The drafts box is otherwise only visible inside the WeChat console,
-            so after a few pushes it is unclear which version is up there. Also
-            where an article is picked to overwrite rather than duplicate. */}
-        <button className="btn icon" onClick={onOpenDraftBox} title="草稿箱：看看公众号上已有哪些草稿" aria-label="草稿箱">
-          <Stack size={15} weight="bold" />
-        </button>
-        <button className="btn" onClick={onOpenLayout} title="生成独立候选，对比后采用">AI 排版</button>
-        <button className="btn icon" onClick={onOpenArticleCenter} title="文章状态、版本历史与发布记录" aria-label="文章管理">
-          <ClockCounterClockwise size={15} weight="bold" />
-        </button>
-
         <button className="btn primary" onClick={onPublish} title="换图后直接推进公众号草稿箱">
           <PaperPlaneTilt size={15} weight="bold" />
           推草稿
         </button>
+
+        <div className="menu-wrap" ref={moreRef} onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setMoreOpen(false);
+        }}>
+          <button
+            ref={moreButtonRef}
+            className={`btn icon ${moreOpen ? 'active' : ''}`}
+            aria-label="更多操作"
+            aria-expanded={moreOpen}
+            aria-controls="toolbar-more"
+            title="更多操作"
+            onClick={() => { setTypesetOpen(false); setMoreOpen((open) => !open); }}
+          >
+            <DotsThree size={20} weight="bold" />
+          </button>
+          {moreOpen && (
+            <div id="toolbar-more" className="popover toolbar-more" role="group" aria-label="更多操作" data-tauri-drag-region="false">
+              <button className="menu-item" onClick={() => runMoreAction(onOpenLayout)}><Sparkle size={16} />AI 排版</button>
+              <button className="menu-item" onClick={() => runMoreAction(onOpenArticleCenter)}><ClockCounterClockwise size={16} />文章管理<span className="menu-hint">版本与记录</span></button>
+              <button className="menu-item" onClick={() => runMoreAction(onOpenDraftBox)}><Stack size={16} />公众号草稿箱</button>
+              <div className="menu-divider" />
+              <button className="menu-item" onClick={() => runMoreAction(onExportImage)} disabled={exporting}><ImageSquare size={16} />{exporting ? '渲染中…' : '导出长图'}<span className="menu-hint">PNG</span></button>
+              <button className="menu-item" onClick={() => runMoreAction(onOpenCloudinary)}><CloudArrowUp size={16} />图片托管<span className="menu-hint">Cloudinary</span></button>
+              <div className="menu-divider" />
+              <button className="menu-item" onClick={() => runMoreAction(onToggleTypewriter)} aria-pressed={typewriterMode}><Crosshair size={16} />打字机模式<span className="menu-hint">{typewriterMode ? '已开启' : '已关闭'}</span></button>
+              <button className="menu-item" onClick={() => runMoreAction(onOpenSettings)}><GearSix size={16} />设置</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {status && <span className="status show">{status}</span>}

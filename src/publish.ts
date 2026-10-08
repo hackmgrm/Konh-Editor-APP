@@ -168,7 +168,7 @@ async function pushOnce(cfg: WechatConfig, opts: PublishOptions): Promise<Publis
   // version is what actually goes to WeChat.
 
   const oversize = contentWarning(html);
-  if (oversize) throw new Error(`${oversize} —— 拆成两篇`);
+  if (oversize) throw new Error(oversize);
 
   /*
    * The cover goes through permanent media (the drafts API's thumb_media_id
@@ -231,8 +231,8 @@ async function pushOnce(cfg: WechatConfig, opts: PublishOptions): Promise<Publis
 
 
     if (err instanceof WechatError && (err.errcode === 45166 || err.errcode === 45002)) {
-      const { chars, bytes } = contentSize(html);
-      err.message += `\n\n实际发出的正文：${chars} 字符 / ${Math.round(bytes / 1024)}KB（上限 2 万字符、1MB）`;
+      const { chars, htmlChars, bytes } = contentSize(html);
+      err.message += `\n\n实际发送：正文文字 ${chars} 字符（不含空白）；排版 HTML ${htmlChars} 字符 / ${Math.round(bytes / 1024)}KB。若正文未超长，请检查排版体积及内容格式。`;
     }
     throw err;
   }
@@ -288,7 +288,7 @@ export async function diagnoseDraftContent(
     report(`正在上传图片 ${done}/${total}…`),
   );
   const size = contentSize(html);
-  log.push(`换图后的正文：${size.chars} 字符 / ${Math.round(size.bytes / 1024)}KB`);
+  log.push(`换图后：正文文字 ${size.chars} 字符（不含空白）；排版 HTML ${size.htmlChars} 字符 / ${Math.round(size.bytes / 1024)}KB`);
 
   report('准备封面…');
   const canvas = document.createElement('canvas');

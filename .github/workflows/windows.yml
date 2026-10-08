@@ -28,6 +28,9 @@ jobs:
       - name: 发布与排版回归测试
         run: npm run test:publishing
 
+      - name: 效率中心回归测试
+        run: npm run test:productivity
+
       - name: 本机数据与文件操作测试
         working-directory: src-tauri
         run: cargo test --lib
