@@ -685,15 +685,37 @@ pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String
 /// No second confirmation here — that was asked in the front end; this layer
 /// only carries it out.
 #[tauri::command]
-pub fn entry_delete(dir: String, path: String) -> Result<(), String> {
+pub fn entry_delete(dir: String, path: String) -> Result<bool, String> {
     if path.is_empty() {
         return Err("不能删除工作区本身".to_string());
     }
     let target = resolve(&dir, &path)?;
-    if target.is_dir() {
-        fs::remove_dir_all(&target).map_err(|e| format!("删不掉 {path}：{e}"))
-    } else {
-        fs::remove_file(&target).map_err(|e| format!("删不掉 {path}：{e}"))
+    // The system trash, not `remove_file`. A workspace is a folder of the
+    // user's own writing, and this app is not the only thing that will ever
+    // delete from it — but it is the one that offers a button for it, next to
+    // every row, revealed on hover. "Gone, and the OS knows where it went" is
+    // the only defensible meaning for that button, and it is also what every
+    // other application on the machine does with the same gesture.
+    //
+    // `trash` talks to the real thing on each platform: NSFileManager's
+    // trashItem on macOS, IFileOperation on Windows, and the freedesktop
+    // trash spec on Linux — which is what makes the file show up in the
+    // desktop's own Trash, with its "Put Back" intact.
+    match trash::delete(&target) {
+        Ok(()) => Ok(true),
+        // Not every location has a trash: a network share, a FAT volume, some
+        // container filesystems. Refusing to delete at all there would be a
+        // button that does nothing on a perfectly ordinary setup, so fall back
+        // to removing it — and say which of the two happened, so the message
+        // the user reads is true either way.
+        Err(_) => {
+            if target.is_dir() {
+                fs::remove_dir_all(&target).map_err(|e| format!("删不掉 {path}：{e}"))?;
+            } else {
+                fs::remove_file(&target).map_err(|e| format!("删不掉 {path}：{e}"))?;
+            }
+            Ok(false)
+        }
     }
 }
 

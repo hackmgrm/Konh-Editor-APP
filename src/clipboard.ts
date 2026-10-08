@@ -9,6 +9,57 @@ export function stripPreviewMeta(html: string): string {
   return html.replace(/ data-line="\d+"/g, '').replace(/ data-tip(?=[ >])/g, '');
 }
 
+/** Block-level tags: where a list item's "leading inline run" ends */
+const BLOCK_TAGS = new Set(['P', 'DIV', 'SECTION', 'OL', 'UL', 'TABLE', 'BLOCKQUOTE', 'PRE', 'HR']);
+
+/**
+ * The span that draws a list's own bullet or number — an inline-block with a
+ * width, the shape every marker in markdown.ts takes.
+ */
+function isMarkerSpan(node: Node): boolean {
+  return (
+    node instanceof HTMLElement &&
+    node.tagName === 'SPAN' &&
+    node.style.display === 'inline-block' &&
+    node.style.width !== ''
+  );
+}
+
+/**
+ * Reshape the list items WeChat's editor would otherwise tear in two.
+ *
+ * A paste runs every <li> through the editor's normalizer: element nodes at
+ * the head of the item stay put, and everything from the first bare text node
+ * onward is rewrapped in a block — so `**标签**：正文` ends up on two lines,
+ * and a task item leaves its checkbox and label above the rest.
+ *
+ * Two shapes are known to survive, both checked on real pastes. An item that
+ * opens with a drawn marker and keeps its text in an inline <p> comes through
+ * untouched, marker included — markdown.ts already renders those that way, and
+ * they are left alone here. An item with no drawn marker (a task list, or a
+ * theme that keeps the browser's numbers) has nothing in front of its text to
+ * hold the line, so its inline run is handed over as a single <section>, the
+ * one-unit form the editor produces itself.
+ */
+export function prepareListsForPaste(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  for (const li of Array.from(doc.querySelectorAll('li'))) {
+    if (li.firstChild && isMarkerSpan(li.firstChild)) continue;
+    // The leading inline run: everything up to the first block child (a
+    // nested list, a loose item's paragraphs, a table…)
+    const run: ChildNode[] = [];
+    for (const child of Array.from(li.childNodes)) {
+      if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName)) break;
+      run.push(child);
+    }
+    if (!run.some((node) => node.textContent?.trim())) continue;
+    const section = doc.createElement('section');
+    li.insertBefore(section, run[0]);
+    section.append(...run);
+  }
+  return doc.body.innerHTML;
+}
+
 /** Block-level elements (which need a newline when flattening to plain text) */
 const BLOCK_SELECTOR = 'p,div,section,h1,h2,h3,h4,h5,h6,li,tr,pre,pre code,blockquote,hr,table';
 
@@ -28,8 +79,11 @@ function htmlToPlainText(html: string): string {
 
 /** Copy rich text to the clipboard; returns whether it worked */
 export async function copyRichText(html: string): Promise<boolean> {
-  const clean = stripPreviewMeta(html);
-  const plain = htmlToPlainText(clean);
+  const stripped = stripPreviewMeta(html);
+  // The reshaping is for WeChat's HTML normalizer only; the plain-text flavour
+  // reads the article as rendered
+  const plain = htmlToPlainText(stripped);
+  const clean = prepareListsForPaste(stripped);
 
   // Preferred: the modern ClipboardItem API (Chrome 76+ / Edge, the browsers
   // people actually run the WeChat backend in)

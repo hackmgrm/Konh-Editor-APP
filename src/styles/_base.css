@@ -15,7 +15,7 @@ body,
 body {
   margin: 0;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-lg);
   color: var(--text-1);
   text-rendering: optimizeLegibility;
   /* Ambient light: two very faint warm pools over the canvas, so the
@@ -80,10 +80,14 @@ select {
 }
 
 /* ---------------- Panels ----------------
-   The four main regions (file tree / editor / preview / agent) share one
-   shell: frosted glass, a hairline frame, an inner highlight along the top.
-   No drop shadow at rest — if everything floats, nothing does; real
-   elevation is reserved for menus, dialogs and toasts. */
+   The frosted-glass shell: a hairline frame, an inner highlight along the top,
+   no drop shadow at rest — if everything floats, nothing does.
+
+   The workspace no longer uses it. Source, preview and the side columns are
+   regions of one sheet now, and that sheet writes the same treatment on itself
+   with a real shadow, because it is the one object that does float (see .split
+   in _shell.css). What is left here is for anything that still wants the
+   material on its own. */
 
 .surface {
   background: var(--surface-1);
@@ -102,7 +106,7 @@ select {
   background: var(--surface-3);
   border-radius: var(--r-sm);
   padding: 0 11px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--text-1);
@@ -144,6 +148,41 @@ select {
   transform: none;
 }
 
+/* ---------------- Busy ----------------
+   A working button keeps its label. Swapping 长图 for 渲染中… made the button
+   change width mid-press and shoved every button after it sideways, which is
+   the one thing a toolbar must never do — so the leading glyph is replaced by
+   a ring of the same size and the words stay put. */
+
+.spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.55;
+  animation: spin 0.7s linear infinite;
+}
+
+.btn.busy {
+  /* Not `disabled`: the label should stay readable while the work runs */
+  opacity: 1;
+  cursor: default;
+}
+
+.btn.busy .spinner {
+  opacity: 0.72;
+}
+
+.btn.primary .spinner {
+  opacity: 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .btn.primary {
   background: var(--accent);
   border-color: transparent;
@@ -161,16 +200,17 @@ select {
   opacity: 1;
 }
 
-/* Pressed state (a toolbar button whose panel is open) */
+/* Pressed state (a toolbar button whose panel is open). Same reasoning as
+   `.ghost-btn.on`: "this panel is open" is a state, not an alarm. */
 .btn.active {
-  background: var(--accent-soft);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  border-color: var(--line-strong);
+  color: var(--text-1);
 }
 
 .btn.active svg {
   opacity: 1;
-  color: var(--accent);
+  color: var(--text-1);
 }
 
 /* Square icon-only button */
@@ -199,10 +239,19 @@ select {
     transform var(--t-fast) var(--ease);
 }
 
-.ghost-btn:hover:not(:disabled),
+/* Neutral, both of them. A ghost button is chrome: waking up under the
+   pointer and being switched on are changes of state, not calls for
+   attention, and tinting every one of them terracotta left the accent
+   meaning nothing in particular. The pressed state simply sits one step
+   deeper than the hover it grew out of. */
+.ghost-btn:hover:not(:disabled) {
+  background: var(--sunken);
+  color: var(--text-1);
+}
+
 .ghost-btn.on {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken-strong);
+  color: var(--text-1);
 }
 
 .ghost-btn:active:not(:disabled) {
@@ -248,7 +297,7 @@ select {
   border: none;
   background: transparent;
   padding: 4px 13px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   font-weight: 500;
   border-radius: calc(var(--r-sm) - 2px);
   cursor: pointer;
@@ -300,7 +349,7 @@ select {
   cursor: pointer;
   text-align: left;
   color: var(--text-1);
-  font-size: 12.5px;
+  font-size: var(--fs-md);
 }
 
 .switch-row .switch-label {
@@ -312,7 +361,7 @@ select {
 .switch-row .switch-sub {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--text-3);
 }
@@ -361,6 +410,19 @@ select {
   }
 }
 
+/* Leaving is shorter than arriving and does not overshoot: an overlay springs
+   into place because it is worth noticing, and slips away because it is not. */
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
 .popover {
   background: var(--surface-2);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
@@ -373,6 +435,13 @@ select {
   transform-origin: top right;
 }
 
+/* usePresence holds the element mounted for exactly this long — see
+   EXIT_POPOVER in usePresence.ts */
+.popover[data-state='exit'] {
+  animation: pop-out 140ms var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+
 .menu-item {
   display: flex;
   align-items: center;
@@ -381,7 +450,7 @@ select {
   border: none;
   background: transparent;
   padding: 7px 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   border-radius: var(--r-xs);
   cursor: pointer;
   color: var(--text-1);
@@ -391,20 +460,23 @@ select {
 }
 
 .menu-item:hover {
-  background: var(--accent-soft);
-  color: var(--accent-hi);
+  background: var(--sunken);
+  color: var(--text-1);
 }
 
+/* The glyph says which item this is; it is not the item's state. Neutral, so
+   that the one accent left inside a menu — the check on the current value —
+   is the only thing the eye is pulled to. */
 .menu-item .menu-icon {
   flex: none;
-  color: var(--accent);
-  opacity: 0.85;
+  color: var(--text-2);
+  opacity: 1;
 }
 
 .menu-item .menu-hint {
   margin-left: auto;
   padding-left: 14px;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -431,7 +503,7 @@ select {
 .input {
   height: 30px;
   padding: 0 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-md);
   color: var(--text-1);
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
@@ -452,11 +524,11 @@ select {
 /* ---------------- Section eyebrow ---------------- */
 
 .eyebrow {
-  font-size: 9.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--text-eyebrow);
 }
 
 /* ---------------- Custom scrollbars ----------------
@@ -516,9 +588,109 @@ select {
    is not. */
 @media (max-resolution: 1.5dppx), (-webkit-max-device-pixel-ratio: 1.5) {
   :root:not([data-os='mac']) .surface,
+  :root:not([data-os='mac']) .split,
   :root:not([data-os='mac']) .popover,
   :root:not([data-os='mac']) .modal-backdrop {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+/* ---------------- Empty state ----------------
+   One shape for every "there is nothing here yet" in the app: a tinted disc
+   with a quiet glyph, a statement, an explanation, and at most one way out.
+   See components/EmptyState.tsx. */
+
+.empty-state {
+  margin: auto;
+  padding: 30px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* The four hosts are flex columns of different heights; `auto` margins put
+     this in the middle of whichever one it lands in */
+  max-width: 300px;
+}
+
+.empty-mark {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  /* A picture of what is missing, not an alert: the disc is a recess in the
+     surface and the glyph is secondary text */
+  background: var(--sunken);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.empty-hint {
+  margin: 5px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.empty-action {
+  margin-top: 14px;
+}
+
+/* ---------------- Skeleton ----------------
+   Only for content whose shape is known before it arrives — a fixed-size page
+   of rows. Anywhere the result could be one item or forty, a skeleton is a
+   guess presented as a fact, and a spinner is the honest answer.
+
+   The sweep is a gradient wider than the element, translated across it. Under
+   prefers-reduced-motion styles.css stops the animation and what is left is a
+   still placeholder block, which is exactly right. */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--sunken);
+  border-radius: var(--r-xs);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sunken-strong) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep 1.3s var(--ease-in-out) infinite;
+}
+
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+
+.skeleton-line {
+  height: 9px;
+  border-radius: var(--r-full);
+}
+
+.skeleton-line.title {
+  width: 58%;
+}
+
+.skeleton-line.meta {
+  width: 34%;
+  margin-top: 9px;
+  height: 7px;
 }

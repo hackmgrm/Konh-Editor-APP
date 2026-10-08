@@ -25,74 +25,198 @@
   display: flex;
   justify-content: center;
   align-items: stretch;
-  /* A pool of light behind the device, so it reads as standing on a surface */
-  background:
-    radial-gradient(560px 320px at 50% 14%, var(--accent-softer), transparent 70%);
+  /* No fill of its own: the stage is the sheet. A pool of light used to sit
+     behind the device, and with the pane's hairlines gone it read as a
+     second, warmer rectangle inside the preview rather than as light. */
 }
 
 /* ---------------- iPhone frame ----------------
-   Titanium rail plus a thin inner highlight. The corner radius is generous
-   on purpose: real iPhone corners are continuous curves, and a tight radius
-   immediately reads as "a rounded rectangle" instead of a phone. */
+   Modelled on the iPhone 18 Pro (announced 2026-09). Researched values, each
+   with its source; anything Apple has not published falls back to the 17 Pro,
+   which shares this device's display geometry, and says so:
+
+     logical screen   402 × 874 pt @3x (1206 × 2622 px, 460 ppi)
+                      — apple.com/iphone-18-pro/specs + ios-resolution.com
+     body             150.0 × 71.9 × 8.75 mm — apple.com specs
+     screen corner    62.0 pt — UIScreen._displayCornerRadius, the value
+                      published for 16 Pro / 17 Pro / 17 Pro Max / Air
+                      (github.com/kylebshr/ScreenCorners). NOT YET PUBLISHED
+                      for the 18 Pro; it keeps the 17 Pro's screen geometry,
+                      so this is the 17 Pro's number.
+     status bar       54 pt, top safe-area inset 62 pt
+                      — useyourloaf.com/blog/iphone-17-screen-sizes
+     Dynamic Island   126 × 37 pt — the SHIPPING 17 Pro island, which is what
+                      this draws, at the user's request. The leak for the
+                      18 Pro (Ice Universe, via MacRumors 2026-01-23 and
+                      GSMArena) has it 13.49 mm wide, down from the 17 Pro's
+                      20.76 mm; at 6.037 pt/mm — the display is 66.6 mm wide
+                      for 402 pt — that is 81 pt, and the same arithmetic turns
+                      the 17 Pro's 20.76 mm into 125 pt against its documented
+                      126, so the conversion itself is sound. But an 81 pt
+                      island was drawn, held against a photograph of a real
+                      device, and read as far too short — and the leak is one
+                      unverified number about a phone nobody outside Apple has
+                      held. So the rendered island follows the device you can
+                      photograph, and the leak stays written down here against
+                      the day it can be checked.
+     island height    37 pt. Unchanged since the 14 Pro (its compact halves
+                      measure 36.64 pt); neither the leak nor Apple's 18 Pro
+                      page says otherwise.
+     buttons          Action above the volume pair on the left, side button
+                      with Camera Control below it on the right — unchanged
+                      from the 17 Pro (macobserver.com, Apple support 105103).
+                      Their positions ALONG the edge are not published by
+                      anyone; the percentages below are measured off Apple's
+                      product photography — close, not exact.
+
+   Our screen is 420 − 2 × 9 = 402 px, so one device point is one screen pixel
+   and no rescaling is needed. The 9 px bezel is thinner than the real thing
+   (the 18 Pro's body is 71.9 mm around a 66.6 mm display, i.e. ~16 pt a side);
+   it stays at 9 because the brief is to keep the silhouette, not to redraw it.
+
+   The rail is flat. A 16 Pro-class body has flat sides, so the gradient runs
+   through a narrow band around #6b655c — enough to say "brushed", not enough
+   to say "tube" — with a 1 px highlight inside and a 1 px bevel outside where
+   the machined edge catches the light. */
 
 .phone-frame {
   position: relative;
   width: 420px;
   max-width: 100%;
   height: 100%;
-  border-radius: 56px;
-  padding: 11px;
-  background: linear-gradient(148deg, #7b756d 0%, #322e29 26%, #1d1a17 52%, #3d3832 78%, #736d66 100%);
+  /* Concentric with the screen: 62 pt screen radius + the 9 px bezel */
+  border-radius: 71px;
+  padding: 9px;
+  /* Brushed warm titanium, ±8% around #6b655c apart from the two lit edges */
+  background: linear-gradient(148deg, #7c756c 0%, #686259 28%, #625d55 52%, #6c665d 78%, #7a736a 100%);
   box-shadow:
     var(--shadow-4),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 0 0 3px rgba(0, 0, 0, 0.55);
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.3);
 }
 
-/* Side buttons: action + volume on the left, power on the right */
+/* ---------------- The device in the dark ----------------
+   The frame's deepest band used to be #1d1a17 against a #141311 canvas: nine
+   values apart. In dark mode the phone simply dissolved into the background
+   from the middle down — the screen floated, and nothing said where the body
+   ended. Three things keep it an object here: its own darker-but-not-black
+   run of the same warm metal, a rim of reflected light along the whole edge,
+   and a shadow deep enough to be seen against a near-black surface.
+
+   Same geometry as above; only the colours change.
+
+   The rim is a fourth box-shadow rather than a border: a border would eat
+   into the 9px bezel, and the screen's own radius is measured off it. */
+:root[data-appearance='dark'] .phone-frame {
+  /* The same rail, one room darker — the mid band sits at #3a3733, well clear
+     of the #141311 canvas, so the body still reads as metal rather than hole */
+  background: linear-gradient(148deg, #4a453d 0%, #3e3a33 28%, #3a3733 52%, #423e37 78%, #4c473f 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 248, 238, 0.28),
+    0 2px 0 0 rgba(255, 248, 238, 0.05),
+    0 30px 80px -20px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.34);
+}
+
+/* ---------------- Side buttons ----------------
+   Written as percentages of the frame's height rather than in pixels: the
+   stage stretches the device to whatever height it has, and a button pinned
+   at `top: 104px` slides up the body as the window grows. The numbers are
+   measured off Apple's product photographs of the 18 Pro, expressed against
+   the 150.0 mm body:
+
+     Action        24.5 → 31.0 mm    left
+     Volume up     35.0 → 46.5 mm    left
+     Volume down   49.5 → 61.0 mm    left
+     Side button   38.0 → 55.5 mm    right
+     Camera Control 66.0 → 74.0 mm   right  */
 .phone-frame .side-btn {
   position: absolute;
   width: 3px;
   border-radius: 2px;
-  background: linear-gradient(90deg, #565049, #2a2622);
+  /* Milled from the same warm titanium as the rail, one stop darker on the
+     face that turns away from the light */
+  background: linear-gradient(90deg, #7a736a, #453f37);
 }
 
 .phone-frame .side-btn.action {
   left: -3px;
-  top: 104px;
-  height: 30px;
+  top: 16.4%;
+  height: 4.3%;
 }
 
 .phone-frame .side-btn.vol-up {
   left: -3px;
-  top: 150px;
-  height: 54px;
+  top: 23.4%;
+  height: 7.7%;
 }
 
 .phone-frame .side-btn.vol-down {
   left: -3px;
-  top: 216px;
-  height: 54px;
+  top: 33%;
+  height: 7.7%;
 }
 
 .phone-frame .side-btn.power {
   right: -3px;
-  top: 168px;
-  height: 78px;
-  background: linear-gradient(270deg, #565049, #2a2622);
+  top: 25.4%;
+  height: 11.7%;
+  background: linear-gradient(270deg, #7a736a, #453f37);
 }
 
+/* Camera Control, below the side button. It has no element of its own in
+   PreviewPane's markup, and that file belongs to another pair of hands, so
+   it is drawn as the frame's own ::after — same rail, same 3px proud. */
+.phone-frame::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 44%;
+  width: 3px;
+  height: 5.3%;
+  border-radius: 2px;
+  background: linear-gradient(270deg, #7a736a, #453f37);
+}
+
+/* The screen's radius is the frame's minus the bezel — 71 − 9 = 62, the
+   18 Pro's own screen corner — so the glass and the rail stay concentric.
+   Change one and this has to follow.
+
+   Two different rules govern the numbers here, and they are not the same rule:
+
+   - The radius belongs to the FRAME. It has to come out at exactly
+     `frame radius − padding` in real pixels or the two corners stop being
+     concentric, whatever width the stage gives the device. `zoom` scales this
+     element's own border-radius along with its contents, so it is divided back
+     out here.
+   - The iOS chrome belongs to the SCREEN. It has to stay a fixed fraction of
+     the screen's width, because 402 pt is the screen whatever size it is drawn
+     at — and the stage does shrink it: `max-width: 100%` clamps the 420 px
+     body on a narrow window. So `--pt` is one 402nd of the screen's own inline
+     size, which is what a device point is. (This element cannot use `--pt`
+     itself: a container query unit resolves against an ANCESTOR container,
+     never the container that defines it.) */
 .phone-screen {
   position: relative;
   height: 100%;
-  border-radius: 45px;
+  /* Phone mode scales the whole screen down to a realistic reading size */
+  --screen-zoom: 0.92;
+  zoom: var(--screen-zoom);
+  border-radius: calc(62px / var(--screen-zoom));
+  container-type: inline-size;
+  /* One iPhone 18 Pro point: 100cqw is the 402 pt screen. `cqw` resolves
+     against the container's laid-out width WITHOUT this element's own zoom,
+     and the result is then painted through it, so the zoom is divided back
+     out here exactly as it is for the radius above. Measured: 402 pt across
+     the screen, to the pixel. */
+  --pt: calc(0.248756cqw / var(--screen-zoom));
   overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--art-bg);
   color: var(--art-ink);
-  /* Phone mode scales the whole screen down to a realistic reading size */
-  zoom: 0.92;
   transition: none;
 }
 
@@ -130,59 +254,125 @@
   color: var(--art-foot-text);
 }
 
-/* ---------------- iOS status bar ---------------- */
+/* ---------------- iOS status bar ----------------
+   54 pt tall, the island 126 × 37 pt sitting 11 pt down from the screen edge,
+   and the time and the status glyphs both centred on the island's own centre
+   line (11 + 37/2 = 29.5 pt). See the research note above the frame for where
+   each number comes from.
+
+   The time is centred inside the left "ear" — the run of screen between the
+   corner and the island — and the three glyphs are centred in the right ear
+   the same way. That is the rule iOS follows today, and with a 126 pt island
+   it also lands where a photograph of the device puts it: an ear is
+   (402 − 126) / 2 = 138 pt, and a cluster centred in it ends ~33 pt in from
+   the screen edge. Change the island width and both ears follow. */
 
 .statusbar {
   flex: none;
+  position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* The Dynamic Island takes the middle, so the content splits to the sides */
-  padding: 15px 26px 9px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  position: relative;
-  z-index: 5;
+  height: calc(54 * var(--pt));
+  /* The content box is [5, 54], so its centre line is the island's: 29.5.
+     No side padding: the time owns the left ear and the glyphs own the right,
+     and each centres itself inside it — which is what iOS does. */
+  padding: calc(5 * var(--pt)) 0 0 0;
   color: var(--art-heading);
   background: var(--art-bg);
   transition: none;
 }
 
 .statusbar .time {
-  font-variant-numeric: tabular-nums;
+  /* The left ear: (402 − 126) / 2 */
+  width: calc(138 * var(--pt));
+  text-align: center;
+  /* 16, not the nominal 17. iOS sets the clock in SF Pro Text Semibold 17, and
+     17 is what this drew and measured — a true 17 pt, cap height 12.4. Against
+     a photograph of the real bar it still read large, because this is a phone
+     inside a window: the screen carries `zoom: 0.92`, and the WeChat article
+     typography directly under the bar is small. One point under is the size
+     that matches the photograph. The weight (600), the face and the tracking
+     are iOS's own; only the size is compensated. */
+  font-size: calc(16 * var(--pt));
+  font-weight: 600;
+  line-height: 1;
+  /* `--sans` starts at -apple-system, so on macOS this resolves to the system
+     face iOS itself sets the clock in. Nothing draws a shadow or a stroke over
+     it, or the clock comes out heavier than the real one. */
+  letter-spacing: calc(-0.3 * var(--pt));
 }
 
 .statusbar .dynamic-island {
   position: absolute;
   left: 50%;
-  top: 7px;
+  top: calc(11 * var(--pt));
   transform: translateX(-50%);
-  width: 84px;
-  height: 25px;
+  width: calc(126 * var(--pt));
+  height: calc(37 * var(--pt));
   border-radius: var(--r-full);
-  background: #0b0a09;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  /* A hole in the panel, in both appearances: it is not a surface */
+  background: #000;
   pointer-events: none;
 }
 
-/* The camera: one glint at the right end of the island */
+/* The front camera: a 10 pt disc at the right end of the island, 8 pt in from
+   its edge. Present, but barely — a lens on a real Dynamic Island is not an
+   object sitting on the panel, it is a slightly less-black circle inside it.
+   The gradient therefore ends at #0b0b0c, near enough to the island's own #000
+   that the disc's edge dissolves instead of drawing a rim; there is no ring,
+   because a ring is what made it read as a button. The one bright thing is a
+   1.6 pt specular point at 36% / 30%, the glass catching the room. */
 .statusbar .dynamic-island::after {
   content: '';
   position: absolute;
-  right: 8px;
+  right: calc(8 * var(--pt));
   top: 50%;
   transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
+  width: calc(10 * var(--pt));
+  height: calc(10 * var(--pt));
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, #2f3a44 0%, #14181c 62%, #0b0a09 100%);
+  background:
+    radial-gradient(circle calc(0.8 * var(--pt)) at 36% 30%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle at 50% 45%, #232428 0%, #17181b 55%, #0b0b0c 100%);
 }
 
+/* Cellular, Wi-Fi, battery — the three inline glyphs PreviewPane draws. Each
+   viewBox is already stated in device points at iOS's own size, so every box
+   below is just its viewBox in `--pt` and nothing is being fitted by eye:
+
+     cellular  16.5 × 12      four bars, 3 wide on a 1.5 gap
+     Wi-Fi     16.55 × 12    traced off SF Symbols `wifi` at .bold
+     battery   26.8 × 12.5    a 25 × 12.5 body plus the 1.5 pt terminal
+
+   The cluster is centred in the right ear exactly as the time is centred in
+   the left one: same 138 pt box, mirrored. `align-items: center` puts every
+   glyph's box on the bar's centre line, which is the island's — 29.5 pt. */
 .statusbar .sb-icons {
+  /* The right ear: (402 − 126) / 2 */
+  width: calc(138 * var(--pt));
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: calc(6 * var(--pt));
+}
+
+.statusbar .sb-cellular {
+  width: calc(16.5 * var(--pt));
+  height: calc(12 * var(--pt));
+}
+
+.statusbar .sb-wifi {
+  /* The box is the system glyph's own ink aspect, 1394 : 1011 px, at 12 pt
+     tall. See the trace note above StatusWifi in PreviewPane. */
+  width: calc(16.546 * var(--pt));
+  height: calc(12 * var(--pt));
+}
+
+.statusbar .sb-battery {
+  width: calc(26.8 * var(--pt));
+  height: calc(12.5 * var(--pt));
 }
 
 /* ---------------- Article ---------------- */
@@ -198,10 +388,10 @@
 .home-indicator {
   position: absolute;
   left: 50%;
-  bottom: 7px;
+  bottom: calc(8 * var(--pt));
   transform: translateX(-50%);
-  width: 116px;
-  height: 5px;
+  width: calc(139 * var(--pt));
+  height: calc(5 * var(--pt));
   border-radius: var(--r-full);
   background: var(--art-ink);
   opacity: 0.3;
@@ -290,7 +480,430 @@
   background: var(--accent-softer);
 }
 
-/* ---------------- Desktop mode (pane ≥ 860px) ----------------
+/* ---------------- iPhone Duo ----------------
+   Apple's book-style foldable (announced 2026-09-09). Screen sizes follow
+   Apple's spec sheet; the point sizes are derived at @3x, since Apple
+   publishes none. Everything else — bezel, radii, the camera plateau, the
+   button positions — is measured off Apple's product photos: close, not exact.
+
+   "Duo 外屏" lays the device open, outside up, the way Apple photographs it:
+   the back half on the left, the outer screen on the right. Both Duo views are
+   landscape objects with fixed proportions; PreviewPane zooms the whole frame
+   to fit the stage. Keep the frame
+   sizes in step with DUO_FRAMES there. */
+
+/* Star White: near-uniform matte white glass in a thin, neutral steel rim */
+.preview-side[data-device^='duo'] {
+  --duo-rim: linear-gradient(148deg, #f4f4f2 0%, #8e8d89 12%, #e4e3df 26%, #6e6d69 44%, #d6d5d1 60%, #7f7e7a 78%, #f0efec 100%);
+  --duo-glass: linear-gradient(170deg, #f6f6f5 0%, #f1f1ef 50%, #ebebe9 100%);
+  --duo-key: rgba(255, 255, 255, 0.5); /* a gentle brightening toward the top */
+  --duo-falloff: rgba(0, 0, 0, 0.035); /* neutral shade toward the bottom-right */
+  --duo-seam: rgba(0, 0, 0, 0.22); /* hairline where glass meets metal */
+  --duo-plateau: linear-gradient(180deg, #fbfbfa 0%, #f6f6f5 60%, #f0f0ee 100%);
+  --duo-plateau-lip: rgba(255, 255, 255, 1);
+  --duo-ring: conic-gradient(from 205deg, #ffffff, #9d9c98 12%, #f4f4f2 25%, #6a6965 40%, #e7e7e4 55%, #86857f 72%, #fafaf9 88%, #ffffff);
+  --duo-logo-a: #e4e4e2;
+  --duo-logo-b: #dad9d7;
+  --duo-logo-sheen: #e9e9e7;
+  --duo-logo-lip: rgba(255, 255, 255, 0.6);
+}
+
+/* Night Sky on a dark shell: deep navy glass, a darker polished rim. Its
+   shaded stops are kept off black for the same reason as the iPhone rail
+   above — a rim that bottoms out near the canvas stops being metal. */
+:root[data-appearance='dark'] .preview-side[data-device^='duo'] {
+  --duo-rim: linear-gradient(148deg, #a9b2c2 0%, #454d5c 12%, #7e8797 26%, #272d38 44%, #6d7686 60%, #353c49 78%, #9aa3b3 100%);
+  --duo-glass: linear-gradient(170deg, #4b5871 0%, #3e4a62 45%, #323d52 100%);
+  --duo-key: rgba(205, 218, 245, 0.18);
+  --duo-falloff: rgba(0, 4, 18, 0.26);
+  --duo-seam: rgba(0, 0, 0, 0.45);
+  --duo-plateau: linear-gradient(180deg, #53607a 0%, #46526b 55%, #3c475e 100%);
+  --duo-plateau-lip: rgba(200, 214, 242, 0.35);
+  --duo-ring: conic-gradient(from 205deg, #dde4f0, #58637a 10%, #b8c2d4 22%, #262d3d 38%, #a2adc2 52%, #3a4459 70%, #d0d8e6 86%, #dde4f0);
+  --duo-logo-a: #4f5b73;
+  --duo-logo-b: #44506a;
+  --duo-logo-sheen: #56627a;
+  --duo-logo-lip: rgba(200, 214, 242, 0.22);
+}
+
+.preview-side[data-device^='duo'] .phone-stage {
+  align-items: center;
+}
+
+/* --pt is one 402nd of the screen, and the Duo's screens are not 402 pt wide */
+.preview-side[data-device^='duo'] .home-indicator {
+  width: 116px;
+  height: 5px;
+  bottom: 7px;
+}
+
+.preview-side[data-device^='duo'] .phone-frame {
+  flex: none;
+  max-width: none;
+  display: flex;
+  gap: 2px; /* the hinge seam: the rim shows through between the halves */
+  padding: 4px; /* the polished rim */
+  background: var(--duo-rim);
+  box-shadow:
+    var(--shadow-4),
+    0 0 0 0.75px rgba(0, 0, 0, 0.35), /* where the metal meets the air */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45); /* the polished lip */
+}
+
+/* The screen sits in a black bezel, inside the rim */
+.preview-side[data-device^='duo'] .phone-screen {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 8px solid #070707;
+}
+
+.preview-side[data-device^='duo'] .side-btn {
+  background: var(--duo-rim);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+}
+
+.preview-side[data-device^='duo'] .side-btn.action,
+.preview-side[data-device^='duo'] .phone-frame::after,
+.preview-side[data-width='desktop'] .phone-frame::after {
+  display: none;
+}
+
+/* Two buttons on the top edge of the back half, one on its outer side */
+.preview-side[data-device^='duo'] .side-btn.vol-up,
+.preview-side[data-device^='duo'] .side-btn.vol-down {
+  top: -3px;
+  width: 57px;
+  height: 3px;
+}
+
+/* Status: no bar across the top. The time and one status ring — Wi-Fi inside,
+   signal as dots along the bottom — stack in the top-right corner, and the
+   article runs up underneath like any iOS content. */
+.statusbar .sb-orb {
+  display: none;
+}
+
+.preview-side[data-device^='duo'] .statusbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 20px 22px 0 0;
+  background: transparent;
+}
+
+/* The iPhone's status bar gives the time the width of the left ear and centres
+   it there; in this corner stack it is just a line of text again. */
+.preview-side[data-device^='duo'] .statusbar .time {
+  width: auto;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.preview-side[data-device^='duo'] .sb-icons {
+  display: none;
+}
+
+/* The status ring: a circle, solid over the top and down both sides,
+   its bottom finished in a run of dots. The Wi-Fi fan sits in its upper half,
+   and every stroke carries the same weight as the fan. */
+.preview-side[data-device^='duo'] .sb-orb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+}
+
+.sb-orb .ring,
+.sb-orb .wifi {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* With no bar holding it down, the article head takes the top inset itself */
+.preview-side[data-device^='duo'] .article-head {
+  padding-top: 44px;
+}
+
+/* A roomier side margin on the Duo's wider screens */
+.preview-side[data-device^='duo'] .article-head,
+.preview-side[data-device^='duo'] .check-body,
+.preview-side[data-device^='duo'] .article-footer {
+  padding-left: 36px;
+  padding-right: 36px;
+}
+
+/* Only the title wraps before the stack; the byline divider keeps the full measure */
+.preview-side[data-device^='duo'] .article-head .head-title {
+  padding-right: 28px;
+}
+
+/* The inner screen's camera sits under the display: no island there */
+.preview-side[data-device='duo-open'] .dynamic-island {
+  display: none;
+}
+
+/* The outer screen keeps its Dynamic Island — at rest, a small round camera
+   cutout heading the status stack, a little narrower than the ring below */
+.preview-side[data-device='duo'] .statusbar {
+  padding-top: 16px;
+}
+
+.preview-side[data-device='duo'] .statusbar .dynamic-island {
+  position: relative;
+  left: auto;
+  top: auto;
+  order: -1;
+  transform: none;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 3px;
+}
+
+/* The lens, centred in the cutout */
+.preview-side[data-device='duo'] .statusbar .dynamic-island::after {
+  right: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+}
+
+/* The title wraps before the stack */
+.preview-side[data-device='duo'] .article-head .head-title {
+  padding-right: 32px;
+}
+
+/* ---- Outside: back half + outer screen ---- */
+
+.preview-side[data-device='duo'] .phone-frame {
+  width: 897px; /* 2 × 443.5px halves + 2px seam + 2 × 4px rim */
+  height: 647px; /* (678pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  border-radius: 59px;
+}
+
+.preview-side[data-device='duo'] .side-btn.vol-up {
+  left: 104px;
+}
+
+.preview-side[data-device='duo'] .side-btn.vol-down {
+  left: 182px;
+}
+
+.preview-side[data-device='duo'] .side-btn.power {
+  right: auto;
+  left: -3px;
+  top: 175px;
+  height: 114px;
+}
+
+/* The back glass: cool and frosted, lit from the top-left and falling off to
+   the bottom-right; a hairline seam where it meets the rim, and a little shade
+   where it dips into the hinge */
+.duo-back {
+  position: relative;
+  flex: none;
+  width: 443.5px; /* matches the screen half beside it */
+  border-radius: 55px 0 0 55px;
+  background:
+    radial-gradient(130% 80% at 10% 0%, var(--duo-key), transparent 60%),
+    radial-gradient(110% 75% at 100% 100%, var(--duo-falloff), transparent 68%),
+    var(--duo-glass);
+  box-shadow:
+    0 0 0 0.5px var(--duo-seam),
+    inset 0 0 26px rgba(0, 0, 0, 0.035),
+    inset -3px 0 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+/* The camera plateau: the same glass, raised. No outline — its shape comes
+   from light alone: a lit top face, a lip of highlight, a soft shadow cast
+   down the back from its lower edge */
+.duo-plateau {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 311px;
+  height: 122px;
+  border-radius: 61px;
+  background: var(--duo-plateau);
+  box-shadow:
+    0 1.5px 2px rgba(0, 0, 0, 0.07),
+    0 12px 24px -12px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1px var(--duo-plateau-lip),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.045);
+}
+
+/* Each lens: a thin polished ring around a wide, deep glass — the ring is
+   only a sliver of the diameter; the glass shows its stacked elements */
+.duo-lens {
+  position: absolute;
+  top: 15.5px;
+  width: 91px;
+  height: 91px;
+  border-radius: 50%;
+  background: var(--duo-ring);
+  box-shadow:
+    0 3px 6px -2px rgba(0, 0, 0, 0.3),
+    0 0 0 0.5px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.9),
+    inset 0 -1px 1.5px rgba(0, 0, 0, 0.25);
+}
+
+.duo-lens.l1 {
+  left: 9px;
+}
+
+.duo-lens.l2 {
+  left: 111px;
+}
+
+/* The glass: black, with the lens elements stacked inside it — an inner
+   barrel ring, a faint mid ring, a deep blue centre, one catch of light */
+.duo-lens::before {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 37% 31%, rgba(255, 255, 255, 0.55) 0 1.4%, rgba(255, 255, 255, 0.06) 3%, transparent 5%),
+    radial-gradient(circle, #2b3659 0 6%, #121828 9%, transparent 12%),
+    radial-gradient(circle, transparent 0 29%, rgba(95, 105, 135, 0.35) 30.5%, transparent 34%),
+    radial-gradient(circle, transparent 0 52%, rgba(255, 255, 255, 0.06) 53%, transparent 56%),
+    radial-gradient(circle, #0c0d11 0 60%, #050506 80%, #17181c 100%);
+  box-shadow: 0 0 0 1px #0a0a0b, inset 0 2px 5px rgba(0, 0, 0, 0.8);
+}
+
+/* A soft reflection across the upper glass */
+.duo-lens::after {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.09), transparent 42%);
+  pointer-events: none;
+}
+
+/* The mic: a slot cut into the glass */
+.duo-mic {
+  position: absolute;
+  left: 239px;
+  top: 32px;
+  width: 18px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #0f0f10, #2a2a2c);
+  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.7), 0 0.5px 0 var(--duo-plateau-lip);
+}
+
+/* The flash: a translucent diffuser, neutral rather than yellow when off */
+.duo-flash {
+  position: absolute;
+  left: 238px;
+  top: 74px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, transparent 0 1.6px, rgba(0, 0, 0, 0.05) 1.6px 2.2px),
+    radial-gradient(circle at 45% 40%, #fbfaf6, #e4e1d8 58%, #c9c5ba 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.14),
+    0 0.5px 0 1px var(--duo-plateau-lip),
+    inset 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+/* The logo: one silver tone, mirror-polished — a soft diagonal sheen across
+   it (the gradient lives in the SVG) and a faint bright lip on its lower edge */
+.duo-logo {
+  position: absolute;
+  left: 50%;
+  top: 51%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0.75px 0 var(--duo-logo-lip));
+}
+
+.duo-logo .a {
+  stop-color: var(--duo-logo-a);
+}
+
+.duo-logo .sheen {
+  stop-color: var(--duo-logo-sheen);
+}
+
+.duo-logo .b {
+  stop-color: var(--duo-logo-b);
+}
+
+/* Square on the hinge side, rounded on the free side — a "D" */
+.preview-side[data-device='duo'] .phone-screen {
+  border-radius: 6px 60px 60px 6px;
+}
+
+/* ---- Inner screen: 890×626pt held landscape ----
+   Open, the back half sits behind the right side, so its buttons mirror over */
+
+.preview-side[data-device='duo-open'] .phone-frame {
+  width: 842px; /* (890pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  height: 599px; /* (626pt + 2 × 8px bezel) × 0.92 zoom + rim */
+  border-radius: 47px;
+}
+
+.preview-side[data-device='duo-open'] .phone-screen {
+  border-radius: 47px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.vol-up {
+  left: auto;
+  right: 96px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.vol-down {
+  left: auto;
+  right: 168px;
+}
+
+.preview-side[data-device='duo-open'] .side-btn.power {
+  top: 162px;
+  height: 106px;
+}
+
+.preview-side[data-device='duo-open'] .crease {
+  display: block;
+}
+
+/* The fold down the middle. Apple's nano-texture finish makes it barely
+   visible, so: one soft shadow and one soft highlight, laid over the content */
+.phone-screen .crease {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 12px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.028) 42%,
+    rgba(255, 255, 255, 0.04) 52%,
+    rgba(0, 0, 0, 0.02) 60%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ---------------- Desktop mode (the 桌面 choice) ----------------
    Same markup, different chrome: the device rail gives way to a plain
    window so the wider measure is what you are judging. */
 

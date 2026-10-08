@@ -34,14 +34,16 @@ export const IS_MAC = OS === 'mac';
 /**
  * A keyboard hint written the way that platform writes it.
  *
- * `chord('V')` → `⌘V` on a Mac, `Ctrl+V` everywhere else. macOS spells
- * modifiers as glyphs run together; Windows and Linux both spell them as words
- * joined by a plus. Printing `⌘V` to someone on either is not a cosmetic
- * mismatch — it names a key their keyboard does not have.
+ * `chord('V')` → `⌘V` on a Mac, `Ctrl+V` everywhere else; `chord('C', true)`
+ * adds Shift. macOS spells modifiers as glyphs run together; Windows and Linux
+ * both spell them as words joined by a plus. Printing `⌘V` to someone on
+ * either is not a cosmetic mismatch — it names a key their keyboard does not
+ * have.
  */
-export function chord(key: string): string {
-  if (IS_MAC) return `⌘${key === 'Enter' ? '↩' : key}`;
-  return `Ctrl+${key}`;
+export function chord(key: string, shift = false): string {
+  const name = key === 'Enter' ? (IS_MAC ? '↩' : 'Enter') : key;
+  if (IS_MAC) return `⌘${shift ? '⇧' : ''}${name}`;
+  return `Ctrl+${shift ? 'Shift+' : ''}${name}`;
 }
 
 /** Put the resolved OS on <html> so the stylesheet can branch on it too */

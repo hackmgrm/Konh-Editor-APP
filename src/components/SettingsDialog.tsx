@@ -1,5 +1,7 @@
+import Modal from './Modal';
+import Spinner from './Spinner';
 import { useEffect, useState } from 'react';
-import { ArrowSquareOut, CheckCircle, Copy, Eye, EyeSlash, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, CheckCircle, Copy, Eye, EyeSlash } from '@phosphor-icons/react';
 import {
   DEV_PROFILE_URL,
   WechatError,
@@ -94,17 +96,6 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
       dismissVerdict();
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
 
   /** Credentials changed: the cached token and the last verdict both expire
    *  (the token is dropped by the store itself). The egress IP stays — it is a
@@ -211,22 +202,23 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="设置"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
-          <h2>设置</h2>
-          <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
-          </button>
-        </header>
+    <Modal open={open} onClose={onClose} busy={busy} title="设置" foot={<>
 
-        <div className="modal-body">
+          {probe && (
+            <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
+              {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
+              {probe.message}
+            </span>
+          )}
+          <button className="btn" onClick={() => void runTest()} disabled={busy || !isConfigured(cfg)}>
+            {testing && <Spinner />}{testing ? '检查中…' : '测试连接'}
+          </button>
+          <button className="btn primary" onClick={onClose} disabled={busy}>
+            完成
+          </button>
+
+    </>}>
+
           <section className="form-section">
             <div className="form-section-label">图片生成 API</div>
             <p className="form-hint">用于 AI 封面，支持 OpenAI 兼容 images/generations 接口。聊天模型需支持视觉输入才能使用图片对话。</p>
@@ -483,23 +475,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
               看历史版本。
             </p>
           </section>
-        </div>
 
-        <footer className="modal-foot">
-          {probe && (
-            <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
-              {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
-              {probe.message}
-            </span>
-          )}
-          <button className="btn" onClick={() => void runTest()} disabled={busy || !isConfigured(cfg)}>
-            {testing ? '检查中…' : '测试连接'}
-          </button>
-          <button className="btn primary" onClick={onClose} disabled={busy}>
-            完成
-          </button>
-        </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }

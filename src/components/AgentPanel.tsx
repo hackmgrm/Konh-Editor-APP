@@ -23,6 +23,9 @@ import {
 } from '@phosphor-icons/react';
 import {
   interpret,
+  diagnose,
+  exitEvidence,
+  type Diagnosis,
   listApiModels,
   onAgentEvent,
   readSessions,
@@ -228,10 +231,14 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
   /** An IME candidate window is open — Enter belongs to it, not to us */
   const composing = useRef(false);
 
+  const [failure, setFailure] = useState<Diagnosis | null>(null);
+
   const apiBaseUrl = getConfig('agent.api.baseUrl') ?? '';
   const apiKey = getConfig('agent.api.key') ?? '';
   const apiModel = selectedModel;
   const apiReady = !!(apiBaseUrl.trim() && apiKey.trim() && apiModel.trim());
+
+  useEffect(() => setFailure(null), [activeKey[kind]]);
 
   const current = sessions.find((s) => s.key === activeKey[kind]) ?? null;
   const lines = current?.lines ?? [];
@@ -479,10 +486,13 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
     return () => mo.disconnect();
   }, [historyOpen]);
 
-  const send = (prompt?: string) => {
-    const text = (prompt ?? input).trim() || (attachments.length ? '请分析这些图片。' : '');
+  const send = (prompt?: string, retry?: Beat) => {
+    const runImages = retry?.images ?? attachments;
+    const runReferences = retry?.references ?? references;
+    const text = (prompt ?? input).trim() || (runImages.length ? '请分析这些图片。' : '');
     if (!text || running || loadingImages) return;
     if (!prompt && composerQuery(input)) { setAttachmentError('请先选择素材或指令，或删除未完成的 @ / 输入'); return; }
+    setFailure(null);
     setRunning(true);
     void (async () => {
       // Flush unsaved edits first. Otherwise the agent reads a stale body, and
@@ -503,7 +513,7 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
         setActiveKey((prev) => ({ ...prev, [kind]: key }));
       }
 
-      pushTo(key, [{ role: 'you', text, images: attachments, references }]);
+      pushTo(key, [{ role: 'you', text, images: runImages, references: runReferences }]);
       setInput('');
       setReferences([]); setAttachments([]); setAttachmentError('');
       saidOnce.current.clear();
@@ -521,11 +531,11 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
             content: line.references?.length ? `${line.text}\n此前引用素材：${line.references.join('、')}` : line.text,
             images: line.images ?? [],
           }));
-        const result = await runApiAgent({ dir: vaultDir, activeId, prompt: text, history, references, images: attachments });
+        const result = await runApiAgent({ dir: vaultDir, activeId, prompt: text, history, references: runReferences, images: runImages });
         pushTo(key, [
           ...result.tools.map((tool) => ({
             role: 'tool' as const,
-            act: tool.name === 'write_file' ? 'edit' as const : tool.name === 'search_files' ? 'search' as const : 'read' as const,
+            act: tool.name === 'write_file' || tool.name === 'save_theme' ? 'edit' as const : tool.name === 'search_files' ? 'search' as const : 'read' as const,
             verb: tool.name,
             text: tool.target,
           })),
@@ -534,9 +544,8 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
         setRunning(false);
       } catch (err) {
         setRunning(false);
-        pushTo(key, [
-          { role: 'note', text: err instanceof Error ? err.message : String(err), bad: true },
-        ]);
+        const detail = err instanceof Error ? err.message : String(err);
+        setFailure(diagnose('api', [detail, exitEvidence('start')]));
       }
     })();
   };
@@ -683,6 +692,13 @@ export default function AgentPanel({ open, vaultDir, activeId, files, onClose, o
 
       {!historyOpen && (
         <div className="agent-composer">
+          {failure && (
+            <div className="agent-beat fail" role="alert">
+              <p className="agent-fail-title">{failure.title}</p><p className="agent-fail-hint">{failure.hint}</p>
+              <div className="agent-fail-acts"><button type="button" className="btn" disabled={running} onClick={() => { const last = [...lines].reverse().find((line) => line.role === 'you'); if (last) send(last.text, last); }}>重试</button><button type="button" className="btn" onClick={onOpenSettings}>API 配置</button></div>
+              <details><summary>详细信息</summary><pre className="agent-fail-detail">{failure.detail}</pre></details>
+            </div>
+          )}
           {deepTalkOpen && (
             <div className="deeptalk-card">
               <div className="deeptalk-head">

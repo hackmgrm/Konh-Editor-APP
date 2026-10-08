@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Globe, X } from '@phosphor-icons/react';
+import { Globe } from '@phosphor-icons/react';
+import Modal from './Modal';
+import Spinner from './Spinner';
 import { readText } from '@tauri-apps/plugin-clipboard-manager';
-import { getImportImages, normalizeUrl, setImportImages } from '../reader';
+import { getImportImages, getImportTheme, normalizeUrl, setImportImages, setImportTheme } from '../reader';
 
 interface Props {
   open: boolean;
@@ -12,7 +14,12 @@ interface Props {
    * Do the import. Rejects with something worth showing; `onProgress` feeds the
    * line in the footer, since a page with thirty images takes a moment.
    */
-  onImport: (url: string, withImages: boolean, onProgress: (msg: string) => void) => Promise<void>;
+  onImport: (
+    url: string,
+    withImages: boolean,
+    withTheme: boolean,
+    onProgress: (msg: string) => void,
+  ) => Promise<void>;
 }
 
 /**
@@ -36,6 +43,7 @@ interface Props {
 export default function ImportUrlDialog({ open, onClose, parent, onImport }: Props) {
   const [url, setUrl] = useState('');
   const [withImages, setWithImages] = useState(getImportImages);
+  const [withTheme, setWithTheme] = useState(getImportTheme);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -58,17 +66,6 @@ export default function ImportUrlDialog({ open, onClose, parent, onImport }: Pro
       });
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
-
   const target = normalizeUrl(url);
 
   const run = async () => {
@@ -77,7 +74,7 @@ export default function ImportUrlDialog({ open, onClose, parent, onImport }: Pro
     setError(null);
     setProgress('正在抓取正文…');
     try {
-      await onImport(target, withImages, setProgress);
+      await onImport(target, withImages, withTheme, setProgress);
       setUrl('');
       onClose();
     } catch (err) {
@@ -94,73 +91,78 @@ export default function ImportUrlDialog({ open, onClose, parent, onImport }: Pro
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="从链接导入"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
-          <h2>从链接导入</h2>
-          <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
-          </button>
-        </header>
-
-        <div className="modal-body">
-          <section className="form-section">
-            <div className="form-section-label">网页地址</div>
-            <label className="field">
-              <span>链接</span>
-              <input
-                ref={inputRef}
-                value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  setError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void run();
-                }}
-                placeholder="https://…"
-                spellCheck={false}
-                disabled={busy}
-              />
-            </label>
-            <p className="form-note">
-              抓下来的是正文 —— 导航栏、侧边栏、推荐位、评论区都不会跟着进来。存成
-              {parent ? <code>{parent}/</code> : '工作区根目录'}下的一篇新草稿，文件名就是文章标题。
-            </p>
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={withImages}
-                onChange={(e) => toggleImages(e.target.checked)}
-                disabled={busy}
-              />
-              <span>把正文里的图片一并存进工作区</span>
-            </label>
-            <p className="form-note">
-              建议开着：图落到 <code>images/</code> 里就成了本地文件，之后复制、导长图、推草稿都不用再看
-              对方图床的脸色。不开的话正文里留的还是外链。
-            </p>
-          </section>
-        </div>
-
-        <footer className="modal-foot">
+    <Modal
+      open={open}
+      onClose={onClose}
+      busy={busy}
+      title="从链接导入"
+      initialFocus={inputRef}
+      onSubmit={() => void run()}
+      foot={
+        <>
           {error && <span className="form-error">{error}</span>}
           {busy && progress && <span className="form-progress">{progress}</span>}
-          <button className="btn" onClick={onClose} disabled={busy}>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
             取消
           </button>
-          <button className="btn primary" onClick={() => void run()} disabled={busy || !target}>
-            <Globe size={15} weight="bold" />
-            {busy ? '导入中…' : '抓取并新建草稿'}
+          <button className={`btn primary ${busy ? 'busy' : ''}`} type="submit" disabled={busy || !target} aria-busy={busy}>
+            {busy ? <Spinner /> : <Globe size={15} weight="bold" />}
+            抓取并新建草稿
           </button>
-        </footer>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <section className="form-section">
+        <div className="form-section-label">网页地址</div>
+        <label className="field">
+          <span>链接</span>
+          <input
+            ref={inputRef}
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setError(null);
+            }}
+            placeholder="https://…"
+            spellCheck={false}
+            disabled={busy}
+          />
+        </label>
+        <p className="form-note">
+          抓下来的是正文 —— 导航栏、侧边栏、推荐位、评论区都不会跟着进来。存成
+          {parent ? <code>{parent}/</code> : '工作区根目录'}下的一篇新草稿，文件名就是文章标题。
+        </p>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={withImages}
+            onChange={(e) => toggleImages(e.target.checked)}
+            disabled={busy}
+          />
+          <span>把正文里的图片一并存进工作区</span>
+        </label>
+        <p className="form-note">
+          建议开着：图落到 <code>images/</code> 里就成了本地文件，之后复制、导长图、推草稿都不用再看
+          对方图床的脸色。不开的话正文里留的还是外链。
+        </p>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={withTheme}
+            onChange={(e) => {
+              setWithTheme(e.target.checked);
+              setImportTheme(e.target.checked);
+            }}
+            disabled={busy}
+          />
+          <span>顺带把这篇文章的排版扒成主题</span>
+        </label>
+        <p className="form-note">
+          读它的纸色、字号行距、标题装饰、引用和色块的形状、强调色，存成「我的」主题并当场用上，
+          之后在「排版 → 主题工坊」里可以接着调。用图片做的标题和花饰扒不下来。
+          默认不开 —— 它会改掉工作区里所有草稿的样子。
+        </p>
+      </section>
+    </Modal>
   );
 }

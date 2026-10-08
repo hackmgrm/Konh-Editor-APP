@@ -2,7 +2,8 @@
 //!
 //! The API key stays in the app config directory. The model never receives an
 //! unrestricted shell: it can list, search, read and write only paths below the
-//! workspace selected by the user.
+//! workspace selected by the user. Dedicated theme tools also read the theme
+//! guide and write validated theme JSON in the editor's theme directory.
 
 use serde::{Deserialize, Serialize};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -11,7 +12,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tauri::AppHandle;
 
-use crate::config;
+use crate::{config, themes};
 
 const MAX_ROUNDS: usize = 12;
 const MAX_READ: usize = 240_000;
@@ -244,6 +245,9 @@ fn search_files(root: &Path, query: &str, start: &str) -> Result<String, String>
 
 fn tools() -> Value {
     json!([
+      {"type":"function","function":{"name":"read_theme_guide","description":"读取公众号主题格式说明，创建主题前必须调用","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"list_themes","description":"读取编辑器里已有的自定义主题 JSON，修改前先读取","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"save_theme","description":"保存公众号主题到编辑器主题库；必须提供符合主题说明的完整 JSON，id 不得与内置主题重复","parameters":{"type":"object","properties":{"theme":{"type":"object","description":"完整主题 JSON，至少包括 id、name、base"}},"required":["theme"]}}},
       {"type":"function","function":{"name":"list_files","description":"递归列出当前工作区文件","parameters":{"type":"object","properties":{"path":{"type":"string","description":"工作区相对目录，根目录用空字符串"}},"required":["path"]}}},
       {"type":"function","function":{"name":"read_file","description":"读取工作区内一个 UTF-8 文本文件","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}},
       {"type":"function","function":{"name":"write_file","description":"创建或完整覆写工作区内一个文本文件","parameters":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}}},
@@ -277,7 +281,7 @@ pub async fn agent_api_run(
     let mut messages = vec![json!({
         "role": "system",
         "content": format!(
-            "你是空核编辑器内置 Agent。用中文简洁协作。你可以通过工具在当前工作区读写文件，禁止猜测文件内容，修改前先读取。当前文章：{}。完成实际修改后再汇报改了什么。",
+            "你是空核编辑器内置 Agent。用中文简洁协作。你可以通过工具在当前工作区读写文件，禁止猜测文件内容，修改前先读取。当前文章：{}。需要制作公众号主题时先调用 read_theme_guide，用 list_themes 读取已有主题，通过 save_theme 保存，主题会自动进入预览。完成实际修改后再汇报改了什么。",
             if active_id.is_empty() { "未选择" } else { &active_id }
         )
     })];
@@ -321,8 +325,19 @@ pub async fn agent_api_run(
             let raw = function.get("arguments").and_then(Value::as_str).unwrap_or("{}");
             let args: Value = serde_json::from_str(raw).unwrap_or_else(|_| json!({}));
             let target = args.get("path").and_then(Value::as_str)
-                .or_else(|| args.get("query").and_then(Value::as_str)).unwrap_or("").to_string();
-            let result = run_tool(&root, name, &args).unwrap_or_else(|e| format!("错误：{e}"));
+                .or_else(|| args.get("query").and_then(Value::as_str))
+                .or_else(|| args.pointer("/theme/id").and_then(Value::as_str)).unwrap_or("").to_string();
+            let result = match name {
+                "read_theme_guide" => themes::read_guide(&app),
+                "list_themes" => Ok(serde_json::to_string(&themes::themes_read(app.clone())).unwrap_or_default()),
+                "save_theme" => {
+                    let theme = args.get("theme").unwrap_or(&Value::Null);
+                    let id = theme.get("id").and_then(Value::as_str).unwrap_or("");
+                    themes::theme_write(app.clone(), id.to_string(), theme.to_string())
+                        .map(|()| format!("主题 {id} 已保存"))
+                }
+                _ => run_tool(&root, name, &args),
+            }.unwrap_or_else(|e| format!("错误：{e}"));
             beats.push(ApiToolBeat { name: name.to_string(), target });
             messages.push(json!({"role":"tool","tool_call_id":id,"content":result}));
         }
@@ -425,6 +440,18 @@ pub async fn writing_cover(app: AppHandle, article: String, requirement: String)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn api_theme_tools_do_not_grant_arbitrary_config_file_access() {
+        let definitions = tools();
+        for name in ["read_theme_guide", "list_themes", "save_theme"] {
+            let tool = definitions.as_array().unwrap().iter()
+                .find(|item| item["function"]["name"] == name).unwrap();
+            assert!(tool.pointer("/function/parameters/properties/path").is_none());
+        }
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(run_tool(tmp.path(), "write_file", &json!({"path":"../config.json","content":"{}"})).is_err());
+    }
 
     #[test]
     fn path_cannot_escape_workspace() {

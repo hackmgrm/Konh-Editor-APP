@@ -14,6 +14,7 @@
     "test:deeptalk": "node --experimental-strip-types --test src/deepTalk.test.ts",
     "test:humanizer": "node --experimental-strip-types --test src/humanizer.test.ts",
     "test:cloudinary": "node --experimental-strip-types --test src/cloudinary.test.ts",
+    "test:upstream": "node --experimental-strip-types --test src/upstreamIntegration.test.ts",
     "test:theme": "node --experimental-strip-types --test src/theme.test.ts",
     "preview": "vite preview",
     "app": "tauri dev",

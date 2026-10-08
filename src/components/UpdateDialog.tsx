@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowClockwise, ArrowSquareOut, CheckCircle, DownloadSimple, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowSquareOut, CheckCircle, DownloadSimple } from '@phosphor-icons/react';
+import Modal from './Modal';
+import Spinner from './Spinner';
 import { IS_MAC } from '../platform';
 import {
   RELEASES_URL,
@@ -48,17 +50,6 @@ export default function UpdateDialog({ open, onClose }: Props) {
 
   const busy = state.phase === 'downloading';
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
-
   // Every phase that knows about a release carries it under the same key; the
   // three that do not (idle / checking / current) simply have no `info`
   const info = 'info' in state ? state.info : null;
@@ -69,91 +60,13 @@ export default function UpdateDialog({ open, onClose }: Props) {
       : null;
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="应用更新"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
-          <h2>{state.phase === 'ready' ? '更新已就绪' : info ? '有新版本' : '检查更新'}</h2>
-          <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
-          </button>
-        </header>
-
-        <div className="modal-body">
-          <div className="update-versions">
-            <span className="update-ver from">{installed ? `v${installed}` : '当前版本'}</span>
-            {info && (
-              <>
-                <span className="update-arrow" aria-hidden="true">
-                  →
-                </span>
-                <span className="update-ver to">v{info.version}</span>
-                {shortDate(info.date) && <span className="update-date">{shortDate(info.date)}</span>}
-              </>
-            )}
-          </div>
-
-          {state.phase === 'downloading' && (
-            <div className="update-bar" role="progressbar" aria-valuenow={pct ?? undefined}>
-              <span
-                className={`update-bar-fill ${pct === null ? 'indeterminate' : ''}`}
-                style={pct === null ? undefined : { width: `${pct}%` }}
-              />
-            </div>
-          )}
-
-          {state.phase === 'checking' && (
-            <p className="form-note">
-              <span className="spinner" aria-hidden="true" /> 正在向发布页询问…
-            </p>
-          )}
-
-          {state.phase === 'current' && (
-            <p className="form-ok">
-              <CheckCircle size={13} weight="fill" />
-              已经是最新版本。
-            </p>
-          )}
-
-          {info?.notes && (
-            <section className="form-section">
-              <div className="form-section-label">更新内容</div>
-              <pre className="update-notes">{info.notes}</pre>
-            </section>
-          )}
-
-          {state.phase === 'ready' && (
-            <p className="form-note">
-              新版本已经装好了。重启之后生效 —— 未保存的改动会先落盘，工作区不受影响。
-            </p>
-          )}
-
-          {state.phase === 'available' && !IS_MAC && (
-            <p className="form-note">
-              安装过程由系统安装程序接管，期间应用会自行退出并重新打开。
-            </p>
-          )}
-
-          {state.phase === 'failed' && (
-            <>
-              <p className="form-error">{state.message}</p>
-              <p className="form-note">
-                也可以直接去
-                <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
-                  发布页 <ArrowSquareOut size={11} weight="bold" />
-                </a>
-                手动下载安装包。
-              </p>
-            </>
-          )}
-        </div>
-
-        <footer className="modal-foot">
+    <Modal
+      open={open}
+      onClose={onClose}
+      busy={busy}
+      title={state.phase === 'ready' ? '更新已就绪' : info ? '有新版本' : '检查更新'}
+      foot={
+        <>
           {state.phase === 'downloading' && (
             <span className="form-progress">
               {pct === null
@@ -210,8 +123,75 @@ export default function UpdateDialog({ open, onClose }: Props) {
               )}
             </>
           )}
-        </footer>
+        </>
+      }
+    >
+      <div className="update-versions">
+        <span className="update-ver from">{installed ? `v${installed}` : '当前版本'}</span>
+        {info && (
+          <>
+            <span className="update-arrow" aria-hidden="true">
+              →
+            </span>
+            <span className="update-ver to">v{info.version}</span>
+            {shortDate(info.date) && <span className="update-date">{shortDate(info.date)}</span>}
+          </>
+        )}
       </div>
-    </div>
+
+      {state.phase === 'downloading' && (
+        <div className="update-bar" role="progressbar" aria-valuenow={pct ?? undefined}>
+          <span
+            className={`update-bar-fill ${pct === null ? 'indeterminate' : ''}`}
+            style={pct === null ? undefined : { width: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      {state.phase === 'checking' && (
+        <p className="form-note">
+          <Spinner /> 正在向发布页询问…
+        </p>
+      )}
+
+      {state.phase === 'current' && (
+        <p className="form-ok">
+          <CheckCircle size={13} weight="fill" />
+          已经是最新版本。
+        </p>
+      )}
+
+      {info?.notes && (
+        <section className="form-section">
+          <div className="form-section-label">更新内容</div>
+          <pre className="update-notes">{info.notes}</pre>
+        </section>
+      )}
+
+      {state.phase === 'ready' && (
+        <p className="form-note">
+          新版本已经装好了。重启之后生效 —— 未保存的改动会先落盘，工作区不受影响。
+        </p>
+      )}
+
+      {state.phase === 'available' && !IS_MAC && (
+        <p className="form-note">
+          安装过程由系统安装程序接管，期间应用会自行退出并重新打开。
+        </p>
+      )}
+
+      {state.phase === 'failed' && (
+        <>
+          <p className="form-error">{state.message}</p>
+          <p className="form-note">
+            也可以直接去
+            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="ext-link">
+              发布页 <ArrowSquareOut size={12} weight="regular" />
+            </a>
+            手动下载安装包。
+          </p>
+        </>
+      )}
+    </Modal>
   );
 }

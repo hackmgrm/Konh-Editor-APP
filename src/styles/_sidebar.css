@@ -2,9 +2,22 @@
    4 · Left rail: file tree
    ============================================================ */
 
+/* No frame, no fill, no shadow: the rail is not an object resting on the
+   canvas, it is part of the window — so it sits directly on the paper, flush
+   to the left edge and to the toolbar, and carries its own inset instead of
+   borrowing the workspace's padding.
+
+   Nothing divides it from the sheet either. The rail is bare canvas and the
+   sheet is a frosted surface lying on that canvas with a shadow under it;
+   a hairline in the seam only competed with the shadow that was already
+   doing the work. */
 .file-tree {
   flex: none;
-  width: 224px;
+  width: 232px;
+  /* No inset at the top: the sheet beside it starts its first row at zero now
+     that it has no frame to start inside, and the two head strips have to
+     begin on the same line or the window's two eyebrows sit at two heights. */
+  padding: 0 10px 10px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -17,8 +30,9 @@
   align-items: center;
   gap: 2px;
   min-height: var(--head-h);
-  padding: 0 8px 0 8px;
-  border-bottom: 1px solid var(--line-hair);
+  /* The rail's own 10px is the inset now; a second one here pushed the vault
+     pill 18px off the window edge */
+  padding: 0;
 }
 
 /* The title slot is the vault name — with two workspaces open at once this is
@@ -34,12 +48,16 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 5px 4px 7px;
+  /* Explicit height rather than padding: the ghost button beside it is a
+     28px square, and matching it by eye through a padded text box drifts
+     the moment the font or the glyph size changes */
+  height: 28px;
+  padding: 0 5px 0 7px;
   border: 1px solid var(--line);
   border-radius: var(--r-xs);
   background: var(--surface-3);
   color: var(--text-1);
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -49,9 +67,12 @@
     color var(--t-fast) var(--ease);
 }
 
+/* A place, not an action. The folder the workspace lives in is the least
+   surprising thing on the rail; it is labelled, not highlighted. */
 .tree-vault > svg:first-child {
   flex: none;
-  color: var(--accent);
+  color: var(--text-2);
+  transition: color var(--t-fast) var(--ease);
 }
 
 /* The chevron sits at the far right and darkens on hover — the part that says
@@ -65,12 +86,13 @@
 
 .tree-vault:hover {
   background: var(--surface-2);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  border-color: var(--line-strong);
+  color: var(--text-1);
 }
 
+.tree-vault:hover > svg:first-child,
 .tree-vault:hover .tree-vault-caret {
-  color: var(--accent);
+  color: var(--text-1);
 }
 
 .tree-vault-name {
@@ -83,7 +105,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  padding: 6px 0;
 }
 
 /* ---------------- A row ----------------
@@ -106,8 +128,51 @@
   background: var(--sunken);
 }
 
+/* Folding a directory open or shut.
+   Rows arrive and leave a beat apart — the stagger is what turns "the list is
+   different now" into "the folder opened". Capped at eight rows in FileTree,
+   past which the delay stops reading as one gesture. */
+@keyframes tree-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tree-row-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.tree-file[data-enter] {
+  /* `backwards` so the row is already invisible during its stagger delay
+     rather than flashing at full opacity first */
+  animation: tree-row-in 140ms var(--ease) backwards;
+  animation-delay: calc(var(--row-i, 0) * 12ms);
+}
+
+.tree-file[data-state='exit'] {
+  animation: tree-row-out 140ms var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+
+/* Selected, not alarming. Which draft is open is structure — you chose it,
+   you know where it is — so the row is a recess in the rail rather than a
+   terracotta stripe; the bar at its left edge and the weight of the name are
+   what separate it from the row merely under the pointer. */
 .tree-file.active {
-  background: var(--accent-soft);
+  /* One step past the hover fill, not the same one: the row under the pointer
+     and the row you are editing have to be two different things, and with the
+     terracotta gone the depth of the recess is what says which is which.
+     `--sunken` alone was invisible against hover, and in the dark palette it
+     was barely visible at all. */
+  background: var(--sunken-strong);
 }
 
 .tree-file.selected {
@@ -125,7 +190,7 @@
   width: 2.5px;
   height: 14px;
   border-radius: var(--r-full);
-  background: var(--accent);
+  background: var(--text-2);
   transform: translateY(-50%);
   animation: bar-grow var(--t-base) var(--spring);
 }
@@ -162,7 +227,7 @@
 }
 
 .tree-file.active .tree-file-main > svg {
-  color: var(--accent);
+  color: var(--text-2);
 }
 
 /* The caret occupies a fixed slot: files have none, but still have to line
@@ -190,7 +255,7 @@
 .tree-file-name {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -199,7 +264,7 @@
 
 .tree-file.active .tree-file-name {
   font-weight: 600;
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
 /* Secondary info: word count / dimensions / time. Fades out on hover to
@@ -207,7 +272,7 @@
 .tree-file-meta {
   flex: none;
   padding-right: 8px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
@@ -244,6 +309,9 @@
 }
 
 .tree-file:hover .tree-file-actions,
+/* :focus-within alone missed the case that matters most — tabbing straight
+   onto one of these buttons while the row itself is not focused */
+.tree-file-actions:focus-within,
 .tree-file:focus-within .tree-file-actions {
   opacity: 1;
   transform: none;
@@ -266,7 +334,7 @@
 
 .tree-file-actions button:hover {
   background: var(--surface-2);
-  color: var(--accent-hi);
+  color: var(--text-1);
   box-shadow: var(--shadow-1);
 }
 
@@ -304,53 +372,111 @@
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--text-1);
   outline: none;
 }
 
-.tree-empty {
-  margin: 10px 8px;
-  font-size: 11.5px;
-  line-height: 1.7;
-  color: var(--text-3);
-}
-
+/* A soft chip, not a drop zone: the dashed rule it used to wear said "drag
+   something here", which is the one thing this button does not do. Filled
+   instead, on the rows' own left inset, so it reads as the last line of the
+   list rather than an attachment below it. */
 .tree-cleanup {
   display: flex;
   align-items: center;
   gap: 7px;
   width: 100%;
   margin-top: 6px;
-  padding: 7px 8px;
-  border: 1px dashed var(--line-strong);
-  background: transparent;
+  /* Left inset lands the broom in the rows' icon column (6px row padding +
+     the 10px caret slot + the 6px gap), so the label starts on the same
+     vertical as the file names above it */
+  padding: 6px 8px 6px 22px;
+  border: none;
+  background: var(--accent-softer);
   border-radius: var(--r-sm);
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
+  text-align: left;
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease);
+    color var(--t-fast) var(--ease);
+}
+
+/* The chip's own tint is the thing asking to be noticed; the broom and the
+   sentence are just what it says. */
+.tree-cleanup > svg {
+  flex: none;
+  color: var(--text-2);
 }
 
 .tree-cleanup:hover {
   background: var(--accent-soft);
-  border-color: var(--accent-ring);
-  color: var(--accent-hi);
+  color: var(--text-1);
 }
 
-/* Foot of the rail: where the author is reachable. It sits below the scroll
-   area rather than inside it, so it stays put no matter how long the file list
-   grows — and a hairline keeps it from reading as one more tree row. */
+/* Foot of the rail. It sits below the scroll area rather than inside it, so it
+   stays put no matter how long the file list grows.
+
+   The two ends of the rail rhyme: the head is a wide object on the left with a
+   lone 28px button at the right margin, and so is the foot — except the left
+   object here is a column. Stacking the author's two links turns three glyphs
+   scattered along one line into one small block plus one button, and bottom-
+   aligning the gear to it keeps the rail's last line straight. */
 .tree-foot {
   flex: none;
   display: flex;
+  /* The gear sits on the bottom line, level with the GitHub link */
+  align-items: flex-end;
+  /* Left inset matches the head: both strips start on the rail's own 10px */
+  padding: 10px 0 0;
+}
+
+/* The author's two links as one block, read top to bottom, held in the same
+   track the toolbar uses for its own pairs (.tb-group.capsule in _shell.css:
+   a --sunken fill with 2px of inset). Fully rounded rather than --r-sm — a
+   28px-wide, 60px-tall capsule is a pill, and a small radius on that
+   proportion reads as a cropped box. The 2px inset is pulled back out of the
+   left margin so the glyphs stay on the same vertical as the folder glyph in
+   the head pill above. */
+.tree-foot-links {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 5px 8px;
-  border-top: 1px solid var(--line-hair);
+  margin-left: -2px;
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--sunken);
+}
+
+/* Round, so the hover fill nests inside the pill instead of cutting corners
+   into it. Not --text-3 either: these were specks before, and at --text-2 they
+   carry as far as a file name. */
+.tree-foot .tree-foot-links .ghost-btn {
+  border-radius: var(--r-full);
+  color: var(--text-2);
+}
+
+.tree-foot .tree-foot-links .ghost-btn:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+/* Settings sits at the far end, apart from the author links: same quiet
+   weight, but its own corner, so it reads as the app's rather than the
+   author's — the mirror of the head's 「+」 */
+.tree-foot-settings {
+  margin-left: auto;
+}
+
+/* One size up from the shared 24px ghost button: at 24 with a 16px glyph these
+   read as specks in the corner of the rail. The head's 「+」 uses the same size
+   for the same reason, so the top and bottom of the rail match. */
+.tree-head .ghost-btn,
+.tree-foot .ghost-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
 }
 
 /* Context menu: positioned at the cursor, styled by the shared popover rules */
@@ -359,4 +485,70 @@
   min-width: 160px;
   z-index: 120;
   transform-origin: top left;
+}
+
+/* The head's 「+」 menu: hung under the button and right-aligned to it, so it
+   grows out of the corner it was opened from rather than across the rail */
+.tree-add-menu {
+  position: fixed;
+  min-width: 168px;
+  z-index: 120;
+  transform-origin: top right;
+}
+
+/* ---------------- Dragging a row ----------------
+   The capsule that follows the pointer (see makeDragGhost). Off screen while
+   the browser photographs it, and never seen in place. */
+
+.tree-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  z-index: -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  padding: 6px 11px 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-3);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+.tree-drag-ghost svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.tree-drag-ghost span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The level the dragged file is about to join. Inset on the left by the row's
+   own indent, so the rule starts where that level starts rather than running
+   the full width of the rail and meaning nothing in particular. */
+.tree-file[data-drop]::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 4px;
+  height: 2px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-softer);
+  pointer-events: none;
+}
+
+.tree-file[data-drop='before']::after {
+  top: -1px;
+}
+
+.tree-file[data-drop='after']::after {
+  bottom: -1px;
 }

@@ -210,10 +210,16 @@ export function moveEntry(dir: string, path: string, toParent: string): Promise<
   return invoke<string>('entry_move', { dir, path, toParent });
 }
 
-/** Delete a file or folder (folders take their contents). Whether to confirm
- *  is up to the caller */
-export function deleteEntry(dir: string, path: string): Promise<void> {
-  return invoke('entry_delete', { dir, path });
+/**
+ * Delete a file or folder (folders take their contents). Whether to confirm is
+ * up to the caller.
+ *
+ * Resolves to whether it went to the system trash. False means the location
+ * has no trash — a network share, a FAT volume — and it was removed outright,
+ * which changes what the caller is entitled to tell the user.
+ */
+export function deleteEntry(dir: string, path: string): Promise<boolean> {
+  return invoke<boolean>('entry_delete', { dir, path });
 }
 
 /** Reveal it in the system file manager — the way out for files we cannot

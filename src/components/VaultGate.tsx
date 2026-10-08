@@ -9,44 +9,40 @@ interface Props {
 /**
  * The screen standing in front of everything until a workspace exists.
  *
- * It also takes the chance to explain that a workspace is just a folder —
- * that is the whole contract between this app and a command-line agent, and
- * knowing it is what makes someone think to open a claude / codex in that
- * directory, or to git init it.
+ * It is also the only screen a new user is guaranteed to see, so it is set as
+ * a title page rather than as a dialog: the mark, the name, one line saying
+ * what the app is for, and the single thing there is to do. Everything the old
+ * copy explained about the folder contract — that a workspace is a plain
+ * directory of plain files — is carried by the hint under the button; the rest
+ * of it is discoverable the moment the workspace opens, and a wall of prose in
+ * front of one button was never read.
  */
 export default function VaultGate({ error, onChoose }: Props) {
   return (
     <div className="vault-gate">
       <div className="vault-gate-card">
-        <div className="vault-gate-mark" aria-hidden="true">火</div>
-        <h1>选一个工作区</h1>
+        {/* Horizon mark, identical to the toolbar's, public/favicon.svg and the
+            app icon. Fixed brand colors, not theme tokens. */}
+        <span className="vault-gate-mark" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <rect width="100" height="100" rx="22" fill="#F1ECE3" />
+            <path d="M18 58A32 32 0 0 1 82 58Z" fill="#C4482A" />
+            <rect x="14" y="64" width="72" height="10" rx="5" fill="#6E2715" />
+          </svg>
+        </span>
+        <h1>火星编辑器</h1>
+        <p>写 Markdown，排成公众号文章。选一个文件夹当稿库开始。</p>
         {error ? (
           <p className="vault-gate-error">
             <WarningCircle size={16} weight="fill" />
             {error}
           </p>
         ) : null}
-        <p>
-          草稿和图片都直接存成这个文件夹里的普通文件，不放在浏览器里 ——
-          换台机器把文件夹带走就行。
-        </p>
-        <pre className="vault-gate-tree">
-{`工作区/
-├── 随便怎么放.md   任意层级的 .md 点开就能编辑
-├── 系列/第一篇.md  文件夹随你建，左边就是它的真实样子
-└── images/         粘贴的图默认落这儿`}
-        </pre>
-        <p>
-          因为就是普通文件，你可以在这个目录里开一个 claude 或 codex 让它改稿，
-          这边会实时跟着变；也建议 <code>git init</code> 一下，改坏了能退回去。
-        </p>
-        <button type="button" className="vault-gate-btn" onClick={onChoose}>
+        <button type="button" className="btn primary vault-gate-btn" onClick={onChoose}>
           <FolderOpen size={18} weight="fill" />
-          选择文件夹
+          选择稿库文件夹
         </button>
-        <p className="vault-gate-hint">
-          空文件夹也行。目录结构由你自己定，应用不往里塞任何配置文件。
-        </p>
+        <p className="vault-gate-hint">稿子、图片都存成这个文件夹里的普通文件，随时能换</p>
       </div>
     </div>
   );

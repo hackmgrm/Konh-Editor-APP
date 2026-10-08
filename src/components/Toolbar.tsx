@@ -1,5 +1,32 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowCircleUp, ClipboardText, ClockCounterClockwise, CloudArrowUp, Crosshair, DotsThree, GearSix, ImageSquare, PaperPlaneTilt, Sparkle, Stack, TextAa } from '@phosphor-icons/react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
+import {
+  ArrowCircleUp,
+  CaretDown,
+  ClipboardText,
+  ClockCounterClockwise,
+  CloudArrowUp,
+  Crosshair,
+  DotsThree,
+  GearSix,
+  Export,
+  ImageSquare,
+  PaperPlaneTilt,
+  Sparkle,
+  Stack,
+} from '@phosphor-icons/react';
+import Tooltip from './Tooltip';
+import Spinner from './Spinner';
+import { EXIT_POPOVER, usePresence } from '../usePresence';
+import { hintFor } from '../shortcuts';
 import { chord } from '../platform';
 
 interface Props {
@@ -7,9 +34,18 @@ interface Props {
   onViewMode: (m: 'split' | 'preview' | 'focus') => void;
   typewriterMode: boolean;
   onToggleTypewriter: () => void;
-  status: string | null;
   /** Name of the open draft — the toolbar doubles as the window title */
   docName: string;
+  /**
+   * The folder(s) the draft sits in, outermost first.
+   *
+   * The editor's pane head used to show this, on a row the format strip now
+   * occupies. It belongs here anyway: this bar already names the open file, so
+   * the path simply grows a head — 系列 / 第一篇：从零开始 — instead of the same
+   * draft being named in two places. A draft at the root of the workspace has
+   * no folders and reads exactly as it did.
+   */
+  docFolders: string[];
   /** A write is still in flight (the save indicator breathes) */
   saving: boolean;
   onCopy: () => void;
@@ -22,7 +58,7 @@ interface Props {
    * disk. A long image is the one thing the folder does not already contain.
    */
   onExportImage: () => void;
-  /** An export is running: disable the button so it cannot be fired twice */
+  /** An export is running: the menu item keeps its label and spins instead */
   exporting: boolean;
   /** A copy is running (remote images have to be fetched first) */
   copying: boolean;
@@ -47,10 +83,15 @@ interface Props {
   /** Is the agent panel expanded */
   agentOpen: boolean;
   onToggleAgent: () => void;
+  /** The typeset popover. Owned by App because ⌘⇧T and the preview head's
+   *  theme name both open it, and this bar is not the only way in any more */
+  typesetOpen: boolean;
+  onTypesetOpen: (open: boolean) => void;
   /** Themes / density / body options / appearance, rendered into a popover.
    *  Given the popover's own close handle, so a control inside it can dismiss
-   *  it on its way to opening something else (see the agent theme button) */
-  typeset: (close: () => void) => ReactNode;
+   *  it on its way to opening something else (see the agent theme button), and
+   *  the presence state, which it writes onto its root so it can animate shut */
+  typeset: (close: () => void, state: 'enter' | 'exit') => ReactNode;
 }
 
 const MODES = [
@@ -58,6 +99,126 @@ const MODES = [
   { id: 'preview', name: '预览' },
   { id: 'focus', name: '专注' },
 ] as const;
+
+/** Keep-inside-the-window margin for anything floating */
+const PAD = 8;
+
+/**
+ * Where a floating layer hangs from.
+ *
+ * `getBoundingClientRect` on the trigger, or — when the trigger is not on
+ * screen at all — the top right corner of the window, which is where every one
+ * of these controls lives anyway.
+ */
+function anchorRect(el: HTMLElement | null): DOMRect {
+  if (el) return el.getBoundingClientRect();
+  return new DOMRect(window.innerWidth - PAD, 46, 0, 0);
+}
+
+/**
+ * A menu hung under a toolbar button.
+ *
+ * On <body> rather than inside the bar: the header is a Tauri drag region and
+ * a floating layer inside it has to opt out of the drag by hand, and nothing
+ * up there should be able to clip a menu.
+ *
+ * It is right-aligned to its trigger and grows out of that corner, so the menu
+ * reads as the button's own contents unfolding rather than as a panel that
+ * arrived from somewhere else.
+ */
+function ToolbarMenu({
+  open,
+  onClose,
+  anchor,
+  label,
+  children,
+}: {
+  open: boolean;
+  /** Close, and put the keyboard back on the trigger */
+  onClose: () => void;
+  anchor: RefObject<HTMLButtonElement | null>;
+  label: string;
+  children: ReactNode;
+}) {
+  const presence = usePresence(open, EXIT_POPOVER);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Outside press or Esc closes it.
+  //
+  // pointerdown rather than click, and the trigger excluded: React flushes
+  // this effect before the click that opened the menu has finished bubbling to
+  // the document, so a click listener would shut the menu inside the very
+  // event that opened it (the same trap the typeset popover fell into — see
+  // below, and FileTree's 「+」 menu).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (ref.current?.contains(target)) return;
+      if (anchor.current?.contains(target)) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Esc means "never mind": the focus goes back where the press started
+      onClose();
+      anchor.current?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose, anchor]);
+
+  // Under the button and right-aligned to it, measured against the window
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!open || !el) return;
+    const rect = anchorRect(anchor.current);
+    // offsetWidth, not a bounding rect: this runs on the first frame of the
+    // pop-in, where the menu is still scaled to 0.96 — measuring the rect
+    // would right-align the menu to a width it is about to outgrow
+    const { offsetWidth: width, offsetHeight: height } = el;
+    el.style.left = `${Math.round(
+      Math.max(PAD, Math.min(rect.right - width, window.innerWidth - width - PAD)),
+    )}px`;
+    el.style.top = `${Math.round(
+      Math.min(rect.bottom + 6, Math.max(PAD, window.innerHeight - height - PAD)),
+    )}px`;
+    // Straight into the menu: it was opened to be chosen from
+    el.querySelector<HTMLElement>('.menu-item:not(:disabled)')?.focus();
+  }, [open, presence.mounted, anchor]);
+
+  /** ↑↓ cycle the items — a menu is a ring, not a list that dead-ends */
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>('.menu-item:not(:disabled)'),
+    );
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const step = e.key === 'ArrowDown' ? 1 : -1;
+    items[(at + step + items.length) % items.length].focus();
+  };
+
+  if (!presence.mounted) return null;
+  return createPortal(
+    <div
+      ref={ref}
+      className="popover tb-menu"
+      data-state={presence.state}
+      role="menu"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 /**
  * Top bar. On macOS this *is* the window title bar (see tauri.conf.json:
@@ -70,18 +231,35 @@ const MODES = [
  * would swallow the gesture and leave just the slivers of empty header between
  * them draggable. `deep` makes the whole subtree drag, and Tauri already
  * excludes buttons and other interactive elements from it, so nothing here
- * needs to opt out by hand except a floating layer (see the popover).
+ * needs to opt out by hand.
  *
  * Left says what you are editing, right says what you can do to it, with a
  * single filled button for the one destructive-ish action worth emphasizing.
+ *
+ * The right end is four objects: the mode switch, Agent, 导出, and the filled
+ * 推草稿. It used to be eight buttons in two capsules, which read as a list of
+ * eight things to consider every time you looked up. Three of them are gone
+ * from the bar without being gone from the app:
+ *
+ *   排版 — the preview head already says 「经典 · 标准 ⌄」 and that chip opens
+ *          this very popover, so the bar was a second door to one room.
+ *   长图 / 复制正文 — one question ("get it out of here how?") asked twice.
+ *          They are the two items of the 导出 menu now.
+ *   草稿箱 — not an export and not a step in writing: it is "what did I
+ *          already push?", which belongs next to 推草稿 rather than beside it.
+ *          It hangs off the primary button's caret.
+ *
+ * A capsule's sunken track still says where a group starts and ends without a
+ * divider having to be drawn; with one button left in each, it mostly says
+ * "these two are the same kind of thing as the mode switch".
  */
 export default function Toolbar({
   viewMode,
   onViewMode,
   typewriterMode,
   onToggleTypewriter,
-  status,
   docName,
+  docFolders,
   saving,
   onCopy,
   onExportImage,
@@ -97,63 +275,103 @@ export default function Toolbar({
   onOpenUpdate,
   agentOpen,
   onToggleAgent,
+  typesetOpen,
+  onTypesetOpen,
   typeset,
 }: Props) {
-  const [typesetOpen, setTypesetOpen] = useState(false);
   const typesetRef = useRef<HTMLDivElement>(null);
+  const typesetPresence = usePresence(typesetOpen, EXIT_POPOVER);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLButtonElement>(null);
+  const [pushOpen, setPushOpen] = useState(false);
+  const pushRef = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
+  const runMore = (action: () => void) => { setMoreOpen(false); action(); };
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    moreRef.current?.querySelector<HTMLButtonElement>('.menu-item:not(:disabled)')?.focus();
-    const onClick = (event: MouseEvent) => {
-      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMoreOpen(false);
-        moreButtonRef.current?.focus();
-      }
-    };
-    document.addEventListener('click', onClick);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('click', onClick);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [moreOpen]);
-
-  useEffect(() => {
-    setMoreOpen(false);
-    setTypesetOpen(false);
-  }, [viewMode]);
-
-  const runMoreAction = (action: () => void) => {
-    setMoreOpen(false);
-    moreButtonRef.current?.focus();
-    action();
-  };
-
-  // Click outside / Esc closes the popover
+  // Click outside / Esc closes the typeset popover
   useEffect(() => {
     if (!typesetOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!typesetRef.current?.contains(e.target as Node)) setTypesetOpen(false);
+    // Listen on pointerdown, not click: the preview head's theme name opens
+    // this popover, and React flushes the effect that registers this listener
+    // before that same click has finished bubbling to the document — so a
+    // click listener would close the popover in the very event that opened
+    // it. By the time pointerdown fires for the *next* press, the popover
+    // really is open, and a press on the opener is excluded so it toggles
+    // rather than fights itself.
+    const onDocClick = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (typesetRef.current?.contains(target)) return;
+      if (target?.closest('[data-typeset-trigger]')) return;
+      onTypesetOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setTypesetOpen(false);
+      if (e.key === 'Escape') onTypesetOpen(false);
     };
-    document.addEventListener('click', onDocClick);
+    document.addEventListener('pointerdown', onDocClick);
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('pointerdown', onDocClick);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [typesetOpen]);
+  }, [typesetOpen, onTypesetOpen]);
+
+  /**
+   * Park the typeset popover over the preview head's 「经典 · 标准 ⌄」 chip.
+   *
+   * The popover used to be a child of the 排版 button's wrapper and positioned
+   * itself against it in CSS — `top: calc(100% + 8px); right: 0`. With that
+   * button gone the chip is the only opener left, so the wrapper moves to a
+   * portal and is laid over the chip's own rect: the popover's stylesheet is
+   * untouched and still resolves to "under the trigger, right-aligned".
+   *
+   * ⌘⇧T opens the same popover without going near the chip, and lands in the
+   * same place — the anchor is read from the DOM, not from the click.
+   */
+  useLayoutEffect(() => {
+    const el = typesetRef.current;
+    if (!typesetOpen || !el) return;
+    const place = () => {
+      const rect = anchorRect(document.querySelector<HTMLElement>('[data-typeset-trigger]'));
+      const pop = el.firstElementChild as HTMLElement | null;
+      const popW = pop?.offsetWidth ?? 0;
+      // The chip is sized to its words now, in both modes, so the only
+      // question is which of its edges the popover hangs from. Right-aligned
+      // is the default (the chip sits right of centre in 对照); when that
+      // would push the popover off the window's left edge — the chip is near
+      // the left in 预览 — it starts at the chip's left edge instead. The
+      // popover's stylesheet pins it `right: 0`, so a left-aligned hang is a
+      // box exactly as wide as the popover, starting where the chip starts.
+      const rightAligned = rect.right - popW >= PAD;
+      const boxW = rightAligned ? rect.width : popW;
+      const left = rightAligned
+        ? rect.left
+        : Math.min(rect.left, window.innerWidth - PAD - popW);
+      el.style.left = `${Math.round(left)}px`;
+      el.style.top = `${Math.round(rect.top)}px`;
+      el.style.width = `${Math.round(boxW)}px`;
+      el.style.height = `${Math.round(rect.height)}px`;
+      // Grow out of the corner it is pinned to — the stylesheet can only name
+      // one (see .popover)
+      if (pop) pop.style.transformOrigin = rightAligned ? 'top right' : 'top left';
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [typesetOpen, typesetPresence.mounted]);
 
   const modeIndex = MODES.findIndex((m) => m.id === viewMode);
+
+  /** Picking from the 导出 menu shuts it and hands the keyboard back: neither
+   *  of these two opens anything that would otherwise claim focus */
+  const closeExport = useCallback(() => setExportOpen(false), []);
+  const runExport = (run: () => void) => {
+    setExportOpen(false);
+    exportRef.current?.focus();
+    run();
+  };
+  const closePush = useCallback(() => setPushOpen(false), []);
 
   return (
     <header className="toolbar" data-tauri-drag-region="deep">
@@ -170,6 +388,9 @@ export default function Toolbar({
           <div className="tb-doc">
             <span className={`tb-dot ${saving ? 'saving' : ''}`} aria-hidden="true" />
             <span className="tb-doc-name" title={saving ? '正在保存…' : '已保存到工作区'}>
+              {docFolders.map((seg, i) => (
+                <span key={`${i}:${seg}`} className="tb-doc-folder">{`${seg} / `}</span>
+              ))}
               {docName}
             </span>
           </div>
@@ -178,96 +399,166 @@ export default function Toolbar({
 
       <div className="toolbar-right">
         {hasUpdate && (
-          <button className="btn update-pill" onClick={onOpenUpdate} title="有新版本可以安装">
-            <ArrowCircleUp size={15} weight="bold" />
-            新版本
-          </button>
+          <Tooltip content="有新版本可以安装">
+            <button className="btn update-pill" onClick={onOpenUpdate}>
+              <ArrowCircleUp size={16} weight="regular" />
+              新版本
+            </button>
+          </Tooltip>
         )}
 
+        {/* What you are looking at */}
         <div
           className="segmented"
-          role="tablist"
+          role="radiogroup"
           aria-label="工作区模式"
           style={{ '--seg-n': MODES.length, '--seg-i': modeIndex } as React.CSSProperties}
         >
-          {MODES.map((m) => (
-            <button
+          {MODES.map((m, i) => (
+            <Tooltip
               key={m.id}
-              role="tab"
-              aria-selected={viewMode === m.id}
-              className={`seg-btn ${viewMode === m.id ? 'active' : ''}`}
-              onClick={() => onViewMode(m.id)}
+              content={m.id === 'split' ? '源码和预览并排' : '只看预览'}
+              shortcut={hintFor('viewMode')}
             >
-              {m.name}
-            </button>
+              <button
+                role="radio"
+                aria-checked={viewMode === m.id}
+                tabIndex={viewMode === m.id ? 0 : -1}
+                className={`seg-btn ${viewMode === m.id ? 'active' : ''}`}
+                onKeyDown={(e) => {
+                  // One tab stop for the group; ←→ move inside it
+                  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                  if (!step) return;
+                  e.preventDefault();
+                  onViewMode(MODES[(i + step + MODES.length) % MODES.length].id);
+                }}
+                onClick={() => onViewMode(m.id)}
+              >
+                {m.name}
+              </button>
+            </Tooltip>
           ))}
         </div>
-        {/* Themes, density, body options and the shell's own light/dark */}
-        <div className="menu-wrap" ref={typesetRef}>
-          <button
-            className={`btn ${typesetOpen ? 'active' : ''}`}
-            aria-haspopup="dialog"
-            aria-expanded={typesetOpen}
-            title="文章主题、排版密度、界面外观"
-            onClick={() => { setMoreOpen(false); setTypesetOpen((v) => !v); }}
-          >
-            <TextAa size={15} weight="bold" />
-            排版
-          </button>
-          {typesetOpen && typeset(() => setTypesetOpen(false))}
+
+        {/* Who else may touch the draft. Local agent: runs the claude / codex
+            already on this machine. No model is wired into the editor itself. */}
+        <div className="tb-group capsule">
+          <Tooltip content="让 API 写作助手处理文章与主题" shortcut={hintFor('agent')}>
+            <button
+              className={`btn ${agentOpen ? 'active' : ''}`}
+              onClick={onToggleAgent}
+              aria-pressed={agentOpen}
+            >
+              <Sparkle size={16} weight="regular" />
+              Agent
+            </button>
+          </Tooltip>
         </div>
 
-        <button
-          className={`btn ${agentOpen ? 'active' : ''}`}
-          onClick={onToggleAgent}
-          aria-pressed={agentOpen}
-          title="打开 AI 写作助手"
-        >
-          <Sparkle size={15} weight="bold" />
-          Agent
-        </button>
-
-        <button className="btn" onClick={onCopy} disabled={copying} title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}>
-          <ClipboardText size={15} weight="bold" />
-          {copying ? '处理中…' : '复制正文'}
-        </button>
-
-        <button className="btn primary" onClick={onPublish} title="换图后直接推进公众号草稿箱">
-          <PaperPlaneTilt size={15} weight="bold" />
-          推草稿
-        </button>
-
-        <div className="menu-wrap" ref={moreRef} onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setMoreOpen(false);
-        }}>
-          <button
-            ref={moreButtonRef}
-            className={`btn icon ${moreOpen ? 'active' : ''}`}
-            aria-label="更多操作"
-            aria-expanded={moreOpen}
-            aria-controls="toolbar-more"
-            title="更多操作"
-            onClick={() => { setTypesetOpen(false); setMoreOpen((open) => !open); }}
-          >
-            <DotsThree size={20} weight="bold" />
-          </button>
-          {moreOpen && (
-            <div id="toolbar-more" className="popover toolbar-more" role="group" aria-label="更多操作" data-tauri-drag-region="false">
-              <button className="menu-item" onClick={() => runMoreAction(onOpenLayout)}><Sparkle size={16} />AI 排版</button>
-              <button className="menu-item" onClick={() => runMoreAction(onOpenArticleCenter)}><ClockCounterClockwise size={16} />文章管理<span className="menu-hint">版本与记录</span></button>
-              <button className="menu-item" onClick={() => runMoreAction(onOpenDraftBox)}><Stack size={16} />公众号草稿箱</button>
-              <div className="menu-divider" />
-              <button className="menu-item" onClick={() => runMoreAction(onExportImage)} disabled={exporting}><ImageSquare size={16} />{exporting ? '渲染中…' : '导出长图'}<span className="menu-hint">PNG</span></button>
-              <button className="menu-item" onClick={() => runMoreAction(onOpenCloudinary)}><CloudArrowUp size={16} />图片托管<span className="menu-hint">Cloudinary</span></button>
-              <div className="menu-divider" />
-              <button className="menu-item" onClick={() => runMoreAction(onToggleTypewriter)} aria-pressed={typewriterMode}><Crosshair size={16} />打字机模式<span className="menu-hint">{typewriterMode ? '已开启' : '已关闭'}</span></button>
-              <button className="menu-item" onClick={() => runMoreAction(onOpenSettings)}><GearSix size={16} />设置</button>
-            </div>
-          )}
+        {/* What comes out of the finished piece. Two ways out of the editor is
+            one question, so it is one button with two answers under it. */}
+        <div className="tb-group capsule">
+          <Tooltip content="复制正文，或渲染成一张长图">
+            <button
+              ref={exportRef}
+              className={`btn ${exportOpen ? 'active' : ''} ${copying || exporting ? 'busy' : ''}`}
+              aria-haspopup="menu"
+              aria-expanded={exportOpen}
+              onClick={() => setExportOpen((v) => !v)}
+            >
+              {/* The trigger spins too: picking an item closes the menu, and a
+                  copy that has to fetch remote images takes long enough that
+                  the bar would otherwise look like nothing happened */}
+              {copying || exporting ? <Spinner /> : <Export size={16} weight="regular" />}
+              导出
+              <CaretDown size={10} weight="bold" className="tb-caret" aria-hidden="true" />
+            </button>
+          </Tooltip>
         </div>
+
+        <div className="tb-split">
+          <Tooltip content="换图后直接推进公众号草稿箱" shortcut={hintFor('publish')}>
+            <button className="btn primary tb-split-main" onClick={onPublish}>
+              <PaperPlaneTilt size={15} weight="bold" />
+              推草稿
+            </button>
+          </Tooltip>
+          <button
+            ref={pushRef}
+            className="btn primary tb-split-more"
+            aria-label="推送的其他去处"
+            aria-haspopup="menu"
+            aria-expanded={pushOpen}
+            onClick={() => setPushOpen((v) => !v)}
+          >
+            <CaretDown size={10} weight="bold" aria-hidden="true" />
+          </button>
+        </div>
+        <Tooltip content="更多操作">
+          <button ref={moreRef} className={`btn icon ${moreOpen ? 'active' : ''}`} aria-label="更多操作" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><DotsThree size={20} weight="bold" /></button>
+        </Tooltip>
       </div>
 
-      {status && <span className="status show">{status}</span>}
+      <ToolbarMenu open={moreOpen} onClose={closeMore} anchor={moreRef} label="更多操作">
+        <button className="menu-item" role="menuitem" onClick={() => runMore(onOpenLayout)}><Sparkle size={14} className="menu-icon" />AI 排版</button>
+        <button className="menu-item" role="menuitem" onClick={() => runMore(onOpenArticleCenter)}><ClockCounterClockwise size={14} className="menu-icon" />文章管理</button>
+        <button className="menu-item" role="menuitem" onClick={() => runMore(onOpenCloudinary)}><CloudArrowUp size={14} className="menu-icon" />图片托管</button>
+        <button className="menu-item" role="menuitemcheckbox" aria-checked={typewriterMode} onClick={() => runMore(onToggleTypewriter)}><Crosshair size={14} className="menu-icon" />打字机模式<span className="menu-hint">{typewriterMode ? '已开启' : '已关闭'}</span></button>
+        <button className="menu-item" role="menuitem" onClick={() => runMore(onOpenSettings)}><GearSix size={14} className="menu-icon" />设置</button>
+      </ToolbarMenu>
+      <ToolbarMenu open={exportOpen} onClose={closeExport} anchor={exportRef} label="导出">
+        <button
+          className={`menu-item ${copying ? 'busy' : ''}`}
+          role="menuitem"
+          title={`复制为富文本，去公众号编辑器 ${chord('V')} 粘贴`}
+          disabled={copying}
+          aria-busy={copying}
+          onClick={() => runExport(onCopy)}
+        >
+          {copying ? <Spinner /> : <ClipboardText size={14} className="menu-icon" />}
+          复制正文
+          <span className="menu-hint">{hintFor('copy')}</span>
+        </button>
+        <button
+          className={`menu-item ${exporting ? 'busy' : ''}`}
+          role="menuitem"
+          title="把整篇正文渲染成一张长图 PNG"
+          disabled={exporting}
+          aria-busy={exporting}
+          onClick={() => runExport(onExportImage)}
+        >
+          {exporting ? <Spinner /> : <ImageSquare size={14} className="menu-icon" />}
+          导出长图
+          <span className="menu-hint">{hintFor('longImage')}</span>
+        </button>
+      </ToolbarMenu>
+
+      {/* The drafts box is otherwise only visible inside the WeChat console, so
+          after a few pushes it is unclear which version is up there. Also where
+          an article is picked to overwrite rather than duplicate. */}
+      <ToolbarMenu open={pushOpen} onClose={closePush} anchor={pushRef} label="推送">
+        <button
+          className="menu-item"
+          role="menuitem"
+          title="草稿箱：看看公众号上已有哪些草稿"
+          onClick={() => {
+            // No focus hand-back: the drafts box takes the keyboard next
+            setPushOpen(false);
+            onOpenDraftBox();
+          }}
+        >
+          <Stack size={14} className="menu-icon" />
+          查看草稿箱
+        </button>
+      </ToolbarMenu>
+
+      {typesetPresence.mounted &&
+        createPortal(
+          <div className="typeset-anchor" ref={typesetRef}>
+            {typeset(() => onTypesetOpen(false), typesetPresence.state)}
+          </div>,
+          document.body,
+        )}
     </header>
   );
 }

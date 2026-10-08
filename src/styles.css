@@ -17,7 +17,9 @@
 @import './styles/_editor.css';
 @import './styles/_preview.css';
 @import './styles/_agent.css';
+@import './styles/_studio.css';
 @import './styles/_dialog.css';
+@import './styles/_overlay.css';
 
 /* ============================================================
    10 · Responsive
@@ -30,11 +32,15 @@
 /* Tight but still side by side: give the columns back some width */
 @media (max-width: 1180px) {
   .file-tree {
-    width: 196px;
+    width: 204px;
   }
 
   .agent-side {
     width: 300px;
+  }
+
+  .side-slot.agent {
+    --side-w: 300px;
   }
 
   .tree-file-meta {
@@ -43,10 +49,13 @@
 }
 
 @media (max-width: 900px) {
+  /* Stacked: the rail on top, the sheet under it. The rail keeps its flush
+     left edge, and the gap plus the sheet's own shadow is what separates
+     them — same as side by side, turned ninety degrees. */
   .workspace {
     flex-direction: column;
     gap: 10px;
-    padding: 10px;
+    padding: 0 10px 10px 0;
   }
 
   .file-tree {
@@ -61,10 +70,15 @@
     min-height: 0;
   }
 
+  .split-main {
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .split-bar {
     width: auto;
     height: 16px;
-    margin: -3px 0;
+    margin: 0;
     cursor: row-resize;
   }
 
@@ -77,6 +91,26 @@
   .split-dragging .split-bar::before {
     width: 68px;
     height: 3px;
+  }
+
+  /* A column of the sheet becomes a row of it, so the axis the slot collapses
+     along has to turn with it: a slot that is merely zero *wide* still claims
+     its panel's full height in a column, and the agent panel stays mounted
+     while closed — which left a 320px dead band under the preview. The
+     column's own tint travels with it; there is no edge to re-hang. */
+  .side-slot {
+    width: 100%;
+    height: 0;
+    transition: height var(--t-slow) var(--ease);
+  }
+
+  .side-slot.open {
+    width: 100%;
+    height: 320px;
+  }
+
+  .side-slot.studio.open {
+    height: 420px;
   }
 
   .split-pane.editor-side {
@@ -101,6 +135,9 @@
   .typeset-pop {
     width: min(340px, calc(100vw - 24px));
   }
+
+  /* No thumbnail override here: the scale is measured off the card, so a
+     narrower popover simply produces a smaller measurement. */
 }
 
 /* ============================================================

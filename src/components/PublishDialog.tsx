@@ -1,5 +1,7 @@
+import Modal from './Modal';
+import Spinner from './Spinner';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowCounterClockwise, CheckCircle, GearSix, PaperPlaneTilt, Stack, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, CheckCircle, GearSix, PaperPlaneTilt, Stack } from '@phosphor-icons/react';
 import { prepareImage } from '../images';
 import { publishToDraft, type DraftTarget } from '../publish';
 import { isConfigured, WechatError } from '../wechat';
@@ -87,6 +89,13 @@ export default function PublishDialog({
   const [generatingCover, setGeneratingCover] = useState(false);
   const [progress, setProgress] = useState('');
   const [probe, setProbe] = useState<{ kind: 'ok' | 'warn' | 'fail'; message: string } | null>(null);
+  const uploadRatio = (() => {
+    const match = /(\d+)\/(\d+)/.exec(progress);
+    if (!match) return null;
+    const total = Number(match[2]);
+    return total > 0 ? Math.min(1, Number(match[1]) / total) : null;
+  })();
+  const titleRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const publishing = useRef(false);
   const currentContext = useRef({ articleKey, contentRevision });
@@ -115,19 +124,14 @@ export default function PublishDialog({
   }, [open, defaultTitle, target, targetDigest]);
 
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      // No closing mid-push, or it looks cancelled while the request is still in flight
-      if (e.key === 'Escape' && !busy) {
-        if (coverWorkbenchOpen) { setCoverWorkbenchOpen(false); setGeneratedCover(null); }
-        else onClose();
-      }
+    if (!coverWorkbenchOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setCoverWorkbenchOpen(false); setGeneratedCover(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, busy, coverWorkbenchOpen, onClose]);
+  }, [coverWorkbenchOpen]);
 
-  if (!open) return null;
 
   const configured = isConfigured(cfg);
   const preflightIssues = [
@@ -259,22 +263,26 @@ export default function PublishDialog({
    * clean them up when it finishes.
    */
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={target ? '更新公众号草稿' : '推送到公众号草稿箱'}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
-          <h2>{target ? '更新草稿' : '推送到草稿箱'}</h2>
-          <button className="modal-close" onClick={onClose} disabled={busy} aria-label="关闭">
-            <X size={15} weight="bold" />
-          </button>
-        </header>
+    <>
+    <Modal open={open && !coverWorkbenchOpen} onClose={onClose} busy={busy} initialFocus={titleRef} onSubmit={() => void handlePublish()} title={target ? '更新草稿' : '推送到草稿箱'} foot={<>
 
-        <div className="modal-body">
+          {probe && (
+            <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
+              {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
+              {probe.message}
+            </span>
+          )}
+          {busy && progress && <span className="publish-progress"><span className="update-bar"><span className={`update-bar-fill ${uploadRatio === null ? 'indeterminate' : ''}`} style={uploadRatio === null ? undefined : { width: `${Math.round(uploadRatio * 100)}%` }} /></span><span className="form-progress">{progress}</span></span>}
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            取消
+          </button>
+          <button className={`btn primary ${busy ? 'busy' : ''}`} aria-busy={busy} type="submit" disabled={busy || generatingTitle || generatingCover || publishBlocked}>
+            {busy ? <Spinner /> : <PaperPlaneTilt size={15} weight="bold" />}
+            {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
+          </button>
+
+    </>}>
+
           <fieldset className="publish-fields" disabled={busy}>
           <section className="form-section">
             <div className="form-section-label">推到哪里</div>
@@ -310,7 +318,7 @@ export default function PublishDialog({
             <div className="form-section-label">这一篇</div>
             <label className="field">
               <span>标题</span>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={32} placeholder="必填，最多 32 字" />
+              <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={32} placeholder="必填，最多 32 字" />
             </label>
             <WritingTools mode="titles" onBusyChange={setGeneratingTitle} article={articleCheckInput.markdown} disabled={busy} onTitle={setTitle} />
             <label className="field">
@@ -401,26 +409,9 @@ export default function PublishDialog({
           </section>
           </fieldset>
           <PublishHistory articleKey={articleKey} accountId={cfg.appid} busy={busy} onOpenDraftBox={onOpenDraftBox} />
-        </div>
 
-        <footer className="modal-foot">
-          {probe && (
-            <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
-              {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
-              {probe.message}
-            </span>
-          )}
-          {busy && progress && <span className="form-progress">{progress}</span>}
-          <button className="btn" onClick={onClose} disabled={busy}>
-            取消
-          </button>
-          <button className="btn primary" onClick={() => void handlePublish()} disabled={busy || generatingTitle || generatingCover || publishBlocked}>
-            <PaperPlaneTilt size={15} weight="bold" />
-            {busy ? (target ? '更新中…' : '推送中…') : target ? '更新这篇草稿' : '推到草稿箱'}
-          </button>
-        </footer>
+    </Modal>
         <CoverWorkbench open={coverWorkbenchOpen} source={generatedCover ?? cover} onClose={() => { setCoverWorkbenchOpen(false); setGeneratedCover(null); }} onApply={(next) => { setCover(next); setGeneratedCover(null); setCoverWorkbenchOpen(false); }} />
-      </div>
-    </div>
+    </>
   );
 }

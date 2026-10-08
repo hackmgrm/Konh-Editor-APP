@@ -13,11 +13,16 @@
  * release the key did not sign is refused, so a hijacked endpoint gets you a
  * failed check rather than someone else's binary.
  *
+ * The check runs on every launch. It is one small request to GitHub, and the
+ * failure mode of not asking — someone sitting on a months-old build with a
+ * fixed bug still in it — costs far more than the request does.
+ *
  * What the interface has to keep straight is that "there is a new version" and
- * "you asked about it" are different events. The check runs by itself shortly
- * after launch and must stay quiet — a modal over a half-written paragraph is
- * not an improvement. It only lights the pill in the toolbar; everything past
- * that point is the user's move.
+ * "you asked about it" are different events. A find still must not interrupt:
+ * no modal opens over a half-written paragraph. It lights the pill in the
+ * toolbar, and says so once in a toast the first time it is found in a session
+ * (`announce` below) so the pill is not the only thing that ever mentions it.
+ * Everything past that point is the user's move.
  */
 
 import { useSyncExternalStore } from 'react';
@@ -31,10 +36,6 @@ export const RELEASES_URL = 'https://github.com/hackmgrm/Konh-Editor-APP/release
 
 /** Version the user pressed 忽略 on — it stops lighting the toolbar pill */
 const SKIP_KEY = 'update.skipped';
-/** Epoch ms of the last automatic check, so a restart-heavy day is not a poll loop */
-const LAST_CHECK_KEY = 'update.lastCheck';
-/** How stale that has to be before launching checks again */
-const AUTO_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** Let the window finish drawing and the workspace finish loading first */
 const AUTO_DELAY_MS = 4000;
 
@@ -52,7 +53,13 @@ export type UpdateState =
   | { phase: 'checking' }
   /** Checked, and this is already the newest there is */
   | { phase: 'current' }
-  | { phase: 'available'; info: UpdateInfo }
+  /**
+   * `announce` is true only for a find nobody asked for and nobody has been
+   * told about yet — the launch check sets it, App turns it into one toast and
+   * calls `markAnnounced()`. A manual check leaves it false: the dialog the
+   * user is looking at is already the answer.
+   */
+  | { phase: 'available'; info: UpdateInfo; announce: boolean }
   /** `total` is null until the response headers arrive */
   | { phase: 'downloading'; info: UpdateInfo; received: number; total: number | null }
   /** Installed on disk; only a restart is left */
@@ -146,7 +153,7 @@ export async function checkForUpdate({ silent = false } = {}): Promise<string | 
       emit({ phase: 'idle' });
       return null;
     }
-    emit({ phase: 'available', info });
+    emit({ phase: 'available', info, announce: silent });
     return info.version;
   } catch (err) {
     if (silent) {
@@ -215,18 +222,27 @@ export async function restartIntoUpdate(): Promise<void> {
 /**
  * The launch check.
  *
- * Throttled on the clock rather than on the session, because the app is
- * opened and closed several times a day and every launch asking GitHub is
- * both rude and pointless.
+ * Every launch, deliberately: the request is tiny, and a build that never asks
+ * is a build that never updates. The only delay is the few seconds it takes
+ * the window and the workspace to settle, so the check never competes with the
+ * first paint.
  */
 export function scheduleAutoCheck(): void {
   if (!IS_TAURI) return;
-  const last = Number(getConfig(LAST_CHECK_KEY) ?? 0);
-  if (Number.isFinite(last) && Date.now() - last < AUTO_INTERVAL_MS) return;
   window.setTimeout(() => {
-    setConfig(LAST_CHECK_KEY, String(Date.now()));
     void checkForUpdate({ silent: true });
   }, AUTO_DELAY_MS);
+}
+
+/**
+ * The find has been said out loud — do not say it again.
+ *
+ * Flipping the flag rather than remembering the version elsewhere keeps the
+ * whole rule in one place: the toast is a property of this particular find,
+ * and a find that a restart produces again is a new session and says it again.
+ */
+export function markAnnounced(): void {
+  if (state.phase === 'available' && state.announce) emit({ ...state, announce: false });
 }
 
 /** Close the transient verdicts (已是最新 / 失败) without touching a real find */

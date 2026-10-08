@@ -45,9 +45,9 @@ export default function WritingTools({ article, mode, disabled, onBusyChange, on
     {expanded && <div className="writing-tools-body">
       <label className="field"><span>{mode === 'titles' ? '标题要求' : '封面风格'}</span><input value={requirement} disabled={busy} onChange={e => setRequirement(e.target.value)} placeholder={mode === 'titles' ? '例如：突出实测结果、更口语化' : '例如：极简、科技感、紫色与青柠绿'} maxLength={500} /></label>
       {mode === 'cover' && <p className="form-hint">使用设置中的图片生成 API。生成后进入封面工作台裁切，应用后才替换封面。</p>}
-      <button className="btn" disabled={busy || disabled || !article.trim()} onClick={() => void generate()}>{busy ? '生成中…' : titles.length ? '重新生成' : '生成'}</button>
+      <button type="button" className="btn" disabled={busy || disabled || !article.trim()} onClick={() => void generate()}>{busy ? '生成中…' : titles.length ? '重新生成' : '生成'}</button>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="title-candidates">{titles.map(title => <button className="btn" key={title} disabled={busy || disabled} onClick={() => onTitle?.(title)}><span>{title}</span><small>选用</small></button>)}</div>
+      <div className="title-candidates">{titles.map(title => <button type="button" className="btn" key={title} disabled={busy || disabled} onClick={() => onTitle?.(title)}><span>{title}</span><small>选用</small></button>)}</div>
     </div>}
   </div>;
 }

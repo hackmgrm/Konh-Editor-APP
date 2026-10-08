@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Tooltip from "./Tooltip";
+import EmptyState from "./EmptyState";
+import { EXIT_POPOVER, usePresence } from "../usePresence";
+import { hintFor } from "../shortcuts";
 import {
   Broom,
   CaretDown,
@@ -11,10 +15,12 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  GearSix,
   GithubLogo,
   Globe,
   Image as ImageIcon,
   PencilSimple,
+  Plus,
   Trash,
   XLogo,
 } from "@phosphor-icons/react";
@@ -52,6 +58,9 @@ interface Props {
   onMove: (paths: string[], toParent: string) => void;
   /** Sweep every image that no body references */
   onCleanupImages: () => void;
+  /** Open settings (公众号凭据). Lives down here, out of the writing loop:
+   *  it is configured once and then forgotten, like the links beside it */
+  onOpenSettings: () => void;
 }
 
 /** Relative time: easier to read in a list than an absolute timestamp */
@@ -96,6 +105,11 @@ function stemOf(name: string): string {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
 }
+
+/** How long a row takes to leave, and how far apart the stagger sets them */
+const ROW_EXIT_MS = 140;
+const STAGGER_MS = 12;
+const STAGGER_MAX = 8;
 
 /** One row: a node in the tree plus its depth */
 interface Row {
@@ -166,6 +180,7 @@ export default function FileTree({
   onDelete,
   onMove,
   onCleanupImages,
+  onOpenSettings,
 }: Props) {
   /** Expanded directories. All collapsed by default; opening a draft expands
    *  the whole path down to it */
@@ -178,8 +193,46 @@ export default function FileTree({
   const [dragPaths, setDragPaths] = useState<string[]>([]);
   /** Which directory it is over (empty = root, null = not over a valid target) */
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  /**
+   * Where a line is drawn between two rows.
+   *
+   * Dropping on a file means "into the folder this file is in" — which the
+   * folder highlight says for a folder, and said nothing at all for a file:
+   * the row lit up and you had to know that it meant its parent. A rule drawn
+   * at the row's near edge, indented to that level, shows the level the file
+   * is about to join.
+   */
+  const [dropLine, setDropLine] = useState<{ path: string; where: 'before' | 'after' } | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
+  const menuPresence = usePresence(menu !== null, EXIT_POPOVER);
+  /** The menu outlives its own state by one animation, so it keeps its items */
+  const lastMenu = useRef<Menu | null>(menu);
+  if (menu) lastMenu.current = menu;
   const menuRef = useRef<HTMLDivElement>(null);
+  /** The head's 「+」 menu — the three ways to create something, collapsed
+   *  behind one button so the rail's eyebrow carries one glyph, not three */
+  const [addOpen, setAddOpen] = useState(false);
+  const addPresence = usePresence(addOpen, EXIT_POPOVER);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  /**
+   * Which row the keyboard is on.
+   *
+   * The tree is one tab stop, not one per file: a workspace with forty drafts
+   * should not cost forty presses of Tab to get past. Inside it, the arrows do
+   * what they do in every file tree ever made.
+   */
+  const [cursor, setCursor] = useState<string | null>(null);
+  /** Set when a key moved the cursor, so the effect below knows to chase it
+   *  with real DOM focus — but leaves the mouse alone */
+  const chaseRef = useRef(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  /** Rows that just appeared, and how far down the stagger they sit */
+  const [entering, setEntering] = useState<Map<string, number>>(new Map());
+  /** A folder whose children are playing their exit; the actual collapse waits
+   *  for them (see `toggle`) */
+  const [collapsing, setCollapsing] = useState<string | null>(null);
+  const collapseTimer = useRef<number | null>(null);
   /** Read the clock once at mount rather than on every render */
   const [now] = useState(() => Date.now());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -235,6 +288,74 @@ export default function FileTree({
     el.style.top = `${y}px`;
     el.style.transformOrigin = `${x < menu.x ? "right" : "left"} ${y < menu.y ? "bottom" : "top"}`;
   }, [menu]);
+
+  // Close the 「+」 menu on an outside press or Esc.
+  //
+  // pointerdown rather than click, and the trigger excluded by attribute: React
+  // flushes this effect before the click that opened the menu has finished
+  // bubbling to the document, so a click listener would shut the menu inside
+  // the very event that opened it (the same trap the typeset popover fell into
+  // — see Toolbar.tsx).
+  useEffect(() => {
+    if (!addOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (addMenuRef.current?.contains(target)) return;
+      if (target?.closest("[data-tree-add-trigger]")) return;
+      setAddOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setAddOpen(false);
+      // Esc means "never mind": the focus goes back where the press started
+      addBtnRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [addOpen]);
+
+  // Anchored under the button and right-aligned to it, measured against the
+  // window because the menu lives in a portal on <body>
+  useLayoutEffect(() => {
+    const el = addMenuRef.current;
+    const btn = addBtnRef.current;
+    if (!addOpen || !el || !btn) return;
+    const pad = 8;
+    const anchor = btn.getBoundingClientRect();
+    // offsetWidth, not a bounding rect: this runs on the first frame of the
+    // pop-in, where the menu is still scaled to 0.96 — measuring the rect
+    // would right-align the menu to a width it is about to outgrow
+    const { offsetWidth: width, offsetHeight: height } = el;
+    const left = Math.max(pad, Math.min(anchor.right - width, window.innerWidth - width - pad));
+    const top = Math.min(anchor.bottom + 6, Math.max(pad, window.innerHeight - height - pad));
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+    // Straight into the menu: it was opened to be chosen from
+    el.querySelector<HTMLElement>(".menu-item")?.focus();
+  }, [addOpen, addPresence.mounted]);
+
+  /** ↑↓ cycle the items — a menu is a ring, not a list that dead-ends */
+  const onAddMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const items = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>(".menu-item"),
+    );
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    items[(at + step + items.length) % items.length].focus();
+  };
+
+  /** Open one overlay or the other, never both */
+  const openMenu = (next: Menu) => {
+    setAddOpen(false);
+    setMenu(next);
+  };
 
   const rows = useMemo(() => toRows(tree, expanded), [tree, expanded]);
   const allTextPaths = useMemo(() => textPaths(tree), [tree]);
@@ -300,20 +421,125 @@ export default function FileTree({
     [images, usedImageRefs],
   );
 
-  const toggle = (path: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
+  /**
+   * Fold a directory open or shut.
+   *
+   * Opening is immediate — the new rows animate themselves in. Closing waits
+   * out the children's exit first: rows that are simply dropped from the list
+   * blink out of existence and the ones below snap upward, which is the exact
+   * moment a tree stops feeling like a physical thing.
+   */
+  const toggle = (path: string) => {
+    if (!expanded.has(path)) {
+      setExpanded((prev) => new Set(prev).add(path));
+      return;
+    }
+    if (collapsing) return;
+    setCollapsing(path);
+    collapseTimer.current = window.setTimeout(() => {
+      collapseTimer.current = null;
+      setCollapsing(null);
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }, ROW_EXIT_MS);
+  };
 
-  const startRename = (entry: Entry) => {
+  useEffect(
+    () => () => {
+      if (collapseTimer.current !== null) window.clearTimeout(collapseTimer.current);
+    },
+    [],
+  );
+
+  /**
+   * Which rows are new since the last render, for the staggered entrance.
+   *
+   * Capped at eight: past that the stagger stops reading as one gesture and
+   * starts reading as a slow list, and a folder of forty files would spend
+   * half a second assembling itself.
+   */
+  const seenRef = useRef<Set<string>>(new Set());
+  useLayoutEffect(() => {
+    const now = new Set(rows.map((r) => r.entry.path));
+    const fresh: string[] = [];
+    for (const path of now) if (!seenRef.current.has(path)) fresh.push(path);
+    seenRef.current = now;
+    if (!fresh.length) return;
+    setEntering(new Map(fresh.slice(0, STAGGER_MAX).map((path, i) => [path, i])));
+    const timer = window.setTimeout(() => setEntering(new Map()), ROW_EXIT_MS + STAGGER_MAX * STAGGER_MS);
+    return () => window.clearTimeout(timer);
+  }, [rows]);
+
+  // Chase the cursor with real focus, but only when a key moved it
+  useEffect(() => {
+    if (!chaseRef.current || !cursor) return;
+    chaseRef.current = false;
+    bodyRef.current
+      ?.querySelector<HTMLElement>(`[data-row="${CSS.escape(cursor)}"]`)
+      ?.focus();
+  }, [cursor, rows]);
+
+  const moveCursor = (path: string | null) => {
+    if (!path) return;
+    chaseRef.current = true;
+    setCursor(path);
+  };
+
+  /** ↑↓ walk the visible rows, ←→ fold, Enter opens, F2 renames, Delete asks */
+  const onRowKeyDown = (e: React.KeyboardEvent, entry: Entry, index: number) => {
+    const { path, isDir } = entry;
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowUp': {
+        e.preventDefault();
+        const next = rows[index + (e.key === 'ArrowDown' ? 1 : -1)];
+        moveCursor(next?.entry.path ?? null);
+        return;
+      }
+      case 'ArrowRight': {
+        // On a file this does nothing on purpose: there is nothing to open
+        if (!isDir) return;
+        e.preventDefault();
+        if (!expanded.has(path)) toggle(path);
+        else moveCursor(rows[index + 1]?.entry.path ?? null);
+        return;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        if (isDir && expanded.has(path)) {
+          toggle(path);
+          return;
+        }
+        // Otherwise go up a level, which is where ← means "out of here"
+        const parent = parentOf(path);
+        if (parent) moveCursor(parent);
+        return;
+      }
+      case 'Enter':
+        e.preventDefault();
+        activate(entry);
+        return;
+      case 'F2':
+        e.preventDefault();
+        startRename(entry);
+        return;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        onDelete(path);
+        return;
+    }
+  };
+
+  function startRename(entry: Entry) {
     setRenamingPath(entry.path);
     setRenameValue(
       entry.isDir || !isTextPath(entry.path) ? entry.name : stemOf(entry.name),
     );
-  };
+  }
 
   const submitRename = () => {
     if (renamingPath && renameValue.trim())
@@ -324,23 +550,52 @@ export default function FileTree({
 
   /** Click a row: folders toggle, text opens in the editor, images jump to
    *  their reference, anything else goes to the system */
-  const activate = (entry: Entry) => {
+  function activate(entry: Entry) {
     if (entry.isDir) toggle(entry.path);
     else if (isTextPath(entry.path)) onOpen(entry.path);
     else if (isImagePath(entry.path)) onLocateImage(entry.path);
     else onReveal(entry.path);
-  };
+  }
 
   /** Dropping onto a file means its directory — the gesture means "put it at
    *  this level" */
   const dropDirOf = (entry: Entry) =>
     entry.isDir ? entry.path : parentOf(entry.path);
 
+  /**
+   * The thing that follows the pointer while dragging a row.
+   *
+   * The browser's default is a translucent photograph of the whole row —
+   * including its hover background, the actions that were revealed under the
+   * pointer, and the file size at the far right, stretched across the width of
+   * the rail. What is being dragged is one file, so the picture of it should
+   * be one file: its glyph and its name, in a small capsule.
+   *
+   * It has to be in the document and painted for `setDragImage` to snapshot
+   * it, hence the off-screen position and the removal on the next tick — by
+   * then the browser has taken its copy.
+   */
+  const makeDragGhost = (row: HTMLElement, name: string) => {
+    const ghost = document.createElement("div");
+    ghost.className = "tree-drag-ghost";
+    // The row's own glyph, not a guess at which one it should be. The caret is
+    // excluded: it belongs to the tree, not to the file
+    const icon = row.querySelector(".tree-file-main svg:not(.tree-caret)");
+    if (icon) ghost.appendChild(icon.cloneNode(true));
+    const label = document.createElement("span");
+    label.textContent = name;
+    ghost.appendChild(label);
+    document.body.appendChild(ghost);
+    window.setTimeout(() => ghost.remove(), 0);
+    return ghost;
+  };
+
   const finishDrop = (toParent: string) => {
     const paths = dragPaths.length ? dragPaths : dragPath ? [dragPath] : [];
     setDragPath(null);
     setDragPaths([]);
     setDropTarget(null);
+    setDropLine(null);
     const movable = paths.filter((from) =>
       parentOf(from) !== toParent && toParent !== from && !toParent.startsWith(`${from}/`),
     );
@@ -349,11 +604,61 @@ export default function FileTree({
     onMove(movable, toParent);
   };
 
-  const renderRow = ({ entry, depth }: Row) => {
+  /**
+   * The three ways to make something new.
+   *
+   * Both menus offer them — the head's 「+」 into the workspace root, the
+   * right-click menu into whatever was clicked — and they are written once so
+   * the two can never drift into different words for the same act.
+   */
+  const createItems = (parent: string, close: () => void) => (
+    <>
+      <button
+        className="menu-item"
+        role="menuitem"
+        onClick={() => {
+          close();
+          onNewDraft(parent);
+        }}
+      >
+        <FilePlus size={16} className="menu-icon" />
+        新建草稿
+        <span className="menu-hint">{hintFor("newDraft")}</span>
+      </button>
+      <button
+        className="menu-item"
+        role="menuitem"
+        onClick={() => {
+          close();
+          onNewFolder(parent);
+        }}
+      >
+        <FolderPlus size={16} className="menu-icon" />
+        新建文件夹
+      </button>
+      <button
+        className="menu-item"
+        role="menuitem"
+        onClick={() => {
+          close();
+          onImportUrl(parent);
+        }}
+      >
+        <Globe size={16} className="menu-icon" />
+        从链接导入
+      </button>
+    </>
+  );
+
+  const renderRow = ({ entry, depth }: Row, index: number) => {
     const { path, name, isDir } = entry;
     const active = path === activeId;
     const isSelected = selected.has(path);
     const indent = { paddingLeft: 6 + depth * 11 };
+    // A row of a folder that is folding shut plays its exit; one that has just
+    // appeared plays its entrance, staggered by where it sits in the run
+    const leaving = !!collapsing && path.startsWith(`${collapsing}/`);
+    const enterAt = entering.get(path);
 
     if (renamingPath === path) {
       return (
@@ -426,11 +731,24 @@ export default function FileTree({
         role="treeitem"
         aria-selected={active || isSelected}
         aria-expanded={isDir ? expanded.has(path) : undefined}
+        data-state={leaving ? 'exit' : undefined}
+        data-enter={enterAt !== undefined ? '' : undefined}
+        style={
+          enterAt !== undefined || leaving
+            ? ({ '--row-i': enterAt ?? 0 } as React.CSSProperties)
+            : undefined
+        }
+        data-row={path}
+        data-drop={dropLine?.path === path ? dropLine.where : undefined}
+        tabIndex={cursor === path ? 0 : -1}
+        onKeyDown={(event) => onRowKeyDown(event, entry, index)}
+        onFocus={() => setCursor(path)}
         draggable
         onDragStart={(e) => {
           setDragPath(path);
           const paths = isTextPath(path) && selected.has(path) ? [...selected] : [path];
           setDragPaths(paths);
+          e.dataTransfer.setDragImage(makeDragGhost(e.currentTarget, paths.length > 1 ? `${paths.length} 篇文章` : name), 16, 16);
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", paths.join("\n"));
         }}
@@ -438,6 +756,7 @@ export default function FileTree({
           setDragPath(null);
           setDragPaths([]);
           setDropTarget(null);
+          setDropLine(null);
         }}
         onDragOver={(e) => {
           if (!dragPath) return;
@@ -445,6 +764,15 @@ export default function FileTree({
           e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
           setDropTarget(dropDirOf(entry));
+          // A folder says where it is going by lighting up; a file has to say
+          // it with a rule, and which edge it is drawn on follows the pointer
+          // so the gesture reads as aiming between two rows
+          if (isDir || path === dragPath) {
+            setDropLine(null);
+          } else {
+            const r = e.currentTarget.getBoundingClientRect();
+            setDropLine({ path, where: e.clientY < r.top + r.height / 2 ? "before" : "after" });
+          }
         }}
         onDrop={(e) => {
           e.preventDefault();
@@ -454,7 +782,7 @@ export default function FileTree({
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setMenu({ x: e.clientX, y: e.clientY, entry });
+          openMenu({ x: e.clientX, y: e.clientY, entry });
         }}
       >
         <button
@@ -506,71 +834,63 @@ export default function FileTree({
         </button>
         {meta && <span className="tree-file-meta">{meta}</span>}
         <span className="tree-file-actions">
-          <button
-            title="重命名"
-            aria-label={`重命名 ${name}`}
-            onClick={() => startRename(entry)}
-          >
-            <PencilSimple size={12} />
-          </button>
-          <button
-            title="删除"
-            aria-label={`删除 ${name}`}
-            onClick={() => onDelete(path)}
-          >
-            <Trash size={12} />
-          </button>
+          <Tooltip content="重命名" shortcut="F2" side="left">
+            <button aria-label={`重命名 ${name}`} onClick={() => startRename(entry)}>
+              <PencilSimple size={14} weight="regular" />
+            </button>
+          </Tooltip>
+          <Tooltip content="删除" shortcut="Delete" side="left">
+            <button aria-label={`删除 ${name}`} onClick={() => onDelete(path)}>
+              <Trash size={14} weight="regular" />
+            </button>
+          </Tooltip>
         </span>
       </div>
     );
   };
 
   return (
-    <nav className="file-tree surface" aria-label="文件">
+    <nav className="file-tree" aria-label="文件">
       <div className="tree-head">
+        <Tooltip content="设置"><button className="ghost-btn" aria-label="设置" onClick={onOpenSettings}><GearSix size={16} /></button></Tooltip>
         {/* The title slot shows the workspace folder name — with two workspaces
             open at once, this is the only thing that says which one you are in */}
-        <button
-          className="tree-vault"
-          title={`当前工作区：${vaultDir}\n点击换一个文件夹`}
-          aria-label="切换工作区"
-          onClick={onChangeVault}
-        >
-          <FolderOpen size={13} weight="fill" />
-          <span className="tree-vault-name">
-            {vaultDir.split("/").filter(Boolean).pop() ?? "工作区"}
-          </span>
-          <CaretUpDown size={11} weight="bold" className="tree-vault-caret" />
-        </button>
-        <button
-          className="ghost-btn"
-          title="新建草稿"
-          aria-label="新建草稿"
-          onClick={() => onNewDraft("")}
-        >
-          <FilePlus size={14} weight="bold" />
-        </button>
-        <button
-          className="ghost-btn"
-          title="新建文件夹"
-          aria-label="新建文件夹"
-          onClick={() => onNewFolder("")}
-        >
-          <FolderPlus size={14} weight="bold" />
-        </button>
-        {/* Also a way of creating a draft, so it sits with the other two */}
-        <button
-          className="ghost-btn"
-          title="从链接导入：把一个网页转成草稿"
-          aria-label="从链接导入"
-          onClick={() => onImportUrl("")}
-        >
-          <Globe size={14} weight="bold" />
-        </button>
+        <Tooltip content={`当前工作区：${vaultDir.split("/").filter(Boolean).pop() ?? ""} · 点击换一个文件夹`}>
+          <button className="tree-vault" aria-label="切换工作区" onClick={onChangeVault}>
+            {/* A place, not an action: regular 14, like every other file and
+                folder glyph in this rail. The caret beside it is the control */}
+            <FolderOpen size={14} weight="regular" />
+            <span className="tree-vault-name">
+              {vaultDir.split("/").filter(Boolean).pop() ?? "工作区"}
+            </span>
+            <CaretUpDown size={11} weight="bold" className="tree-vault-caret" />
+          </button>
+        </Tooltip>
+        {/* One glyph for the three ways of making something: a draft, a folder
+            and a page pulled in from a link were three near-identical marks in
+            a row, and the eyebrow of the rail is not where a toolbar belongs.
+            What they have in common is 「新建…」, so that is what the button says */}
+        <Tooltip content="新建…">
+          <button
+            ref={addBtnRef}
+            className={`ghost-btn tree-add ${addOpen ? "on" : ""}`}
+            data-tree-add-trigger=""
+            aria-label="新建"
+            aria-haspopup="menu"
+            aria-expanded={addOpen}
+            onClick={() => {
+              setMenu(null);
+              setAddOpen((v) => !v);
+            }}
+          >
+            <Plus size={16} weight="regular" />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Empty space is a drop target too: dropping here moves back to the root */}
       <div
+        ref={bodyRef}
         className={`tree-body scroll-thin ${dropTarget === "" && dragPath ? "drop-into" : ""}`}
         role="tree"
         aria-label="文件"
@@ -587,6 +907,9 @@ export default function FileTree({
           if (!dragPath) return;
           e.preventDefault();
           setDropTarget("");
+          // Empty space below the rows means the workspace root, which the
+          // rail's own highlight says; no line belongs to it
+          setDropLine(null);
         }}
         onDrop={(e) => {
           e.preventDefault();
@@ -594,28 +917,35 @@ export default function FileTree({
         }}
         onContextMenu={(e) => {
           e.preventDefault();
-          setMenu({ x: e.clientX, y: e.clientY, entry: null });
+          openMenu({ x: e.clientX, y: e.clientY, entry: null });
         }}
       >
         {rows.length === 0 ? (
-          <p className="tree-empty">
-            这个文件夹还是空的。新建一篇草稿，或者直接把 .md 拷进来。
-          </p>
+          <EmptyState
+            icon={FilePlus}
+            title="这个文件夹还是空的"
+            hint="新建一篇草稿，或者直接把 .md 文件拷进来。"
+            action={{ label: '新建草稿', onClick: () => onNewDraft('') }}
+          />
         ) : (
-          rows.map(renderRow)
+          rows.map((row, i) => renderRow(row, i))
         )}
 
         {unusedImages.length > 0 && (
           <button className="tree-cleanup" onClick={onCleanupImages}>
-            <Broom size={13} />
+            <Broom size={14} weight="regular" />
             清理 {unusedImages.length} 张未引用图片
           </button>
         )}
       </div>
 
-      {/* Foot of the rail. Plain anchors on purpose: the app-wide external
-          link listener catches them and hands the address to the system
-          browser, the same path every other outside link takes. */}
+      {/* Foot of the rail: the bottom counterpart of the head — one 28px row,
+          a grouped object on the left and a single ghost button pushed right,
+          the same shape as the vault pill and its 「+」 above.
+
+          Plain anchors on purpose: the app-wide external link listener catches
+          them and hands the address to the system browser, the same path every
+          other outside link takes. */}
       <div className="tree-foot">
         <a
           className="ghost-btn"
@@ -635,61 +965,32 @@ export default function FileTree({
         </a>
       </div>
 
-      {/* Rendered on <body>: the panel is a frosted `.surface`, and its
+      {/* Rendered on <body>: the workspace sheet is a frosted surface, and its
           backdrop-filter makes it the containing block for fixed children —
           which would both offset the menu and clip it to the sidebar */}
-      {menu &&
+      {menuPresence.mounted &&
+        lastMenu.current &&
         createPortal(
           <div
             ref={menuRef}
             className="popover tree-menu"
+            data-state={menuPresence.state}
             role="menu"
-            style={{ left: menu.x, top: menu.y }}
+            style={{ left: lastMenu.current.x, top: lastMenu.current.y }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* The target: a directory is itself, a file is the level it sits in */}
             {(() => {
-              const parent = menu.entry
-                ? menu.entry.isDir
-                  ? menu.entry.path
-                  : parentOf(menu.entry.path)
+              const shown = lastMenu.current as Menu;
+              const parent = shown.entry
+                ? shown.entry.isDir
+                  ? shown.entry.path
+                  : parentOf(shown.entry.path)
                 : "";
-              const entry = menu.entry;
+              const entry = shown.entry;
               return (
                 <>
-                  <button
-                    className="menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenu(null);
-                      onNewDraft(parent);
-                    }}
-                  >
-                    <FilePlus size={14} className="menu-icon" />
-                    新建草稿
-                  </button>
-                  <button
-                    className="menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenu(null);
-                      onNewFolder(parent);
-                    }}
-                  >
-                    <FolderPlus size={14} className="menu-icon" />
-                    新建文件夹
-                  </button>
-                  <button
-                    className="menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenu(null);
-                      onImportUrl(parent);
-                    }}
-                  >
-                    <Globe size={14} className="menu-icon" />
-                    从链接导入
-                  </button>
+                  {createItems(parent, () => setMenu(null))}
                   {entry && (
                     <>
                       <div className="menu-divider" />
@@ -701,7 +1002,7 @@ export default function FileTree({
                           startRename(entry);
                         }}
                       >
-                        <PencilSimple size={14} className="menu-icon" />
+                        <PencilSimple size={16} className="menu-icon" />
                         重命名
                       </button>
                       <button
@@ -712,7 +1013,7 @@ export default function FileTree({
                           onReveal(entry.path);
                         }}
                       >
-                        <FolderOpen size={14} className="menu-icon" />
+                        <FolderOpen size={16} className="menu-icon" />
                         在文件管理器中显示
                       </button>
                       <button
@@ -723,7 +1024,7 @@ export default function FileTree({
                           onDelete(entry.path);
                         }}
                       >
-                        <Trash size={14} className="menu-icon" />
+                        <Trash size={16} className="menu-icon" />
                         删除
                       </button>
                     </>
@@ -731,6 +1032,25 @@ export default function FileTree({
                 </>
               );
             })()}
+          </div>,
+          document.body,
+        )}
+
+      {/* The head's 「+」 menu, on <body> for the same reason as the one above:
+          a portal cannot be clipped by the rail, whatever the rail becomes */}
+      {addPresence.mounted &&
+        createPortal(
+          <div
+            ref={addMenuRef}
+            className="popover tree-add-menu"
+            data-state={addPresence.state}
+            role="menu"
+            aria-label="新建"
+            onKeyDown={onAddMenuKeyDown}
+          >
+            {/* No focus hand-back on a pick: what was chosen takes the keyboard
+                next (a new draft opens in the editor, a dialog takes over) */}
+            {createItems("", () => setAddOpen(false))}
           </div>,
           document.body,
         )}

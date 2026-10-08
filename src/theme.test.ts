@@ -13,7 +13,7 @@ const deepTalkThemeIds = [
 ];
 
 test('registers all seven DeepTalk-inspired themes with unique ids', () => {
-  assert.equal(themes.length, 30);
+  assert.equal(themes.length, 34);
   assert.equal(new Set(themes.map((theme) => theme.id)).size, themes.length);
   for (const id of deepTalkThemeIds) assert.equal(getTheme(id).id, id);
 });
@@ -21,4 +21,11 @@ test('registers all seven DeepTalk-inspired themes with unique ids', () => {
 test('keeps the aviation preset dark and the other six light', () => {
   assert.equal(getTheme('orbital-black').appearance, 'dark');
   for (const id of deepTalkThemeIds.slice(1)) assert.equal(getTheme(id).appearance, 'light');
+});
+
+test('registers the four upstream Punk themes alongside local presets', () => {
+  const punk = themes.filter((theme) => theme.group === 'punk');
+  assert.equal(punk.length, 4);
+  for (const theme of punk) assert.equal(getTheme(theme.id), theme);
+  assert.equal(getTheme('olive-journal').id, 'olive-journal');
 });
