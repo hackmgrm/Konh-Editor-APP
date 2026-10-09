@@ -1768,7 +1768,13 @@ export function renderArticle(
       hasImage: /<img\b(?![^>]*\bdata-no-cover="true")[^>]*>/i.test(result.html),
     };
   }
-  const body = colorTasks(md.render(preprocess(src), { theme: th, images, flow: flow0 }), th);
+  let body = colorTasks(md.render(preprocess(src), { theme: th, images, flow: flow0 }), th);
+  // The branded preset keeps its header and follow guide even when a draft
+  // has no metadata block. Existing metadata continues to take precedence.
+  if (th.id === 'olive-journal' && !fm) {
+    fm = { title: extractTitle(body) };
+    body = stripFirstH1(body);
+  }
 
   const heroHtml = fm ? buildHero(fm, th) : '';
   const introHtml = fm?.intro ? buildIntroCard(fm.intro, th) : '';

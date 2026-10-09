@@ -18,6 +18,26 @@ const plain = (html: string) => html.replace(/<[^>]*>/g, '').replace(/\s+/g, '')
 const count = (text: string, word: string) => text.split(word).length - 1;
 const sample = '# 本文标题\n\n> 开篇引言\n\n前言正文。\n\n## 第一章\n\n第一段**重点**、==高亮==、++下划线++与`code`。\n\n## 第二章\n\n第二段。\n\n## 写在最后\n\n结语正文。';
 
+test('branded olive keeps its header and promotion image with or without metadata', () => {
+  for (const markdown of [sample, '---\ntitle: 定制标题\nkicker: 品牌刊头\nintro: 定制导语\n---\n\n正文。']) {
+    const result = renderArticle(markdown, getTheme('olive-journal'));
+    assert.equal(result.hasHero, true);
+    assert.equal(result.hasImage, false, 'promotion must not become an article cover');
+    for (const html of [result.html, result.previewBody]) {
+      assert.ok(html.includes('全球货运'));
+      assert.ok(html.includes('AIR CARGO × AI'));
+      assert.equal(count(html, 'alt="关注并星标空核域界"'), 1);
+      assert.ok(html.includes('data-no-cover="true"'));
+    }
+    assert.equal(count(result.previewBody, result.title), 1);
+  }
+  const custom = renderArticle('---\ntitle: 定制标题\nkicker: 品牌刊头\nintro: 定制导语\n---\n\n正文。', getTheme('olive-journal'));
+  assert.ok(custom.html.includes('品牌刊头'));
+  assert.ok(custom.html.includes('定制导语'));
+  const original = renderArticle(sample, getTheme('olive-journal-original'));
+  assert.ok(!original.html.includes('关注并星标空核域界'));
+});
+
 function balanced(html: string) {
   const stack: string[] = [];
   for (const match of html.matchAll(/<(\/?)([a-z][\w-]*)\b[^>]*>/gi)) {
