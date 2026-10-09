@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CaretDown, Palette } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import Tooltip from './Tooltip';
+import { isGzhTheme } from '../gzhTheme';
 import { stripFirstH1 } from '../markdown';
 import type { ScrollSyncChannel } from '../scrollSync';
 import { getConfig, setConfig } from '../store/appConfig';
@@ -1092,7 +1093,7 @@ export default function PreviewPane({
                   morph effect above. React must never own them — it would
                   reconcile against a tree it did not build and throw the whole
                   thing away on the first render that disagreed. */}
-              <div className={`check-body ${picking ? 'picking' : ''}`} ref={bodyRef} />
+              <div className={`check-body ${isGzhTheme(theme.id) ? 'gzh-body' : ''} ${picking ? 'picking' : ''}`} ref={bodyRef} />
               {mark && (
                 <div
                   className="pick-mark"

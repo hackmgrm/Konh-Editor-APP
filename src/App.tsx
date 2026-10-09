@@ -1,3 +1,5 @@
+import { isGzhTheme } from './gzhTheme';
+import { EditorView } from '@codemirror/view';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import LayoutDialog from './components/LayoutDialog';
 import EditorPane from './components/EditorPane';
@@ -377,8 +379,8 @@ function Workspace({ vault }: { vault: VaultApi }) {
   }, [activeId, markdown, theme.id, vault.renameEntry]);
   const density = useMemo(() => getDensity(densityId), [densityId]);
   const densityName = useMemo(
-    () => DENSITIES.find((d) => d.id === densityId)?.name ?? '标准',
-    [densityId],
+    () => isGzhTheme(theme.id) ? '原版' : DENSITIES.find((d) => d.id === densityId)?.name ?? '标准',
+    [densityId, theme.id],
   );
   /** Flips once the highlighter is ready, to trigger the re-render that adds it */
   const [hlReady, setHlReady] = useState(isHighlighterReady);
@@ -1284,6 +1286,17 @@ function Workspace({ vault }: { vault: VaultApi }) {
             state={state}
             themeId={themeId}
             onThemeChange={setArticleTheme}
+            onInsertComponent={(html) => {
+              const host = editorRef.current?.querySelector<HTMLElement>('.cm-editor');
+              const view = host ? EditorView.findFromDOM(host) : null;
+              const insert = `\n\n${html}\n\n`;
+              if (view) {
+                const from = view.state.selection.main.head;
+                view.dispatch({ changes: { from, insert }, selection: { anchor: from + insert.length } });
+                view.focus();
+              } else setMarkdown(markdown + insert);
+              close();
+            }}
             customThemes={customThemes}
             onDeleteTheme={dropTheme}
             onAskAgent={() => {
@@ -1519,6 +1532,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         articleKey={currentArticleKey}
         markdown={markdown}
         revision={publishRevision}
+        themeId={theme.id}
         renderMarkdown={async content => { await ensureHighlighter(); return renderArticle(content, theme, imageIndex, density, renderOptions).html; }}
         onClose={() => setLayoutOpen(false)}
         onApply={content => {

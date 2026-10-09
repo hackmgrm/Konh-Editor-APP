@@ -33,6 +33,8 @@ src-tauri/gen/
 
 # Local release tooling
 scripts/
+!vendor/gzh-design/scripts/
+!vendor/gzh-design/scripts/**
 
 # Agent tooling
 .claude/

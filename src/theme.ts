@@ -1131,9 +1131,8 @@ export const oliveJournalTheme: Theme = {
   components: { frontMatter: true, cardBg: '#fdfdf8', ink: '#1e1f23', border: '#bfc1b7', sub: '#65675e', weak: '#9ea096', olive: '#eeefe9' },
 };
 
-/** Presets adapted from isjiamu/gzh-design-skill. The source component
- * libraries are richer than this renderer's token vocabulary, so these keep
- * each theme's palette, heading silhouette and characteristic surfaces. */
+/** gzh-design presets. Built-ins render through the complete original library
+ * in gzhTheme.ts; these tokens also provide the theme studio's editable base. */
 export const moyuGreenTheme: Theme = {
   ...classicTheme,
   id: 'moyu-green', name: '摸鱼绿', description: '翡翠绿杂志风，卡片丰富、信息密度高，适合教程与工具盘点',
@@ -1773,6 +1772,36 @@ export const punkOrangeTheme: Theme = {
   codePaletteMode: 'dark',
 };
 
+/** Exact gzh-design presets use their component library, not generic decorations. */
+const GZH_SANS = "-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
+const GZH_SERIF = "'Noto Serif SC', Georgia, 'Times New Roman', serif";
+for (const [theme, size, leading, tracking, color, gap, chapterSize, chapterGap] of [
+  [moyuGreenTheme, '14px', '1.9', '0.5px', '#374151', '16px', '17px', '48px'],
+  [redWhiteTheme, '15px', '1.8', '0.5px', '#374151', '20px', '18px', '48px'],
+  [graphiteMinimalTheme, '15px', '1.8', '0.3px', '#52525B', '22px', '20px', '56px'],
+  [zenWhitespaceTheme, '15px', '1.9', '0.3px', '#525252', '26px', '22px', '64px'],
+  [moyuTicketTheme, '14px', '1.9', '0.5px', '#555', '16px', '18px', '32px'],
+] as const) {
+  Object.assign(theme, {
+    group: 'gzh',
+    body: { font: GZH_SANS, fontSize: size, lineHeight: leading, letterSpacing: tracking, color, bg: '#ffffff', align: 'justify' },
+    heading: { ...theme.heading, font: theme === zenWhitespaceTheme ? GZH_SERIF : GZH_SANS, marginTop: chapterGap },
+    headingSizes: { ...theme.headingSizes, h2: chapterSize },
+    pMargin: gap,
+    components: { frontMatter: true },
+  });
+}
+// Keep the existing branded olive-journal preset and saved drafts intact.
+export const originalOliveJournalTheme: Theme = {
+  ...oliveJournalTheme,
+  id: 'olive-journal-original', name: '橄榄手记', group: 'gzh',
+  description: '原版内刊手记：墨黑标题、橄榄灰卡片、橙色关键词，完整组件库',
+  headingSizes: { ...oliveJournalTheme.headingSizes, h2: '17px' },
+  components: { frontMatter: true },
+};
+moyuGreenTheme.strongColor = '#059669';
+moyuTicketTheme.strongColor = '#059669';
+
 export const themes: Theme[] = [
   classicTheme,
   oliveJournalTheme,
@@ -1781,6 +1810,7 @@ export const themes: Theme[] = [
   graphiteMinimalTheme,
   zenWhitespaceTheme,
   moyuTicketTheme,
+  originalOliveJournalTheme,
   graphiteDossierTheme,
   greenWhiteCleanTheme,
   inkBlueEditorialTheme,
@@ -1815,6 +1845,7 @@ export const themes: Theme[] = [
 export const lightThemes: Theme[] = themes.filter((t) => !t.group && t.appearance === 'light');
 export const darkThemes: Theme[] = themes.filter((t) => !t.group && t.appearance === 'dark');
 /** The Punk family, shown as its own section (see Theme.group) */
+export const gzhThemes: Theme[] = themes.filter((t) => t.group === 'gzh');
 export const punkThemes: Theme[] = themes.filter((t) => t.group === 'punk');
 
 export function getTheme(id?: string): Theme {

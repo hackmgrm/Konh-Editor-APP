@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Check, Eyedropper, PencilSimple, SlidersHorizontal, Sparkle, Trash } from '@phosphor-icons/react';
-import { DENSITIES, darkThemes, lightThemes, punkThemes, type Theme } from '../theme';
+import { DENSITIES, darkThemes, lightThemes, punkThemes, gzhThemes, type Theme } from '../theme';
+import { componentMarkup, isGzhTheme, themeComponents } from '../gzhTheme';
 import { sampleHtmlFor } from '../themeSample';
 import type { Appearance } from '../store/appearance';
 import { useEditorPrefs } from '../store/editorPrefs';
@@ -9,6 +10,7 @@ import Tooltip from './Tooltip';
 interface Props {
   themeId: string;
   onThemeChange: (id: string) => void;
+  onInsertComponent: (html: string) => void;
   /** Themes the agent wrote, read off disk (see store/customThemes.ts) */
   customThemes: Theme[];
   onDeleteTheme: (id: string) => void;
@@ -141,6 +143,7 @@ const LINE_NUMBERS = [
 export default function TypesetPopover({
   themeId,
   onThemeChange,
+  onInsertComponent,
   customThemes,
   onDeleteTheme,
   onAskAgent,
@@ -265,6 +268,8 @@ export default function TypesetPopover({
           </Tooltip>
         </div>
         <div className="theme-list" role="radiogroup" aria-label="文章主题" ref={listRef}>
+          <div className="typeset-sub">公众号原版</div>
+          <div className="theme-grid">{gzhThemes.map((th) => renderCard(th))}</div>
           <div className="typeset-sub">浅色</div>
           <div className="theme-grid">{lightThemes.map((th) => renderCard(th))}</div>
           <div className="typeset-sub">深色</div>
@@ -283,11 +288,13 @@ export default function TypesetPopover({
         </div>
       </section>
 
+      {isGzhTheme(themeId) && <ThemeComponentPicker key={themeId} themeId={themeId} onInsert={onInsertComponent} />}
+
       {/* Density scales font size / leading / spacing together within one
           theme; the middle preset is the theme's own designed values. */}
       <section className="typeset-group">
         <span className="eyebrow">排版密度</span>
-        <div
+        {isGzhTheme(themeId) ? <p className="switch-sub">原版主题使用固定字号、行高与间距。</p> : <div
           className="segmented"
           role="radiogroup"
           aria-label="排版密度"
@@ -309,7 +316,7 @@ export default function TypesetPopover({
               {d.name}
             </button>
           ))}
-        </div>
+        </div>}
       </section>
 
       {/* WeChat readers cannot tap an external link in the body, so this moves
@@ -388,4 +395,22 @@ export default function TypesetPopover({
       </section>
     </div>
   );
+}
+
+
+function ThemeComponentPicker({ themeId, onInsert }: { themeId: string; onInsert: (html: string) => void }) {
+  const components = themeComponents(themeId);
+  const [selected, setSelected] = useState(0);
+  const component = components[selected];
+  const html = componentMarkup(component);
+  return <section className="typeset-group">
+    <span className="eyebrow">主题组件</span>
+    <select aria-label="选择主题组件" value={selected} onChange={e => setSelected(Number(e.target.value))}>
+      {components.map((item, index) => <option key={index} value={index}>{item.name}（{index + 1}）</option>)}
+    </select>
+    <div className="gzh-component-preview scroll-thin" dangerouslySetInnerHTML={{ __html: html }} />
+    <button className="theme-ask" onClick={() => onInsert(html)}>在光标处插入</button>
+    <p className="switch-sub">插入后在编辑器中替换文字和图片。样式沿用原版组件。</p>
+    <p className="switch-sub">甲木 × 摸鱼小李 · <a href="https://github.com/isjiamu/gzh-design-skill" target="_blank" rel="noopener noreferrer">gzh-design-skill</a> · AGPL-3.0-or-later</p>
+  </section>;
 }

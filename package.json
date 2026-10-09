@@ -1,7 +1,7 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +21,8 @@
     "app:build": "tauri build --no-sign",
     "tauri": "tauri",
     "test:publishing": "node --experimental-strip-types --test src/uploadCache.test.ts src/publishJournal.test.ts src/store/contentState.test.ts src/preflight.test.ts src/articleIdentity.test.ts src/layoutResults.test.ts",
-    "test:productivity": "node --experimental-strip-types --test src/productivity/*.test.ts"
+    "test:productivity": "node --experimental-strip-types --test src/productivity/*.test.ts",
+    "test:gzh": "node --experimental-strip-types --test src/gzhTheme.test.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

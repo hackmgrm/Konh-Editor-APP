@@ -7,11 +7,11 @@ import { acceptLayout, beginLayout, confirmLayout } from '../layoutResults';
 import { getLayoutState, updateLayouts, useLayoutState } from '../store/layoutResults';
 
 interface Props {
-  open: boolean; articleKey: string; markdown: string; revision: object;
+  open: boolean; articleKey: string; markdown: string; revision: object; themeId: string;
   renderMarkdown: (markdown: string) => Promise<string>;
   onClose: () => void; onApply: (markdown: string) => void;
 }
-export default function LayoutDialog({ open, articleKey, markdown, revision, renderMarkdown, onClose, onApply }: Props) {
+export default function LayoutDialog({ open, articleKey, markdown, revision, themeId, renderMarkdown, onClose, onApply }: Props) {
   const state = useLayoutState();
   const [requirement, setRequirement] = useState('保留原文，梳理标题层级和段落，突出重点。');
   const [busy, setBusy] = useState(false);
@@ -50,7 +50,7 @@ export default function LayoutDialog({ open, articleKey, markdown, revision, ren
       if (!current()) return;
       const originalHash = await contentHash(markdown);
       const [candidate, originalHtml] = await Promise.all([
-        invoke<string>('writing_layout', { article: markdown, requirement }),
+        invoke<string>('writing_layout', { article: markdown, requirement, themeId }),
         renderMarkdown(markdown).then(freezeArticleHtml),
       ]);
       if (!current()) { setError('原文或排版已变化，本次结果未采用，请重新生成'); return; }

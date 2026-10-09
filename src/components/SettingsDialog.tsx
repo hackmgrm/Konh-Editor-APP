@@ -1,3 +1,4 @@
+import gzhLicense from '../../vendor/gzh-design/LICENSE?raw';
 import Modal from './Modal';
 import Spinner from './Spinner';
 import { useEffect, useState } from 'react';
@@ -432,6 +433,11 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
               not want to wait six hours for the next poll. */}
           <section className="form-section">
             <div className="form-section-label">关于</div>
+            <details className="gzh-license">
+              <summary>公众号原版主题 · 作者与授权</summary>
+              <p>甲木 × 摸鱼小李 · <a href="https://github.com/isjiamu/gzh-design-skill" target="_blank" rel="noopener noreferrer">gzh-design-skill</a>。原版组件按 AGPL-3.0-or-later 提供，无担保。授权全文如下。</p>
+              <pre>{gzhLicense}</pre>
+            </details>
             <div className="update-line">
               <span className="app-version">空核编辑器 {version ? `v${version}` : ''}</span>
               <button

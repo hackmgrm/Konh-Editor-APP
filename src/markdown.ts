@@ -12,6 +12,7 @@ import markdownItMark from 'markdown-it-mark';
 import type { HLJSApi } from 'highlight.js';
 import { applyDensity, getTheme, type DensityScale, type Theme, st } from './theme';
 import { parseFrontMatter, type FrontMatter } from './frontMatter';
+import { isGzhTheme, renderGzh } from './gzhTheme';
 import { BRAND_FOLLOW_GUIDE_DATA_URL } from './brandFollowGuide';
 
 /**
@@ -1731,7 +1732,9 @@ export function renderArticle(
   density?: DensityScale,
   options?: RenderOptions,
 ): RenderResult {
-  const th = density ? applyDensity(theme ?? getTheme(), density) : theme ?? getTheme();
+  const originalTheme = theme ?? getTheme();
+  // These libraries define fixed typography; density must not distort the source.
+  const th = density && !isGzhTheme(originalTheme.id) ? applyDensity(originalTheme, density) : originalTheme;
 
   // Front-matter → hero / intro / signature cards. Only when the theme opts in
   // (components.frontMatter) and the document actually opens with `---`, so
@@ -1756,6 +1759,15 @@ export function renderArticle(
   // An explicit `intro:` field renders its own card; don't also turn the first
   // blockquote into one.
   if (fm?.intro) flow0.introDone = true;
+  if (isGzhTheme(th.id)) {
+    const env = { theme: th, images, flow: flow0 };
+    const result = renderGzh(md, md.parse(preprocess(src), env), env, fm);
+    return {
+      ...result,
+      previewBody: result.html,
+      hasImage: /<img\b(?![^>]*\bdata-no-cover="true")[^>]*>/i.test(result.html),
+    };
+  }
   const body = colorTasks(md.render(preprocess(src), { theme: th, images, flow: flow0 }), th);
 
   const heroHtml = fm ? buildHero(fm, th) : '';

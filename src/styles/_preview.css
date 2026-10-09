@@ -957,3 +957,9 @@
 .preview-side[data-width='desktop'] .article-footer {
   padding: 14px 56px 24px;
 }
+
+/* The original theme templates own their article gutters. */
+.preview-side .check-body.gzh-body,
+.preview-side[data-width='desktop'] .check-body.gzh-body {
+  padding: 6px 0 8px;
+}

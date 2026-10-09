@@ -368,3 +368,22 @@
 .typeset-group > .segmented + .eyebrow {
   margin-top: 14px;
 }
+
+.gzh-component-preview {
+  max-height: 240px;
+  overflow: auto;
+  margin: 12px 0;
+  padding: 8px;
+  background: #fff;
+  color: #374151;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  line-height: 1.75;
+}
+
+.typeset-group > select {
+  width: 100%;
+}
+
+.gzh-component-preview img {
+  max-width: 100%;
+}

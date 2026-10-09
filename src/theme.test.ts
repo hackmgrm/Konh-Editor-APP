@@ -13,7 +13,7 @@ const deepTalkThemeIds = [
 ];
 
 test('registers all seven DeepTalk-inspired themes with unique ids', () => {
-  assert.equal(themes.length, 34);
+  assert.equal(themes.length, 35);
   assert.equal(new Set(themes.map((theme) => theme.id)).size, themes.length);
   for (const id of deepTalkThemeIds) assert.equal(getTheme(id).id, id);
 });

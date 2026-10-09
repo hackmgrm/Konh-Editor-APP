@@ -1070,3 +1070,11 @@
   line-height: 1.5;
   color: var(--text-2);
 }
+
+
+.gzh-license pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
