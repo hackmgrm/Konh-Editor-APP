@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+  <!-- Monochrome menu-bar adaptation of the Konh book and pen mark. -->
+  <path fill="#000" fill-rule="evenodd" d="M10 5.5Q10 4 11.7 4.5L20.3 7 25.2 5.4Q26.5 5 26.5 6.5V11L22.8 14A5 5 0 1 0 25.4 18.2l1.1-.9v10.2q0 2-2 2l-14-2.5q-4.5-.8-4.5-4.5V10q0-3.2 4-2v2q-2-.7-2 1v11.5q0 2 2 2.5V5.5ZM20 15a3 3 0 1 0 1.7 5.5l-1.1.8a1.8 1.8 0 0 1-2.2-2.9l2.5-2A3 3 0 0 0 20 15Z"/>
+  <path d="M20 19.8 30 12" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

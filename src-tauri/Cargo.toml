@@ -1,6 +1,6 @@
 [package]
 name = "konh-editor"
-version = "0.4.1"
+version = "0.4.2"
 description = "空核编辑器 —— Markdown 写作，一键转成公众号内联样式富文本"
 authors = ["bryc3"]
 license = "MIT"
@@ -22,7 +22,7 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = ["tray-icon"] }
+tauri = { version = "2.11.3", features = ["tray-icon", "protocol-asset", "image-png", "macos-private-api"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-notification = "2"
@@ -35,7 +35,10 @@ base64 = "0.23.1"
 notify = "8.2.0"
 trash = "5.2.9"
 tauri-plugin-clipboard-manager = "2.3.2"
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "blocking"] }
+tauri-plugin-store = "2"
+tauri-plugin-sql = { version = "2.4.0", features = ["sqlite", "mysql"] }
+lettre = { version = "0.11", features = ["tokio1-native-tls", "builder"] }
 sha1 = "0.10"
 
 [dev-dependencies]

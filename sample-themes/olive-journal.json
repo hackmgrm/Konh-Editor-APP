@@ -12,7 +12,7 @@
     "fontSize": "14px",
     "lineHeight": "1.9",
     "color": "#4d4f46",
-    "bg": "#fdfdf8",
+    "bg": "#ffffff",
     "align": "justify"
   },
   "heading": {
@@ -118,7 +118,7 @@
   "codePaletteMode": "light",
   "components": {
     "frontMatter": true,
-    "cardBg": "#fdfdf8",
+    "cardBg": "#ffffff",
     "ink": "#1e1f23",
     "border": "#bfc1b7",
     "sub": "#65675e",

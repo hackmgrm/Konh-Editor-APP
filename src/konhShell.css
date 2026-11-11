@@ -1,0 +1,98 @@
+.konh-planner-content, .konh-writing-content { flex: 1; min-width: 0; min-height: 0; }
+.konh-writing-content { --traffic-pad: 0px; container-type: inline-size; color-scheme: light; }
+.konh-sidebar-writing { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; }
+.konh-sidebar-writing:hover, .konh-sidebar-writing.is-active { background: #e8f2e8; color: #285c38; }
+.dark .konh-sidebar-writing { color: #a7b2bd; }
+.dark .konh-sidebar-writing:hover, .dark .konh-sidebar-writing.is-active { background: #263b2e; color: #a8d6b5; }
+/* Writing chrome uses the planner's paper, graphite and botanical green.
+   These tokens are scoped to the embedded workspace, never the article or
+   its user-selected Konghe theme. */
+.konh-writing-content, .konh-writing-settings {
+  --canvas: #fafaf8;
+  --surface-1: #f8f7f3;
+  --surface-2: #fff;
+  --surface-3: #f8f7f3;
+  --surface-raised: #fff;
+  --sheet: #fff;
+  --sunken: #f2f4f0;
+  --sunken-strong: #e8eee8;
+  --line: #e9e7e1;
+  --line-strong: #d8ddd5;
+  --line-hair: #efeee9;
+  --text-1: #2d323a;
+  --text-2: #64748b;
+  --text-3: #798594;
+  --text-eyebrow: #718078;
+  --accent: #4d7c5d;
+  --accent-hi: #356349;
+  --accent-soft: #e8f2e8;
+  --accent-softer: #f0f6f0;
+  --accent-ring: rgba(77, 124, 93, .3);
+  --on-accent: #fff;
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+}
+.dark .konh-writing-content, .dark .konh-writing-settings {
+  color-scheme: dark;
+  --canvas: #121316;
+  --surface-1: #1c1d21;
+  --surface-2: #23252b;
+  --surface-3: #282a30;
+  --surface-raised: #282a30;
+  --sheet: #1c1d21;
+  --sunken: #282d2a;
+  --sunken-strong: #343d36;
+  --line: #33353a;
+  --line-strong: #454b48;
+  --line-hair: #303338;
+  --text-1: #f1f5f9;
+  --text-2: #b0bdc9;
+  --text-3: #909da9;
+  --text-eyebrow: #a0afa5;
+  --accent: #78b98b;
+  --accent-hi: #a8d6b5;
+  --accent-soft: #263b2e;
+  --accent-softer: #202e25;
+  --accent-ring: rgba(120, 185, 139, .35);
+  --on-accent: #102217;
+}
+.konh-writing-content .app { background: var(--canvas); color: var(--text-1); }
+.konh-writing-content .toolbar {
+  min-width: 0;
+  height: 54px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
+}
+.konh-writing-content .workspace { padding: 12px; gap: 12px; }
+.konh-writing-content .file-tree {
+  padding: 0 10px 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.konh-writing-content .tree-vault { background: var(--surface-2); border-radius: var(--r-sm); }
+.konh-writing-content .tree-file.active { background: var(--accent-soft); }
+.konh-writing-content .split {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: 0 1px 3px rgba(70, 50, 20, .04), 0 4px 12px -2px rgba(70, 50, 20, .06);
+}
+.konh-writing-content .pane-head { border-bottom: 1px solid var(--line-hair); background: var(--surface-1); }
+.konh-writing-content .md-toolbar-btn { color: var(--text-2); }
+.konh-writing-content .md-toolbar .md-toolbar-btn:hover,
+.konh-writing-content .md-toolbar .md-toolbar-btn.on { background: var(--accent-soft); color: var(--accent-hi); }
+.konh-writing-content .phone-stage { background: var(--surface-1); }
+.konh-writing-content .split-bar::before { opacity: .6; }
+.konh-writing-content .split-bar:hover::before,
+.konh-writing-content .split-bar:focus-visible::before { opacity: 1; }
+@container (max-width: 900px) {
+  .konh-writing-content .workspace { padding: 10px; gap: 10px; }
+  .konh-writing-content .file-tree { max-height: 150px; }
+}
+
+html.is-tauri.platform-macos .main-window-root > [data-tauri-drag-region] { padding-left: 84px; }
+html.is-tauri.platform-macos .main-window-root > [data-tauri-drag-region] > div:last-child { display: none; }

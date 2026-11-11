@@ -58,6 +58,7 @@
   min-height: 0;
   overflow: hidden;
 }
+.p-writing-host { container-type: inline-size; }
 .p-writing-host[hidden] {
   display: none;
 }

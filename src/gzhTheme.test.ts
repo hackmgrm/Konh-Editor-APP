@@ -18,6 +18,24 @@ const plain = (html: string) => html.replace(/<[^>]*>/g, '').replace(/\s+/g, '')
 const count = (text: string, word: string) => text.split(word).length - 1;
 const sample = '# 本文标题\n\n> 开篇引言\n\n前言正文。\n\n## 第一章\n\n第一段**重点**、==高亮==、++下划线++与`code`。\n\n## 第二章\n\n第二段。\n\n## 写在最后\n\n结语正文。';
 
+test('moyu green preserves cover fields and renders navigation without a title', () => {
+  const source = '---\ntitle: 工作是前半场\ncoverTitle2: 身体是后半场\nkicker: 生活手记\nsubtitle: 饮食习惯 · 应酬透支 · 身体重建\nsummary: 空核域界\ntags: 生活, 身体\n---\n\n## 第一章\n\n正文。\n\n## 第二章\n\n正文。';
+  const result = renderArticle(source, getTheme('moyu-green'));
+  const headingTitle = renderArticle('# 工作是前半场\n\n## 第一章\n\n正文。\n\n## 第二章\n\n正文。', getTheme('moyu-green'));
+  for (const article of [result, headingTitle]) {
+    assert.equal(count(article.html, 'Parts + Conclusion'), 1);
+    assert.ok(article.html.indexOf('工作是前半场') < article.html.indexOf('Parts + Conclusion'));
+  }
+  for (const html of [result.html, result.previewBody]) {
+    for (const word of ['工作是前半场', '身体是后半场', '生活手记', '饮食习惯 · 应酬透支 · 身体重建', '空核域界']) assert.equal(count(plain(html), word.replace(/\s/g, '')), 1);
+  }
+  const noTitle = renderArticle('前言。\n\n## 第一章\n\n正文。\n\n## 第二章\n\n正文。', getTheme('moyu-green'));
+  assert.equal(noTitle.hasHero, false);
+  assert.match(noTitle.html, /Parts \+ Conclusion/);
+  assert.equal(count(noTitle.html, 'Parts + Conclusion'), 1);
+  assert.ok(noTitle.html.indexOf('Parts + Conclusion') < noTitle.html.indexOf('前言。'));
+});
+
 test('branded olive keeps its header and promotion image with or without metadata', () => {
   for (const markdown of [sample, '---\ntitle: 定制标题\nkicker: 品牌刊头\nintro: 定制导语\n---\n\n正文。']) {
     const result = renderArticle(markdown, getTheme('olive-journal'));

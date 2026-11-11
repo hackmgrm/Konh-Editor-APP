@@ -1,12 +1,14 @@
 import { createRoot } from 'react-dom/client';
-import App from './productivity/Shell';
+import App from './KonhShell';
 import { initAppConfig } from './store/appConfig';
 import { applyAppearance, getAppearance } from './store/appearance';
 import { applyPlatform } from './platform';
+import { initPlatformClass } from './tongyun/utils/platform';
 import { interceptExternalLinks } from './external';
 import { tameContextMenu } from './contextMenu';
 import { scheduleAutoCheck } from './store/updater';
 import './styles.css';
+import './konhShell.css';
 
 // No StrictMode: its double mount puts the CodeMirror instance (with its
 // scroll listener and viewRef) through create → destroy → recreate, which
@@ -24,6 +26,7 @@ void initAppConfig().then(() => {
   // native title bar and need no such gap.
   applyAppearance(getAppearance());
   applyPlatform();
+  initPlatformClass();
   // Hand every external link to the system browser — inside the webview a
   // target="_blank" click would otherwise do nothing at all
   interceptExternalLinks();

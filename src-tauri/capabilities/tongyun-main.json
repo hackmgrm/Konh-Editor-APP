@@ -1,0 +1,6 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tongyun-main",
+  "windows": ["main"],
+  "permissions": ["core:webview:allow-create-webview-window"]
+}

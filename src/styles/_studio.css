@@ -756,7 +756,8 @@
   transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 
-:root[data-appearance='dark'] .slider-bubble {
+:root[data-appearance='dark'] .slider-bubble:not(.konh-writing-content *),
+.dark .konh-writing-content .slider-bubble {
   background: #322d28;
 }
 

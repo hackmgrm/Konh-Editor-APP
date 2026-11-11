@@ -354,7 +354,7 @@
   cursor: wait;
 }
 
-@media (max-width: 1100px) {
+@container (max-width: 1100px) {
   .toolbar .brand-name { display: none; }
   .toolbar-right { gap: 4px; }
 }
@@ -426,7 +426,8 @@
    invisible on near-black. The rim of reflected light is what gives it an
    edge — half the strength the phone's bezel uses, because this one only has
    to keep the sheet from melting into the canvas, not to model a metal body. */
-:root[data-appearance='dark'] .split {
+:root[data-appearance='dark'] .split:not(.konh-writing-content *),
+.dark .konh-writing-content .split {
   box-shadow: 0 0 0 1px rgba(255, 248, 238, 0.08), var(--shadow-2), var(--sheen);
 }
 
@@ -1066,7 +1067,8 @@
   animation: toast-in var(--t-slow) var(--spring);
 }
 
-:root[data-appearance='dark'] .toast {
+:root[data-appearance='dark'] .toast:not(.konh-writing-content *),
+.dark .konh-writing-content .toast {
   background: #322d28;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }

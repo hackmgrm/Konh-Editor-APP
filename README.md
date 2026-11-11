@@ -1,21 +1,16 @@
 # 空核编辑器 · KonhEditor
 
-Markdown 写作，一键转成公众号排版 —— 粘进公众号编辑器即可无损还原，也可以直接推送到公众号
-草稿箱。你在预览里看到的，就是读者手机上的样子。
+一个桌面应用，把橦云手帐的任务、日历、专注和日记与 Markdown 写作、公众号排版及草稿推送结合在一起。通过侧栏在效率工具与写作工作区之间切换；写作支持复制排版或推送到公众号草稿箱。
 
 macOS / Windows / Linux 桌面应用。
 
 ![空核编辑器：左边文件树，中间 Markdown 编辑区，右边公众号预览与 Agent 面板](example.webp)
 
-## 0.4.0 · 个人效率中心
+## 0.4.2 · 统一工作台
 
-顶部新增任务、日历、专注、日记与标签入口，无需打开写作文件夹也可使用。
-支持中英文快速添加、重复任务、子任务、优先级、日历时间块、番茄钟/秒表、后台提醒和独立浮窗。
-效率数据保存在本机 SQLite；原有写作、排版与公众号发布功能保留。
+橦云手帐界面提供任务、日历、专注、日记等功能，无需打开写作文件夹；侧栏「写作」进入原有写作工作区，切换时保留已打开的写作界面。设置集中在统一设置页面，写作中的设置入口也跳转到该页面的写作设置；外观等通用设置与写作配置在同一处管理，不代表两类数据使用同一存储或自动同步。
 
-账号同步及 Google 日历为可选能力，需配置自己的服务。
-[完整实现与验收记录](docs/productivity-parity.md) · [同步服务部署](docs/productivity-sync-setup.md)。
-目前已验证 macOS Apple Silicon 本地打包及主要本机流程，联网和其余平台实机验收范围见记录。
+橦云数据以本机为主，可选配置 WebDAV 同步；写作文件仍保存在用户选择的工作区文件夹，不能假定包含在橦云同步中。联网功能需要相应服务配置。历史实现与验收记录见 [效率功能记录](docs/productivity-parity.md)，其中旧同步方案不应视为当前橦云 WebDAV 的部署说明。
 
 ## 本轮更新（当前源码）
 
@@ -29,8 +24,7 @@ macOS / Windows / Linux 桌面应用。
 | 完整离线快照 | 「文章管理 → 本机完整快照」：查看提交版式、导出含图片的 HTML、按份清理 |
 | 标题与素材辅助 | AI 标题候选、Agent `@` 引用素材、图片输入、个人 `/` 快捷指令及 AI 封面 |
 
-本轮已通过 50 项前端测试、51 项 Rust 测试、前端构建及 macOS Apple Silicon 本地打包。
-Windows / Linux 打包流程已加入测试检查；真实公众号操作及 Windows / Linux 实机验收仍待完成。
+历史版本的测试和打包结果不能代表当前统一界面已经完成验收。真实公众号操作、联网服务及各平台实机行为需要分别验证。
 安装包发布状态以 [GitHub Releases](https://github.com/hackmgrm/Konh-Editor-APP/releases) 为准。
 详细实现与验收范围见 [发布可靠性实施记录](docs/publishing-reliability.md)。
 
@@ -39,7 +33,9 @@ Windows / Linux 打包流程已加入测试检查；真实公众号操作及 Win
 空核编辑器基于 [whyubel1eve/Mars-Editor-APP](https://github.com/whyubel1eve/Mars-Editor-APP)
 （火星编辑器）二次开发，并继续采用 MIT 协议。
 
-首先感谢原作者完成了工作区文件管理、Markdown 排版、公众号预览、图片处理、草稿箱推送、
+统一效率界面还采用了 TongYun Planner（橦云手帐）的代码；其 MIT 版权及许可文本保留在 [src/tongyun/ATTRIBUTION.txt](src/tongyun/ATTRIBUTION.txt)。感谢两项目的作者和贡献者。
+
+首先感谢火星编辑器原作者完成了工作区文件管理、Markdown 排版、公众号预览、图片处理、草稿箱推送、
 本地 Claude Code / Codex 集成以及 Tauri 多平台客户端等核心能力。空核编辑器是在这些扎实基础上，
 面向「空核域界」内容品牌和不依赖本地终端的使用方式继续定制，不冒充原作，也不抹去上游贡献。
 
@@ -84,7 +80,7 @@ Windows / Linux 打包流程已加入测试检查；真实公众号操作及 Win
 
 ## 用 API Agent 直接改稿
 
-在顶栏「设置 → API Agent」填写一个支持标准 Tool Calling 的 OpenAI 兼容接口：
+在统一「设置」页面的写作设置中配置 API Agent，填写一个支持标准 Tool Calling 的 OpenAI 兼容接口：
 
 - Base URL，例如 `https://api.openai.com/v1`
 - API Key（只保存在本机应用配置目录）
@@ -201,7 +197,7 @@ JavaScript 渲染的页面，这两件事塞不进一个桌面编辑器。代价
 直连微信接口，请求由 Rust 侧发出：AppSecret 从本机直接到微信，中间不经过任何第三方。
 出口 IP 就是你这条宽带，白名单填一次一直有效。
 
-AppID / AppSecret 填在顶栏齿轮「设置」里，下面跟着「IP 白名单」一步 —— 这一步不能跳过：
+AppID / AppSecret 填在统一「设置」的写作设置里，下面跟着「IP 白名单」一步 —— 这一步不能跳过：
 出口 IP 不在白名单里，微信一律返回 40164，凭据填得再对也调不通。按「获取出口 IP」拿到本机
 出口地址，粘进公众号后台保存，再用底栏的「测试连接」验一遍。
 
@@ -226,7 +222,7 @@ Rust 侧的测试覆盖工作区操作、路径边界、图片处理、AI 排版
 cd src-tauri && cargo test
 ```
 
-工具链由 `src-tauri/rust-toolchain.toml` pin 在 1.95 —— 依赖树里有 crate 用 edition2024。
+工具链由 `src-tauri/rust-toolchain.toml` pin 在 1.95 —— 依赖树里有 crate 用 edition2024。Node 测试命令需要支持 `--experimental-strip-types` 的 Node 版本。上述 `test:*` 脚本不涵盖所有橦云测试；橦云中的 Vitest 测试可尝试 `npx vitest run src/tongyun`，但自动测试不能替代 Tauri 窗口、同步、通知及真实公众号的实机验收。历史文档中的测试数量仅适用于当时版本。在当前环境中，Vitest 会误收 `._*` AppleDouble 文件，另有上游测试对发布工作流及 Tauri 配置路径的假设与本仓库不一致；Rust 测试也可能因构建目录中的 `._*` 元数据文件而失败。排除这些问题后仍需检查实际测试结果，不能将其当作通过。
 
 ### 同步原作者更新
 

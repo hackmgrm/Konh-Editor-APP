@@ -1,0 +1,2702 @@
+@import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
+
+/* 允许背景透明，这是实现无边框挂件磨砂效果的前提 */
+html,
+body,
+#root {
+  background-color: transparent;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family:
+    "Plus Jakarta Sans",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    sans-serif;
+  color: #2d323a; /* 暖碳灰，避免刺眼的纯黑 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: rgba(196, 215, 178, 0.45); /* 抹茶淡绿高亮文本选区 */
+  color: #1e232a;
+}
+
+/* 纸质手账铅笔划掉动效 */
+@keyframes pencilStrike {
+  0% {
+    width: 0%;
+    opacity: 0.2;
+  }
+  60% {
+    width: 100%;
+    opacity: 0.85;
+  }
+  100% {
+    width: 100%;
+    opacity: 0.65;
+  }
+}
+
+.pencil-strike-through {
+  position: relative;
+  display: inline-block;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+.pencil-strike-through::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 2px;
+  background: #4d7c5d;
+  border-radius: 9999px;
+  animation: pencilStrike 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+:where(.dark, .dark *) .pencil-strike-through::after {
+  background: #78c496;
+}
+
+/* 手帐印泥红印盖章动效 */
+@keyframes stampIn {
+  0% {
+    transform: scale(2.2) rotate(-16deg);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(0.92) rotate(-3deg);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1) rotate(-5deg);
+    opacity: 0.9;
+  }
+}
+
+.seal-stamp {
+  animation: stampIn 0.26s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 暖纸环境漫反射微投影 */
+.shadow-paper {
+  box-shadow:
+    0 1px 3px 0 rgba(70, 50, 20, 0.04),
+    0 4px 12px -2px rgba(70, 50, 20, 0.06),
+    0 0 0 1px rgba(70, 50, 20, 0.04);
+}
+:where(.dark, .dark *) .shadow-paper {
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.25),
+    0 4px 14px -2px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.shadow-paper-hover {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.shadow-paper-hover:hover {
+  box-shadow:
+    0 3px 8px 0 rgba(70, 50, 20, 0.06),
+    0 8px 20px -3px rgba(70, 50, 20, 0.1),
+    0 0 0 1px rgba(70, 50, 20, 0.06);
+}
+:where(.dark, .dark *) .shadow-paper-hover:hover {
+  box-shadow:
+    0 3px 8px 0 rgba(0, 0, 0, 0.35),
+    0 10px 24px -3px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* 手帐点阵底纹 (Dot Grid) */
+.paper-dot-grid {
+  background-image: radial-gradient(rgba(140, 115, 85, 0.1) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+:where(.dark, .dark *) .paper-dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* 拖拽中的四象限卡片拟物姿态 */
+.paper-card-dragging {
+  opacity: 0.55;
+  transform: scale(0.98) rotate(-1.5deg);
+  box-shadow: 0 16px 32px -8px rgba(154, 142, 128, 0.25);
+  cursor: grabbing !important;
+}
+
+/* 拖拽悬停象限呼吸高亮 */
+.dropzone-highlight {
+  outline: 2px dashed #4d7c5d !important;
+  outline-offset: -3px;
+  background-color: rgba(240, 245, 241, 0.75) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.transparent-window,
+html.transparent-window body {
+  background-color: transparent !important;
+}
+
+/* ==========================================================================
+   macOS 窗口圆角
+   主窗口只在 macOS 配置为透明（src-tauri/tauri.macos.conf.json + macOSPrivateApi），
+   挂件本来就是透明窗口。macOS 下由根容器画 12px 圆角并裁切；
+   Windows / Linux 不加 platform-macos，外观保持原样。
+   ========================================================================== */
+html.platform-macos,
+html.platform-macos body {
+  background-color: transparent !important;
+}
+
+html.platform-macos .main-window-root {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+html.platform-macos .widget-window-root {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+html.dark.platform-macos .main-window-root,
+html.dark.platform-macos .widget-window-root {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 优雅精致的现代自定义滚动条 */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(184, 172, 158, 0.3); /* 温暖的燕麦色滚动条 */
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 172, 158, 0.5);
+}
+
+/* 温暖清透的轻透纸质毛玻璃效果 (Warm Paper Glassmorphism) */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 10px 30px -10px rgba(120, 110, 95, 0.12),
+    0 1px 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+/* 挂件专用暖白轻质毛玻璃 (Widget Warm Light Glassmorphism) */
+.glassmorphism-dark {
+  background: #ffffff;
+  background-clip: padding-box;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 12px 35px -8px rgba(120, 110, 95, 0.18),
+    0 1px 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+/* 温暖水彩/手账流光渐变动画 */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.shimmer-progress {
+  background: linear-gradient(90deg, #c4d7b2 0%, #b2cbd4 50%, #c4d7b2 100%);
+  background-size: 200% 100%;
+  animation: shimmer 8s infinite linear;
+  will-change: background-position;
+}
+
+/* 四象限卡片 - 纸质手账便签风格 (Muted Pastel Sticker Styles) */
+.border-urgent-important {
+  border: 1px solid rgba(239, 68, 68, 0.06);
+  border-left: 4px solid #e8a0bf; /* 樱粉左边条 */
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 6px 16px -6px rgba(154, 142, 128, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.border-urgent-important:hover {
+  border-color: rgba(239, 68, 68, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px -10px rgba(154, 142, 128, 0.12);
+  transform: translateY(-1px);
+}
+
+.border-important-not-urgent {
+  border: 1px solid rgba(16, 185, 129, 0.06);
+  border-left: 4px solid #c4d7b2; /* 抹茶绿左边条 */
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 6px 16px -6px rgba(154, 142, 128, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.border-important-not-urgent:hover {
+  border-color: rgba(16, 185, 129, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px -10px rgba(154, 142, 128, 0.12);
+  transform: translateY(-1px);
+}
+
+.border-urgent-not-important {
+  border: 1px solid rgba(99, 102, 241, 0.06);
+  border-left: 4px solid #b2c8df; /* 蓝紫左边条 */
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 6px 16px -6px rgba(154, 142, 128, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.border-urgent-not-important:hover {
+  border-color: rgba(99, 102, 241, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px -10px rgba(154, 142, 128, 0.12);
+  transform: translateY(-1px);
+}
+
+.border-not-urgent-not-important {
+  border: 1px solid rgba(245, 158, 11, 0.06);
+  border-left: 4px solid #faf5ed; /* 洋甘菊左边条 */
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 6px 16px -6px rgba(154, 142, 128, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.border-not-urgent-not-important:hover {
+  border-color: rgba(245, 158, 11, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px -10px rgba(154, 142, 128, 0.12);
+  transform: translateY(-1px);
+}
+
+/* 温暖纸张便签轻度发光 */
+.glow-card {
+  position: relative;
+}
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(
+    90deg,
+    rgba(178, 200, 223, 0.1),
+    rgba(196, 215, 178, 0.1),
+    rgba(245, 235, 235, 0.1)
+  );
+  border-radius: inherit;
+  z-index: 0;
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.glow-card:hover::before {
+  opacity: 1;
+}
+
+/* 水彩流动缓动背景球 */
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(20px, -30px) scale(1.08);
+  }
+  66% {
+    transform: translate(-15px, 15px) scale(0.95);
+  }
+}
+@keyframes float-reverse {
+  0%,
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(-30px, 25px) scale(0.92);
+  }
+  66% {
+    transform: translate(15px, -20px) scale(1.06);
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 20s infinite ease-in-out;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+.animate-float-reverse {
+  animation: float-reverse 22s infinite ease-in-out;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+/* 手账纸张边缘微投影 */
+.card-shadow-premium {
+  box-shadow:
+    0 4px 15px -3px rgba(154, 142, 128, 0.08),
+    0 2px 6px -2px rgba(154, 142, 128, 0.04);
+}
+.card-shadow-premium:hover {
+  box-shadow:
+    0 15px 30px -8px rgba(154, 142, 128, 0.14),
+    0 4px 10px -2px rgba(154, 142, 128, 0.06);
+}
+
+/* 横线稿纸效果 (Notebook lined styling) */
+.notebook-line {
+  background-image: linear-gradient(#e8e5df 1px, transparent 1px);
+  background-size: 100% 2rem;
+  line-height: 2rem;
+}
+
+/* 顺滑过渡切换动画 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* 格子手账稿纸效果 */
+.bg-grid-pattern {
+  background-color: #ffffff !important;
+  background-size: 16px 16px;
+  background-image:
+    linear-gradient(to right, #f5efe6 1px, transparent 1px),
+    linear-gradient(to bottom, #f5efe6 1px, transparent 1px);
+}
+
+/* 条纹横线纸效果 */
+.bg-lined-pattern {
+  background-color: #ffffff !important;
+  background-size: 100% 20px;
+  background-image: linear-gradient(#f5efe6 1px, transparent 1px);
+}
+
+/* 晕染水彩渐变背景 */
+.bg-watercolor-pattern {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(252, 242, 240, 0.85) 0%, transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(240, 245, 241, 0.85) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(250, 245, 237, 0.7) 0%, transparent 60%), #ffffff !important;
+}
+
+/* ── 手账稿纸便签页 ─────────────────────────────── */
+
+/* 暖纸底 + 淡格线（手账方格纸），与日记本 #FCFBF7 纸张同族 */
+.paperboard-bg {
+  background-color: #f6f1e4;
+  background-image:
+    radial-gradient(ellipse at 50% -20%, rgba(255, 252, 242, 0.9) 0%, transparent 55%),
+    linear-gradient(to right, rgba(176, 152, 108, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(176, 152, 108, 0.16) 1px, transparent 1px);
+  background-size:
+    auto,
+    22px 22px,
+    22px 22px;
+}
+.dark .paperboard-bg {
+  background-color: #1e1f1d;
+  background-image:
+    radial-gradient(ellipse at 50% -20%, rgba(255, 245, 220, 0.05) 0%, transparent 55%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size:
+    auto,
+    22px 22px,
+    22px 22px;
+}
+
+/* 页边：亚麻暖边 + 纸页投影，像手账里撕下的一页 */
+.board-frame {
+  background: linear-gradient(160deg, #efe8d6 0%, #e4dac4 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 10px 28px -14px rgba(120, 100, 60, 0.4);
+}
+.dark .board-frame {
+  background: linear-gradient(160deg, #2a2b28 0%, #232421 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 28px -14px rgba(0, 0, 0, 0.65);
+}
+
+/* 和纸胶带贴角（便签页装饰） */
+.board-tape {
+  background: linear-gradient(
+    100deg,
+    rgba(240, 214, 130, 0.5),
+    rgba(245, 225, 155, 0.38) 50%,
+    rgba(238, 208, 120, 0.5)
+  );
+  box-shadow: 0 1px 3px rgba(120, 95, 45, 0.2);
+  backdrop-filter: blur(1px);
+}
+.dark .board-tape {
+  background: linear-gradient(
+    100deg,
+    rgba(200, 175, 100, 0.22),
+    rgba(210, 185, 115, 0.15) 50%,
+    rgba(195, 170, 95, 0.22)
+  );
+}
+
+/* 便签纸：右上角折角（浅色随主题色变量 --fold 变化） */
+.note-fold {
+  --fold: rgba(120, 90, 40, 0.14);
+  background-image: linear-gradient(
+    315deg,
+    transparent 0px,
+    transparent 12px,
+    var(--fold) 12px,
+    var(--fold) 13px,
+    rgba(255, 255, 255, 0.65) 13px,
+    rgba(255, 255, 255, 0.65) 26px,
+    transparent 26px
+  );
+}
+.dark .note-fold {
+  background-image: linear-gradient(
+    315deg,
+    transparent 0px,
+    transparent 12px,
+    rgba(0, 0, 0, 0.35) 12px,
+    rgba(0, 0, 0, 0.35) 13px,
+    rgba(255, 255, 255, 0.08) 13px,
+    rgba(255, 255, 255, 0.08) 26px,
+    transparent 26px
+  );
+}
+
+/* 便签正文横线（与 leading-6 = 24px 对齐） */
+.note-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 23px,
+    rgba(120, 90, 40, 0.1) 23px,
+    rgba(120, 90, 40, 0.1) 24px
+  );
+}
+
+/* 便签入场：从上方落下并轻微回弹（rotate 由 JS 变量控制，动画只动 translateY/opacity） */
+@keyframes noteDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.note-drop-in {
+  animation: noteDrop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 弹窗便签纸：从图钉处轻轻展开 */
+@keyframes noteUnpin {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px) rotate(-1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+.note-unpin-in {
+  animation: noteUnpin 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top center;
+}
+
+/* 手写体标题（便签专用，区别于全局衬线） */
+.note-hand {
+  font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", "KaiTi", "楷体", cursive;
+}
+
+/* 简笔画手账背景色 */
+.bg-doodle-pattern {
+  background-color: #faf9f6 !important;
+}
+
+/* 全局毛玻璃与材质调整 */
+.theme-glass-light aside,
+.theme-glass-light main,
+.theme-glass-light .bg-white\/70,
+.theme-glass-light .bg-white\/80 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.theme-glass-matte aside,
+.theme-glass-matte main,
+.theme-glass-matte .bg-white\/70,
+.theme-glass-matte .bg-white\/80 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.theme-glass-solid aside,
+.theme-glass-solid main,
+.theme-glass-solid .bg-white\/70,
+.theme-glass-solid .bg-white\/80 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: rgba(229, 225, 218, 0.8) !important;
+  box-shadow: 0 4px 15px -4px rgba(120, 110, 95, 0.05) !important;
+}
+
+/* 全局字体风格覆盖 */
+.theme-font-sans {
+  font-family:
+    "Plus Jakarta Sans",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    sans-serif !important;
+}
+
+.theme-font-rounded {
+  font-family:
+    "Quicksand", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
+  font-weight: 550;
+}
+
+.theme-font-serif {
+  font-family: Georgia, Cambria, "Times New Roman", "Noto Serif SC", serif !important;
+}
+
+/* 晚安模式 (Sunset Night Mode) 暖色手账材质与微发光效果 */
+.theme-sunset {
+  background-color: color-mix(in srgb, #faf4eb var(--sunset-warmth, 50%), #faf8f5) !important;
+}
+
+.theme-sunset body {
+  background-color: color-mix(in srgb, #faf4eb var(--sunset-warmth, 50%), #faf8f5) !important;
+}
+
+.theme-sunset .glassmorphism {
+  background: color-mix(
+    in srgb,
+    rgba(255, 250, 240, 0.85) var(--sunset-warmth, 50%),
+    rgba(255, 255, 255, 0.85)
+  ) !important;
+  border: 1px dashed rgba(253, 186, 116, calc(var(--sunset-warmth, 50%) / 110)) !important; /* 手绘虚线质感 */
+  box-shadow:
+    0 10px 30px -10px rgba(180, 110, 50, 0.15),
+    0 0 20px 2px rgba(254, 215, 170, calc(var(--sunset-warmth, 50%) / 200)),
+    0 1px 1px 0 rgba(255, 255, 255, 0.6) inset !important;
+}
+
+.theme-sunset .glassmorphism-dark {
+  background: color-mix(
+    in srgb,
+    rgba(255, 247, 230, 0.9) var(--sunset-warmth, 50%),
+    rgba(255, 255, 255, 0.9)
+  ) !important;
+  border: 1.5px dashed rgba(253, 186, 116, calc(var(--sunset-warmth, 50%) / 100)) !important; /* 手绘虚线质感 */
+  box-shadow:
+    0 12px 35px -8px rgba(180, 110, 50, 0.2),
+    0 0 25px 3px rgba(254, 215, 170, calc(var(--sunset-warmth, 50%) / 160)),
+    0 1px 1px 0 rgba(255, 255, 255, 0.6) inset !important;
+}
+
+/* 晕染水彩渐变背景 (日落色调) */
+.theme-sunset .bg-watercolor-pattern {
+  background:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(254, 215, 170, calc(var(--sunset-warmth, 50%) / 55)) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 85% 80%,
+      rgba(253, 186, 116, calc(var(--sunset-warmth, 50%) / 60)) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 237, 213, calc(var(--sunset-warmth, 50%) / 65)) 0%,
+      transparent 65%
+    ),
+    color-mix(in srgb, #faf4eb var(--sunset-warmth, 50%), #ffffff) !important;
+}
+
+/* 温暖手绘软虚线边框 */
+.theme-sunset aside,
+.theme-sunset main,
+.theme-sunset .border-\[\#EFEBE4\] {
+  border-color: rgba(217, 119, 6, calc(var(--sunset-warmth, 50%) / 270)) !important;
+}
+
+/* 日落夜间模式边缘柔和烘托晕染 — 降低 z-index 避免遮挡交互 */
+.theme-sunset::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle,
+      transparent 55%,
+      rgba(251, 146, 60, calc(var(--sunset-warmth, 50%) / 1000)) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(251, 146, 60, calc(var(--sunset-warmth, 50%) / 1500)),
+      rgba(251, 146, 60, calc(var(--sunset-warmth, 50%) / 1200))
+    );
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* 夸夸模式撒花动画 */
+@keyframes celebration-confetti {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotate(720deg);
+  }
+}
+.animate-celebration-confetti {
+  animation: celebration-confetti var(--duration, 2s) ease-in forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+/* 夸夸消息弹跳入场 */
+@keyframes celebration-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(20px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) translateY(-5px);
+  }
+  70% {
+    transform: scale(0.95) translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.animate-celebration-bounce {
+  animation: celebration-bounce 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========================================
+   UI 美化升级 — 新增样式
+   ======================================== */
+
+/* 渐变文字效果 (Gradient Text) */
+.gradient-text-morning {
+  background: linear-gradient(135deg, #c4d7b2 0%, #4d7c5d 50%, #8b6e3c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-noon {
+  background: linear-gradient(135deg, #e8a0bf 0%, #d97706 50%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-afternoon {
+  background: linear-gradient(135deg, #b2c8df 0%, #8b6e3c 50%, #c4d7b2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-evening {
+  background: linear-gradient(135deg, #b2c8df 0%, #e8a0bf 50%, #8b6e3c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 柔和呼吸脉冲 (Soft Pulse) */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2.5s ease-in-out infinite;
+}
+
+/* 轻柔弹跳入场 (Bounce Gentle) */
+@keyframes bounce-gentle {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-bounce-gentle {
+  animation: bounce-gentle 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 侧边栏导航活跃色条 (Nav Active Indicator) */
+.nav-active-bar {
+  position: relative;
+}
+.nav-active-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 4px 4px 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-active-bar.active-home::before {
+  background: #4d7c5d;
+}
+.nav-active-bar.active-matrix::before {
+  background: #7c6fae;
+}
+.nav-active-bar.active-list::before {
+  background: #5b99b0;
+}
+.nav-active-bar.active-calendar::before {
+  background: #c97d3e;
+}
+.nav-active-bar.active-notes::before {
+  background: #c9a93e;
+}
+.nav-active-bar.active-analytics::before {
+  background: #9b6fae;
+}
+.nav-active-bar.active-completed::before {
+  background: #5dae7c;
+}
+.nav-active-bar.active-settings::before {
+  background: #8b8178;
+}
+
+/* 卡片精致 hover 升级 */
+.card-hover-lift {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 28px -8px rgba(154, 142, 128, 0.15),
+    0 4px 10px -4px rgba(154, 142, 128, 0.08);
+}
+
+/* 任务项类别色条 */
+.task-bar-urgent-important {
+  border-left: 3px solid #e8a0bf;
+}
+.task-bar-important-not-urgent {
+  border-left: 3px solid #c4d7b2;
+}
+.task-bar-urgent-not-important {
+  border-left: 3px solid #b2c8df;
+}
+.task-bar-not-urgent-not-important {
+  border-left: 3px solid #ead9a8;
+}
+
+/* 时间线装饰 (Timeline Decoration) */
+.timeline-dot {
+  position: relative;
+  padding-left: 16px;
+}
+.timeline-dot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c4d7b2;
+  box-shadow: 0 0 0 2px rgba(196, 215, 178, 0.3);
+}
+.timeline-dot::after {
+  content: "";
+  position: absolute;
+  left: 2.5px;
+  top: 15px;
+  width: 1px;
+  height: calc(100% - 4px);
+  background: linear-gradient(to bottom, #efebe4, transparent);
+}
+.timeline-dot:last-child::after {
+  display: none;
+}
+
+/* 引号装饰 (Quote Decoration) */
+.quote-decoration {
+  position: relative;
+  padding-left: 16px;
+  border-left: 2px solid transparent;
+  border-image: linear-gradient(to bottom, #c4d7b2, #b2c8df, #e8a0bf) 1;
+}
+.quote-decoration::before {
+  content: "\201C";
+  position: absolute;
+  top: -8px;
+  left: 6px;
+  font-size: 28px;
+  font-family: Georgia, serif;
+  color: rgba(196, 215, 178, 0.5);
+  line-height: 1;
+}
+
+/* 番茄钟呼吸灯 (Pomodoro Active Glow) */
+@keyframes pomodoro-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(163, 78, 54, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 12px 3px rgba(163, 78, 54, 0.12);
+  }
+}
+.pomodoro-active-glow {
+  animation: pomodoro-breathe 2s ease-in-out infinite;
+}
+
+/* 导航图标 hover 微旋转 */
+.nav-icon-hover:hover svg:first-child {
+  transform: rotate(-8deg);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 交错入场动画 */
+.stagger-1 {
+  animation-delay: 0.05s;
+}
+.stagger-2 {
+  animation-delay: 0.1s;
+}
+.stagger-3 {
+  animation-delay: 0.15s;
+}
+.stagger-4 {
+  animation-delay: 0.2s;
+}
+
+/* 精致的滚动容器自定义样式 (用于历史卡片可滚动) */
+.scrollable-card::-webkit-scrollbar {
+  width: 3px;
+}
+.scrollable-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollable-card::-webkit-scrollbar-thumb {
+  background: rgba(184, 172, 158, 0.2);
+  border-radius: 9999px;
+}
+.scrollable-card::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 172, 158, 0.4);
+}
+
+/* ==========================================================================
+   🌓 暗黑模式全方位适配与质感重塑 (Premium Dark Mode Overrides)
+   ========================================================================== */
+
+/* 1. 基础容器与文本 */
+.dark html,
+.dark body,
+.dark #root {
+  background-color: #121214 !important;
+  color: #e3e4e6 !important;
+}
+
+/* Planner chrome only: the writing surface contains themed article HTML whose
+   inline colors must remain authoritative in both preview and export. */
+.dark :is(h1, h2, h3, h4, h5, h6):not(.konh-writing-content *) {
+  color: #e3e4e6 !important;
+}
+
+/* 2. 主工作区与侧边栏 */
+.dark main {
+  background-color: transparent !important;
+}
+
+.dark aside {
+  background-color: rgba(22, 23, 26, 0.65) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark aside .border-\[\#EFEBE4\],
+.dark main .border-\[\#EFEBE4\],
+.dark .border-\[\#EFEBE4\],
+.dark main .border-b,
+.dark main .border-t,
+.dark main .border-r,
+.dark main .border-l,
+.dark .border-slate-100,
+.dark .border-slate-200\/60,
+.dark .border-\[\#EFEBE4\]\/50,
+.dark .border-\[\#EFEBE4\]\/60 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* 3. 毛玻璃质感适配 (Matte/Light Dark Glassmorphism) */
+.dark .glassmorphism {
+  background: rgba(30, 31, 35, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.55),
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+.dark .glassmorphism-dark {
+  background: #1a1b1e !important;
+  background-clip: padding-box !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 12px 35px -8px rgba(0, 0, 0, 0.6),
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+.dark .theme-glass-solid aside,
+.dark .theme-glass-solid main,
+.dark .theme-glass-solid .bg-white\/70,
+.dark .theme-glass-solid .bg-white\/80 {
+  background-color: #1a1b1e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* 4. 纸张底面纹理变暗 */
+.dark .bg-grid-pattern {
+  background-color: #141517 !important;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px) !important;
+}
+
+.dark .bg-lined-pattern {
+  background-color: #141517 !important;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px) !important;
+}
+
+.dark .bg-doodle-pattern {
+  background-color: #141517 !important;
+}
+
+/* 暗色晕染水彩背景 */
+.dark .bg-watercolor-pattern {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(135, 110, 155, 0.12) 0%, transparent 60%),
+    radial-gradient(circle at 85% 80%, rgba(70, 95, 80, 0.12) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(35, 45, 55, 0.25) 0%, transparent 70%), #121214 !important;
+}
+
+/* 5. 各种面板、卡片背景及文本 */
+.dark .bg-white,
+.dark .bg-white\/80,
+.dark .bg-white\/70,
+.dark .bg-white\/60,
+.dark .bg-white\/50,
+.dark .bg-\[\#FAF8F5\],
+.dark .bg-\[\#FAF8F5\]\/80,
+.dark .bg-\[\#FAF8F5\]\/60 {
+  background-color: rgba(28, 29, 33, 0.8) !important;
+}
+
+/* 卡片浮起与背景 */
+.dark .hover\:bg-\[\#FAF8F5\]:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .group:hover {
+  /* 当作为代办列表项被 hover 时 */
+}
+.dark .hover\:bg-\[\#FAF8F5\]:hover {
+  background-color: rgba(45, 47, 52, 0.8) !important;
+}
+
+/* 番茄钟/计时器 hover 状态深色模式 */
+.dark .hover\:bg-slate-200:hover {
+  background-color: rgba(60, 65, 75, 0.4) !important;
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: rgba(50, 55, 65, 0.3) !important;
+}
+.dark .hover\:bg-\[\#EEEAF5\]:hover {
+  background-color: rgba(80, 55, 110, 0.2) !important;
+}
+.dark .hover\:text-\[\#7C5D9E\]:hover {
+  color: #a98fd1 !important;
+}
+.dark .hover\:text-\[\#4D7C5D\]:hover {
+  color: #6fad84 !important;
+}
+.dark .hover\:border-\[\#4D7C5D\]:hover {
+  border-color: #4a8a66 !important;
+}
+.dark .hover\:text-slate-600:hover {
+  color: #c5c8ce !important;
+}
+
+/* 番茄钟圆形外边框 */
+.dark .border-\[\#FAF8F5\] {
+  border-color: rgba(60, 65, 75, 0.5) !important;
+}
+
+/* 强行纠正深色模式下偏淡偏灰文字以保证对比度 */
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-\[\#2D323A\],
+.dark .text-slate-600 {
+  color: #e3e4e6 !important;
+}
+
+.dark .text-slate-500 {
+  color: #a9acb3 !important;
+}
+
+.dark .text-slate-400 {
+  color: #7e818a !important;
+}
+
+.dark .text-\[\#8B6E3C\] {
+  color: #d4af77 !important;
+}
+
+.dark .bg-\[\#FAF8F5\] {
+  background-color: rgba(22, 23, 26, 0.8) !important;
+}
+
+.dark .border-t,
+.dark .border-b,
+.dark .border-r,
+.dark .border-l {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 6. 侧边栏菜单样式 */
+.dark nav button:not(.nav-active-bar) {
+  color: #a9acb3 !important;
+  border-color: transparent !important;
+}
+.dark nav button:not(.nav-active-bar):hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  color: #fff !important;
+}
+
+/* 侧边栏选中态深色背景 */
+.dark nav button.nav-active-bar {
+  background: rgba(35, 45, 55, 0.6) !important;
+  border-color: rgba(178, 200, 223, 0.25) !important;
+  color: #d4e0f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 7. 输入框与下拉选择框 */
+.dark input[type="text"] {
+  background-color: rgba(20, 21, 24, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+.dark input[type="password"],
+.dark input[type="date"],
+.dark select {
+  background-color: rgba(20, 21, 24, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+.dark textarea {
+  background-color: rgba(20, 21, 24, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+.dark textarea.bg-transparent {
+  background-color: transparent !important;
+}
+.dark input[type="text"]::placeholder,
+.dark textarea::placeholder {
+  color: #5c5e66 !important;
+}
+
+.dark input[type="text"]:focus,
+.dark textarea:focus {
+  border-color: #4d7c5d !important;
+}
+
+/* 8. 四象限与看板的配色微调 (保证在暗黑背景下的可视度与质感) */
+.dark .border-urgent-important {
+  background: rgba(45, 25, 30, 0.25) !important;
+  border-color: rgba(232, 160, 191, 0.2) !important;
+}
+.dark .border-important-not-urgent {
+  background: rgba(25, 45, 30, 0.25) !important;
+  border-color: rgba(196, 215, 178, 0.2) !important;
+}
+.dark .border-urgent-not-important {
+  background: rgba(25, 35, 45, 0.25) !important;
+  border-color: rgba(178, 200, 223, 0.2) !important;
+}
+.dark .border-not-urgent-not-important {
+  background: rgba(40, 35, 25, 0.25) !important;
+  border-color: rgba(234, 217, 168, 0.2) !important;
+}
+
+.dark .task-bar-urgent-important {
+  border-left-color: #e8a0bf !important;
+}
+.dark .task-bar-important-not-urgent {
+  border-left-color: #c4d7b2 !important;
+}
+.dark .task-bar-urgent-not-important {
+  border-left-color: #b2c8df !important;
+}
+.dark .task-bar-not-urgent-not-important {
+  border-left-color: #ead9a8 !important;
+}
+
+/* 映射 PLANNER_COLORS 的类到暗黑模式 (精美磨砂质感) */
+.dark .bg-\[\#FCF2F0\] {
+  background-color: rgba(85, 40, 50, 0.22) !important;
+}
+.dark .hover\:bg-\[\#FCF2F0\]:hover {
+  background-color: rgba(85, 40, 50, 0.35) !important;
+}
+.dark .border-\[\#F5DFDB\] {
+  border-color: rgba(232, 160, 191, 0.2) !important;
+}
+.dark .text-\[\#A34E36\] {
+  color: #e8a0bf !important;
+}
+
+.dark .bg-\[\#F0F5F1\] {
+  background-color: rgba(30, 65, 45, 0.22) !important;
+}
+.dark .border-\[\#DEEAE2\] {
+  border-color: rgba(196, 215, 178, 0.2) !important;
+}
+.dark .text-\[\#4D7C5D\] {
+  color: #c4d7b2 !important;
+}
+
+.dark .bg-\[\#EBF3F6\] {
+  background-color: rgba(30, 55, 75, 0.22) !important;
+}
+.dark .border-\[\#D0E2E8\] {
+  border-color: rgba(178, 200, 223, 0.2) !important;
+}
+.dark .text-\[\#366B80\] {
+  color: #b2c8df !important;
+}
+
+.dark .bg-\[\#F3F2F7\] {
+  background-color: rgba(55, 40, 80, 0.22) !important;
+}
+.dark .border-\[\#E5E2EE\] {
+  border-color: rgba(155, 110, 175, 0.2) !important;
+}
+.dark .text-\[\#5C528B\] {
+  color: #c9a8e3 !important;
+}
+
+.dark .bg-\[\#FBECE5\] {
+  background-color: rgba(90, 45, 30, 0.22) !important;
+}
+.dark .border-\[\#F6DCD2\] {
+  border-color: rgba(229, 124, 88, 0.2) !important;
+}
+.dark .text-\[\#A64424\] {
+  color: #f0a890 !important;
+}
+
+.dark .bg-\[\#FAF5ED\] {
+  background-color: rgba(70, 55, 30, 0.22) !important;
+}
+.dark .border-\[\#EFE5D3\] {
+  border-color: rgba(234, 217, 168, 0.2) !important;
+}
+.dark .text-\[\#8B6E3C\] {
+  color: #ead9a8 !important;
+}
+
+/* 9. 日历视图适配 (Calendar Dark Adaptation) */
+.dark .calendar-day-header {
+  color: #a9acb3 !important;
+}
+.dark .calendar-day-cell {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+.dark .calendar-day-cell:hover {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+.dark .calendar-day-cell.today {
+  background-color: rgba(139, 110, 60, 0.15) !important;
+}
+.dark .calendar-day-cell.other-month {
+  opacity: 0.3 !important;
+}
+
+/* 10. 便签视图与手账板适配 */
+.dark .notes-corkboard {
+  background-color: #1a1b1e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 11. 标题栏与浮窗适配 (Tauri Webview Drag Region & Overlay Modals) */
+.dark div[data-tauri-drag-region] {
+  background-color: rgba(22, 23, 26, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 详情弹窗遮罩及卡片 */
+.dark .fixed.inset-0.bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+}
+.dark .fixed.inset-0.bg-black\/20 > div {
+  background-color: #1e1f22 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* 12. 问候区天气与日历卡片 */
+.dark .timeline-dot::after {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), transparent) !important;
+}
+.dark .quote-decoration::before {
+  color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 13. 日落晚安模式在暗黑模式下的叠加 */
+.dark.theme-sunset {
+  background-color: color-mix(in srgb, #2b241a var(--sunset-warmth, 50%), #121214) !important;
+}
+.dark.theme-sunset body {
+  background-color: color-mix(in srgb, #2b241a var(--sunset-warmth, 50%), #121214) !important;
+}
+.dark.theme-sunset .glassmorphism {
+  background: color-mix(
+    in srgb,
+    rgba(38, 35, 30, 0.85) var(--sunset-warmth, 50%),
+    rgba(30, 31, 35, 0.85)
+  ) !important;
+  border: 1px dashed rgba(253, 186, 116, calc(var(--sunset-warmth, 50%) / 150)) !important;
+}
+
+/* ==========================================================================
+   14. 🌓 暗黑模式缺失覆盖补充
+   ========================================================================== */
+
+/* text-slate-300/text-slate-100 补充 */
+.dark .text-slate-300 {
+  color: #7e818a !important;
+}
+.dark .text-slate-100 {
+  color: #5c5e66 !important;
+}
+
+/* bg-white 缺失透明度变体 */
+.dark .bg-white\/40,
+.dark .bg-white\/90,
+.dark .bg-white\/95,
+.dark .bg-white\/75 {
+  background-color: rgba(28, 29, 33, 0.85) !important;
+}
+
+/* bg-[#FAF8F5] 缺失透明度变体 */
+.dark .bg-\[\#FAF8F5\]\/85,
+.dark .bg-\[\#FAF8F5\]\/65,
+.dark .bg-\[\#FAF8F5\]\/30,
+.dark .bg-\[\#FAF8F5\]\/80 {
+  background-color: rgba(22, 23, 26, 0.85) !important;
+}
+
+/* border-[#EFEBE4] 缺失透明度变体 */
+.dark .border-\[\#EFEBE4\]\/40,
+.dark .border-\[\#EFEBE4\]\/75,
+.dark .border-\[\#EFEBE4\]\/80,
+.dark .border-\[\#EFEBE4\]\/90 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* hover 悬停背景补充 */
+.dark .hover\:bg-white:hover,
+.dark .hover\:bg-white\/50:hover,
+.dark .hover\:bg-white\/75:hover,
+.dark .hover\:bg-white\/80:hover {
+  background-color: rgba(45, 47, 52, 0.8) !important;
+}
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-200:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 悬停边框补充 */
+.dark .hover\:border-slate-300:hover {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* input[type="time"] / [type="search"] / [type="number"] 补充 */
+.dark input[type="time"],
+.dark input[type="search"],
+.dark input[type="number"] {
+  background-color: rgba(20, 21, 24, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+.dark input[type="time"]::placeholder,
+.dark input[type="search"]::placeholder {
+  color: #5c5e66 !important;
+}
+
+/* 杂项 border-slate 补充 */
+.dark .border-slate-200,
+.dark .border-slate-200\/40,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/50,
+.dark .border-slate-200\/20,
+.dark .border-slate-300,
+.dark .border-slate-100,
+.dark .border-slate-100\/60 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* hover:bg-red-50 保留红色氛围但降低饱和度 */
+.dark .hover\:bg-red-50:hover,
+.dark .hover\:bg-red-50\/50:hover {
+  background-color: rgba(120, 40, 40, 0.3) !important;
+}
+.dark .hover\:border-red-100:hover {
+  border-color: rgba(200, 80, 80, 0.25) !important;
+}
+
+/* NewsView 主内容区背景 + 悬停态 */
+.dark .bg-\[\#FCFAF4\] {
+  background-color: rgba(22, 23, 26, 0.85) !important;
+}
+.dark .hover\:bg-white\/60:hover {
+  background-color: rgba(45, 47, 52, 0.55) !important;
+}
+.dark .hover\:border-\[\#EFEBE4\]:hover {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+/* 新闻视图专用边框色 #E8E0D0 暗黑适配（与原有内联 dark:border-[#4D525A] 一致） */
+.dark .border-\[\#E8E0D0\] {
+  border-color: #4d525a !important;
+}
+.dark .border-\[\#E8E0D0\]\/50 {
+  border-color: rgba(77, 82, 90, 0.5) !important;
+}
+.dark .border-\[\#E8E0D0\]\/60 {
+  border-color: rgba(77, 82, 90, 0.6) !important;
+}
+.dark .border-\[\#E8E0D0\]\/70 {
+  border-color: rgba(77, 82, 90, 0.7) !important;
+}
+.dark .hover\:border-\[\#E8E0D0\]:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 面板分割线补充 */
+.dark hr,
+.dark .border-b.border-\[\#EFEBE4\] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 专注热力图 (FocusHeatmap) 单元格深色适配 */
+.dark .bg-\[\#F3EEE8\] {
+  background-color: rgba(40, 42, 48, 0.6) !important;
+}
+.dark .bg-\[\#DEEAE2\] {
+  background-color: rgba(30, 55, 45, 0.5) !important;
+}
+.dark .bg-\[\#B8D4C1\] {
+  background-color: rgba(30, 75, 50, 0.45) !important;
+}
+.dark .bg-\[\#7FB08D\] {
+  background-color: rgba(35, 95, 60, 0.5) !important;
+}
+.dark .bg-\[\#4D7C5D\] {
+  background-color: rgba(45, 120, 65, 0.55) !important;
+}
+
+/* 番茄钟标签徽章 */
+.dark .bg-\[\#F0F5F1\] {
+  background-color: rgba(30, 65, 45, 0.3) !important;
+}
+.dark .bg-\[\#EEF5F8\] {
+  background-color: rgba(30, 55, 75, 0.3) !important;
+}
+.dark .bg-\[\#FBF8EC\] {
+  background-color: rgba(70, 60, 30, 0.3) !important;
+}
+
+/* CustomSelect 下拉菜单深色适配 */
+.dark .bg-slate-50 {
+  background-color: rgba(28, 29, 33, 0.8) !important;
+}
+.dark .bg-\[\#FCF2F0\]\/60 {
+  background-color: rgba(85, 40, 50, 0.35) !important;
+}
+
+/* 习惯打卡标签 */
+.dark .bg-\[\#C4D7B2\] {
+  background-color: rgba(55, 110, 70, 0.5) !important;
+}
+
+/* ============ 专注统计 (AnalyticsView) 深色适配 ============ */
+
+/* 热力图单元格 */
+.dark .bg-\[\#3F684C\] {
+  background-color: rgba(40, 85, 55, 0.6) !important;
+}
+.dark .bg-\[\#C4D7B2\]\/40 {
+  background-color: rgba(80, 140, 95, 0.25) !important;
+}
+.dark .bg-\[\#C4D7B2\]\/70 {
+  background-color: rgba(70, 125, 85, 0.45) !important;
+}
+.dark .bg-\[\#4D7C5D\]\/70 {
+  background-color: rgba(50, 110, 70, 0.5) !important;
+}
+
+/* 热力图未来单元格占位 */
+.dark .bg-\[\#FAF8F5\]\/20 {
+  background-color: rgba(22, 23, 26, 0.3) !important;
+}
+
+/* 热力图图例色块 */
+.dark .bg-\[\#C4D7B2\]\/40 {
+  background-color: rgba(80, 140, 95, 0.25) !important;
+}
+.dark .bg-\[\#C4D7B2\]\/70 {
+  background-color: rgba(70, 125, 85, 0.45) !important;
+}
+
+/* 统计卡片 — 指标卡背景 */
+.dark .bg-\[\#FCF2F0\]\/80 {
+  background-color: rgba(60, 30, 40, 0.35) !important;
+}
+.dark .bg-\[\#F0F5F1\]\/80 {
+  background-color: rgba(25, 50, 35, 0.35) !important;
+}
+.dark .bg-\[\#F3F2F7\]\/80 {
+  background-color: rgba(40, 30, 60, 0.35) !important;
+}
+.dark .bg-\[\#FAF5ED\]\/80 {
+  background-color: rgba(45, 35, 20, 0.35) !important;
+}
+
+/* 统计卡片 — 带透明度的描述文字 */
+.dark .text-\[\#A34E36\]\/80 {
+  color: rgba(232, 160, 191, 0.8) !important;
+}
+.dark .text-\[\#4D7C5D\]\/80 {
+  color: rgba(196, 215, 178, 0.8) !important;
+}
+.dark .text-\[\#5C528B\]\/80 {
+  color: rgba(201, 168, 227, 0.8) !important;
+}
+.dark .text-\[\#8B6E3C\]\/80 {
+  color: rgba(234, 217, 168, 0.8) !important;
+}
+
+/* 任务专注排行 — 进度条背景 */
+.dark .bg-slate-100 {
+  background-color: rgba(35, 36, 40, 0.6) !important;
+}
+
+/* 渐变背景色深色适配 (AI 今日建议等卡片) */
+.dark .from-\[\#F0F5F1\] {
+  --tw-gradient-from: rgba(25, 45, 30, 0.45) !important;
+}
+.dark .to-\[\#EBF3F6\] {
+  --tw-gradient-to: rgba(25, 40, 60, 0.45) !important;
+}
+.dark .from-\[\#FAF5ED\] {
+  --tw-gradient-from: rgba(40, 35, 20, 0.4) !important;
+}
+.dark .to-\[\#FFF9F5\] {
+  --tw-gradient-to: rgba(30, 31, 35, 0.4) !important;
+}
+
+/* ============ 日历视图深色适配 ============ */
+
+/* 日历日格子 — 节假日 */
+.dark .bg-\[\#FFF5F3\] {
+  background-color: rgba(80, 35, 30, 0.3) !important;
+}
+.dark .border-\[\#FFD9D0\] {
+  border-color: rgba(255, 120, 100, 0.15) !important;
+}
+.dark .text-\[\#D4380D\] {
+  color: #f09080 !important;
+}
+.dark .text-\[\#D4380D\]\/60 {
+  color: rgba(240, 144, 128, 0.6) !important;
+}
+
+/* 日历日格子 — 调休上班 */
+.dark .bg-\[\#FAFAFA\] {
+  background-color: rgba(35, 36, 40, 0.5) !important;
+}
+.dark .border-\[\#E8E4DE\] {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 日历日格子 — 周末 */
+.dark .bg-\[\#FFF9F5\] {
+  background-color: rgba(45, 35, 25, 0.3) !important;
+}
+.dark .border-\[\#F5EDE8\] {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .text-\[\#B88A6B\] {
+  color: #d4a77a !important;
+}
+
+/* 日历日格子 — 选中态 (bg-[#FCF2F0]/80) */
+.dark .bg-\[\#FCF2F0\]\/80 {
+  background-color: rgba(70, 35, 45, 0.4) !important;
+}
+
+/* 日历日 badge (休/班标签) */
+.dark .bg-\[\#D4380D\] {
+  background-color: rgba(180, 55, 20, 0.55) !important;
+}
+.dark .bg-\[\#B88A6B\]\/70 {
+  background-color: rgba(140, 105, 80, 0.45) !important;
+}
+
+/* ============ 零散缺失覆盖补充 ============ */
+
+/* 完成页 — 图标占位 */
+.dark .bg-\[\#C4D7B2\]\/20 {
+  background-color: rgba(55, 110, 70, 0.2) !important;
+}
+.dark .border-\[\#C4D7B2\]\/30 {
+  border-color: rgba(55, 110, 70, 0.25) !important;
+}
+.dark .hover\:bg-\[\#FCF2F0\]\/50:hover {
+  background-color: rgba(60, 30, 40, 0.3) !important;
+}
+
+/* 仪表盘 — AI 散文生成按钮 */
+.dark .bg-\[\#4D7C5D\]\/10 {
+  background-color: rgba(55, 110, 70, 0.15) !important;
+}
+.dark .hover\:bg-\[\#4D7C5D\]\/20:hover {
+  background-color: rgba(55, 110, 70, 0.25) !important;
+}
+
+/* 日历完成按钮 hover */
+.dark .hover\:bg-\[\#4D7C5D\]:hover {
+  background-color: rgba(55, 110, 70, 0.5) !important;
+}
+
+/* 命令面板快捷键徽章 */
+.dark .text-\[\#A34E36\]\/70 {
+  color: rgba(232, 160, 191, 0.7) !important;
+}
+
+/* 侧边栏背景 */
+.dark .bg-\[\#F4EFEA\]\/60 {
+  background-color: rgba(28, 30, 36, 0.5) !important;
+}
+
+/* 标题栏背景 */
+.dark .bg-\[\#F4EFEA\]\/80 {
+  background-color: rgba(22, 23, 26, 0.75) !important;
+}
+
+/* 窗口按钮 hover */
+.dark .hover\:bg-\[\#EFEBE4\]:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 侧边栏 logo 渐变 */
+.dark .from-\[\#C4D7B2\] {
+  --tw-gradient-from: rgba(65, 110, 80, 0.7) !important;
+}
+.dark .to-\[\#B2C8DF\] {
+  --tw-gradient-to: rgba(55, 90, 120, 0.7) !important;
+}
+
+/* 日历空状态图标 */
+.dark .text-\[\#8B6E3C\]\/30 {
+  color: rgba(180, 145, 100, 0.3) !important;
+}
+
+/* ============ 侧边栏导航 hover 深色模式修复 ============ */
+.dark .hover\:text-slate-800:hover {
+  color: #e3e4e6 !important;
+}
+.dark .hover\:text-slate-700:hover {
+  color: #e3e4e6 !important;
+}
+.dark .hover\:bg-slate-100\/50:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .hover\:bg-\[\#F0F5F1\]:hover {
+  background-color: rgba(30, 65, 45, 0.35) !important;
+}
+
+/* ==========================================================================
+   15. 暗黑模式缺失覆盖 — 全面体检补丁
+   ========================================================================== */
+
+/* ---- 侧边栏导航 active 状态深色适配 ---- */
+.dark .bg-\[\#F3F0F8\] {
+  background-color: rgba(55, 40, 80, 0.3) !important;
+}
+.dark .bg-\[\#F5F0F8\] {
+  background-color: rgba(60, 40, 85, 0.3) !important;
+}
+.dark .bg-\[\#EEF7F2\] {
+  background-color: rgba(30, 65, 50, 0.3) !important;
+}
+.dark .bg-\[\#FEF6E6\] {
+  background-color: rgba(70, 55, 25, 0.3) !important;
+}
+.dark .bg-\[\#F5F3F1\] {
+  background-color: rgba(40, 38, 35, 0.4) !important;
+}
+.dark .bg-\[\#F4EFEA\]\/40 {
+  background-color: rgba(28, 30, 36, 0.4) !important;
+}
+
+.dark .text-\[\#7C6FAE\] {
+  color: #b8a8d8 !important;
+}
+.dark .text-\[\#5DAE7C\] {
+  color: #7fcc9a !important;
+}
+.dark .text-\[\#9B6FAE\] {
+  color: #c8a0d8 !important;
+}
+.dark .text-\[\#E87A6E\] {
+  color: #f0a090 !important;
+}
+.dark .text-\[\#8B8178\] {
+  color: #b0a89e !important;
+}
+.dark .text-\[\#5B99B0\] {
+  color: #8cc5d8 !important;
+}
+.dark .text-\[\#C97D3E\] {
+  color: #e8a870 !important;
+}
+.dark .text-\[\#A08B30\] {
+  color: #d4c060 !important;
+}
+.dark .text-\[\#B8D4C1\] {
+  color: #7fcc9a !important;
+}
+.dark .text-\[\#B2C8DF\] {
+  color: #8aaccc !important;
+}
+.dark .text-\[\#E8A0BF\] {
+  color: #e8a0bf !important;
+}
+.dark .text-\[\#E8A0BF\]\/50 {
+  color: rgba(232, 160, 191, 0.5) !important;
+}
+.dark .text-\[\#EFEBE4\] {
+  color: rgba(255, 255, 255, 0.15) !important;
+}
+.dark .text-\[\#FAF5ED\]\/60 {
+  color: rgba(234, 217, 168, 0.4) !important;
+}
+.dark .text-\[\#3F684C\] {
+  color: #7fcc9a !important;
+}
+.dark .text-\[\#7C5D9E\] {
+  color: #b8a0d8 !important;
+}
+.dark .text-\[\#4D7C5D\] {
+  color: #8ac9a0 !important;
+}
+
+.dark .border-\[\#D5CEE8\] {
+  border-color: rgba(120, 90, 160, 0.2) !important;
+}
+.dark .border-\[\#C5E5D2\] {
+  border-color: rgba(93, 174, 124, 0.2) !important;
+}
+.dark .border-\[\#F5E2B8\] {
+  border-color: rgba(201, 125, 62, 0.2) !important;
+}
+.dark .border-\[\#DDD0E8\] {
+  border-color: rgba(155, 111, 174, 0.2) !important;
+}
+.dark .border-\[\#F5D0C5\] {
+  border-color: rgba(232, 122, 110, 0.2) !important;
+}
+.dark .border-\[\#E0DBD5\] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .border-\[\#EDDCC8\] {
+  border-color: rgba(201, 125, 62, 0.2) !important;
+}
+.dark .border-\[\#EDE5C8\] {
+  border-color: rgba(160, 139, 48, 0.2) !important;
+}
+.dark .border-\[\#C5DEE8\] {
+  border-color: rgba(91, 153, 176, 0.2) !important;
+}
+.dark .border-\[\#4D7C5D\] {
+  border-color: rgba(77, 124, 93, 0.5) !important;
+}
+.dark .border-\[\#4D7C5D\]\/30 {
+  border-color: rgba(77, 124, 93, 0.2) !important;
+}
+.dark .border-\[\#C4B5A0\] {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.dark .border-\[\#C5A059\]\/40 {
+  border-color: rgba(197, 160, 89, 0.2) !important;
+}
+.dark .border-\[\#C8E6C9\] {
+  border-color: rgba(100, 180, 110, 0.2) !important;
+}
+.dark .border-\[\#FFE0B2\] {
+  border-color: rgba(230, 165, 50, 0.2) !important;
+}
+.dark .border-\[\#EFE5D3\]\/60 {
+  border-color: rgba(234, 217, 168, 0.15) !important;
+}
+.dark .border-\[\#DEEAE2\]\/50 {
+  border-color: rgba(196, 215, 178, 0.12) !important;
+}
+.dark .border-\[\#C4D7B2\]\/20 {
+  border-color: rgba(196, 215, 178, 0.12) !important;
+}
+.dark .border-\[\#C4D7B2\]\/30 {
+  border-color: rgba(196, 215, 178, 0.15) !important;
+}
+.dark .border-\[\#C4D7B2\]\/40 {
+  border-color: rgba(196, 215, 178, 0.2) !important;
+}
+
+/* ---- 倒计时/侧边栏独有背景色 ---- */
+.dark .bg-\[\#FBF4EC\] {
+  background-color: rgba(80, 55, 30, 0.25) !important;
+}
+.dark .bg-\[\#E5DCC3\] {
+  background-color: rgba(120, 105, 70, 0.5) !important;
+}
+.dark .bg-\[\#E4EDE6\] {
+  background-color: rgba(40, 60, 48, 0.4) !important;
+}
+.dark .bg-\[\#F0E8D6\] {
+  background-color: rgba(60, 50, 30, 0.4) !important;
+}
+.dark .bg-\[\#F5EBEB\] {
+  background-color: rgba(80, 45, 45, 0.3) !important;
+}
+.dark .bg-\[\#EFEBE4\] {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .bg-\[\#EEEAF5\] {
+  background-color: rgba(65, 50, 90, 0.35) !important;
+}
+
+/* ---- AI 消息反馈横幅 ---- */
+.dark .bg-\[\#E8F5E9\] {
+  background-color: rgba(30, 70, 40, 0.35) !important;
+}
+.dark .text-\[\#2E7D32\] {
+  color: #6fc77e !important;
+}
+.dark .bg-\[\#FFF3E0\] {
+  background-color: rgba(80, 50, 15, 0.35) !important;
+}
+.dark .text-\[\#E65100\] {
+  color: #f0a060 !important;
+}
+
+/* ---- 按钮/徽章深色底色（保持可识别度） ---- */
+.dark .bg-\[\#3D6A4F\] {
+  background-color: #2d5840 !important;
+}
+.dark .bg-\[\#725A31\] {
+  background-color: #5a4525 !important;
+}
+.dark .bg-\[\#9BB5CF\] {
+  background-color: rgba(100, 140, 175, 0.7) !important;
+}
+.dark .bg-\[\#BF360C\] {
+  background-color: rgba(160, 45, 10, 0.7) !important;
+}
+.dark .bg-\[\#9B7EC9\] {
+  background-color: rgba(120, 90, 170, 0.6) !important;
+}
+.dark .bg-\[\#E0A934\] {
+  background-color: rgba(180, 140, 40, 0.6) !important;
+}
+.dark .bg-\[\#E57C58\] {
+  background-color: rgba(180, 95, 65, 0.6) !important;
+}
+.dark .bg-\[\#5B99B0\] {
+  background-color: rgba(70, 120, 140, 0.6) !important;
+}
+.dark .bg-\[\#5C528B\] {
+  background-color: rgba(72, 62, 110, 0.7) !important;
+}
+.dark .bg-\[\#A08B30\] {
+  background-color: rgba(130, 115, 35, 0.6) !important;
+}
+.dark .bg-\[\#A34E36\] {
+  background-color: rgba(130, 60, 40, 0.6) !important;
+}
+.dark .bg-\[\#C97D3E\] {
+  background-color: rgba(160, 100, 45, 0.6) !important;
+}
+.dark .bg-\[\#8B6E3C\] {
+  background-color: rgba(110, 85, 45, 0.6) !important;
+}
+.dark .bg-\[\#366B80\] {
+  background-color: rgba(40, 80, 100, 0.6) !important;
+}
+.dark .bg-\[\#E65100\] {
+  background-color: rgba(180, 60, 0, 0.6) !important;
+}
+.dark .bg-\[\#D2B48C\]\/90 {
+  background-color: rgba(160, 135, 100, 0.6) !important;
+}
+
+/* ---- 四象限圆点保持鲜明 ---- */
+.dark .bg-\[\#E8A0BF\] {
+  background-color: #d48aaa !important;
+}
+.dark .bg-\[\#B2C8DF\] {
+  background-color: #8aaccc !important;
+}
+
+/* ---- 动态装饰色斑 (App.tsx blob) ---- */
+.dark .bg-\[\#FCF2F0\]\/65 {
+  background-color: rgba(85, 40, 50, 0.15) !important;
+}
+.dark .bg-\[\#F0F5F1\]\/65 {
+  background-color: rgba(30, 65, 45, 0.15) !important;
+}
+.dark .bg-\[\#FAF5ED\]\/65 {
+  background-color: rgba(70, 55, 30, 0.15) !important;
+}
+.dark .bg-\[\#F3F2F7\]\/65 {
+  background-color: rgba(55, 40, 80, 0.15) !important;
+}
+.dark .bg-\[\#EBF3F6\]\/65 {
+  background-color: rgba(30, 55, 75, 0.15) !important;
+}
+.dark .bg-\[\#FBECE5\]\/65 {
+  background-color: rgba(90, 45, 30, 0.15) !important;
+}
+.dark .bg-\[\#FCF2F0\]\/50 {
+  background-color: rgba(85, 40, 50, 0.2) !important;
+}
+
+/* ---- 透明度变体补丁 ---- */
+.dark .bg-\[\#F0F5F1\]\/30 {
+  background-color: rgba(30, 65, 45, 0.15) !important;
+}
+.dark .bg-\[\#F0F5F1\]\/60 {
+  background-color: rgba(30, 65, 45, 0.3) !important;
+}
+.dark .bg-\[\#F0F5F1\]\/80 {
+  background-color: rgba(25, 50, 35, 0.45) !important;
+}
+.dark .bg-\[\#F3F2F7\]\/80 {
+  background-color: rgba(40, 30, 60, 0.45) !important;
+}
+.dark .bg-\[\#FAF8F5\]\/65 {
+  background-color: rgba(22, 23, 26, 0.65) !important;
+}
+.dark .bg-\[\#FAF8F5\]\/60 {
+  background-color: rgba(22, 23, 26, 0.6) !important;
+}
+.dark .bg-\[\#4D7C5D\]\/20 {
+  background-color: rgba(55, 110, 70, 0.2) !important;
+}
+
+/* ---- ring 环色适配 ---- */
+.dark .ring-\[\#4D7C5D\] {
+  --tw-ring-color: rgba(77, 124, 93, 0.5) !important;
+}
+.dark .ring-\[\#4D7C5D\]\/20 {
+  --tw-ring-color: rgba(77, 124, 93, 0.15) !important;
+}
+.dark .ring-\[\#8B6E3C\]\/20 {
+  --tw-ring-color: rgba(180, 145, 100, 0.15) !important;
+}
+.dark .ring-\[\#A34E36\] {
+  --tw-ring-color: rgba(232, 160, 191, 0.4) !important;
+}
+.dark .ring-\[\#C4D7B2\] {
+  --tw-ring-color: rgba(196, 215, 178, 0.35) !important;
+}
+.dark .ring-\[\#C4D7B2\]\/30 {
+  --tw-ring-color: rgba(196, 215, 178, 0.15) !important;
+}
+
+/* ---- shadow 阴影深色映射 ---- */
+.dark .shadow-\[\#EBF3F6\] {
+  --tw-shadow-color: rgba(30, 55, 75, 0.3) !important;
+}
+.dark .shadow-\[\#F0F5F1\] {
+  --tw-shadow-color: rgba(30, 65, 45, 0.3) !important;
+}
+.dark .shadow-\[\#F3F2F7\] {
+  --tw-shadow-color: rgba(55, 40, 80, 0.3) !important;
+}
+.dark .shadow-\[\#FAF5ED\] {
+  --tw-shadow-color: rgba(70, 55, 30, 0.3) !important;
+}
+.dark .shadow-\[\#FCF2F0\] {
+  --tw-shadow-color: rgba(85, 40, 50, 0.3) !important;
+}
+.dark .shadow-\[0_10px_25px_-5px_rgba\(154\,142\,128\,0\.18\)\] {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[0_12px_30px_rgba\(154\,142\,128\,0\.12\)\] {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+}
+.dark .shadow-\[0_8px_20px_-8px_rgba\(154\,142\,128\,0\.08\)\] {
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ---- accent / disabled ---- */
+.dark .accent-\[\#4D7C5D\] {
+  accent-color: #6fad84 !important;
+}
+.dark .disabled\:bg-slate-300:disabled {
+  background-color: rgba(60, 65, 70, 0.5) !important;
+  color: #7e818a !important;
+}
+
+/* ---- 零散文本/背景缺失 ---- */
+.dark .text-\[\#8B6E3C\]\/60 {
+  color: rgba(180, 145, 100, 0.6) !important;
+}
+.dark .bg-white {
+  background-color: rgba(28, 29, 33, 0.8) !important;
+}
+.dark .bg-white\/70 {
+  background-color: rgba(28, 29, 33, 0.7) !important;
+}
+.dark .bg-white\/60 {
+  background-color: rgba(28, 29, 33, 0.6) !important;
+}
+.dark .bg-slate-400 {
+  background-color: rgba(100, 105, 115, 0.6) !important;
+}
+.dark .hover\:bg-\[\#3F684C\]:hover {
+  background-color: #2d5840 !important;
+}
+.dark .hover\:bg-white\/80:hover {
+  background-color: rgba(45, 47, 52, 0.6) !important;
+}
+
+/* FlowMode / CommandPalette 全屏遮罩 — 需要不透明背景 */
+.dark .fixed.inset-0.bg-\[\#FAF8F5\] {
+  background-color: #121214 !important;
+}
+
+/* ==========================================================================
+   16. 暗黑模式视觉质感提升
+   ========================================================================== */
+
+/* 切换暗黑模式柔和过渡 */
+html,
+body,
+#root,
+aside,
+main,
+.glassmorphism,
+.glassmorphism-dark {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+/* 暗黑卡片悬浮效果 */
+.dark .hover\:shadow-lg:hover {
+  box-shadow:
+    0 15px 40px -10px rgba(0, 0, 0, 0.5),
+    0 1px 1px 0 rgba(255, 255, 255, 0.03) inset !important;
+}
+.dark .hover\:shadow-sm:hover {
+  box-shadow:
+    0 4px 12px -2px rgba(0, 0, 0, 0.4),
+    0 1px 1px 0 rgba(255, 255, 255, 0.03) inset !important;
+}
+
+/* 暗黑 shadow 柔化 */
+.dark .shadow-md {
+  box-shadow:
+    0 6px 20px -5px rgba(0, 0, 0, 0.45),
+    0 1px 1px 0 rgba(255, 255, 255, 0.03) inset !important;
+}
+.dark .shadow-sm {
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .shadow-xs {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .shadow-2xs {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* 暗黑 focus 边框发光 */
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  box-shadow: 0 0 0 2px rgba(77, 124, 93, 0.15) !important;
+}
+
+/* 暗黑选中态微光 */
+.dark .nav-active-bar {
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.25),
+    0 0 12px rgba(178, 200, 223, 0.06) inset !important;
+}
+
+/* 暗黑完成复选框 */
+.dark .bg-\[\#4D7C5D\] {
+  background-color: #3d7050 !important;
+  box-shadow: 0 0 6px rgba(77, 124, 93, 0.2) !important;
+}
+
+/* 暗黑进度条 */
+.dark .bg-\[\#C4D7B2\] {
+  background-color: rgba(100, 180, 120, 0.6) !important;
+}
+
+/* 暗黑 main 区域微渐变层次感 */
+.dark main {
+  background: linear-gradient(
+    180deg,
+    rgba(18, 18, 20, 0) 0%,
+    rgba(18, 18, 20, 0.3) 100%
+  ) !important;
+}
+
+/* 暗黑滚动条精致化 */
+.dark ::-webkit-scrollbar {
+  width: 5px;
+}
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 暗黑占位文本柔和 */
+.dark .placeholder-slate-400::placeholder,
+.dark .placeholder-slate-400\/60::placeholder {
+  color: #5c5e66 !important;
+}
+
+/* 暗黑 glow-card 微光 */
+.dark .glow-card {
+  box-shadow:
+    0 8px 25px -5px rgba(0, 0, 0, 0.5),
+    0 0 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+/* ==========================================================================
+   17. 桌面挂件 (WidgetWindow) 暗黑模式适配
+   ========================================================================== */
+
+/* 挂件透明窗口 — 确保 dark 模式下背景不透出桌面 */
+html.dark.transparent-window .glassmorphism-dark {
+  background: #1a1b1e !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 番茄钟进度环 — SVG stroke 暗黑适配 */
+.dark .stroke-\[\#EFEBE4\] {
+  stroke: rgba(255, 255, 255, 0.1) !important;
+}
+.dark .stroke-\[\#C4D7B2\] {
+  stroke: #6fad84 !important;
+}
+.dark .stroke-\[\#E8A0BF\] {
+  stroke: #d48aaa !important;
+}
+
+/* 番茄钟圆形容器 */
+.dark .border-4.border-\[\#FAF8F5\] {
+  border-color: rgba(60, 65, 75, 0.5) !important;
+}
+
+/* 挂件内 undo toast */
+.dark .bg-white\/95 {
+  background-color: rgba(28, 29, 33, 0.95) !important;
+}
+
+/* 挂件底部 tab 导航分割线 */
+.dark .border-slate-200 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 分栏底部面板虚线分割线 */
+.dark .border-dashed.border-slate-200\/60 {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .border-dashed.border-slate-200\/50 {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+.dark .border-dashed.border-slate-200\/40 {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .border-dashed.border-slate-200 {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 挂件内按钮 — play/pause/reset 圆形按钮 */
+.dark .border-\[\#EFEBE4\].bg-white {
+  background-color: rgba(28, 29, 33, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 挂件列表项 hover */
+.dark .hover\:bg-\[\#FAF8F5\]:hover {
+  background-color: rgba(45, 47, 52, 0.8) !important;
+}
+
+/* bg-slate-300 圆点指示器 */
+.dark .bg-slate-300 {
+  background-color: rgba(100, 105, 115, 0.4) !important;
+}
+
+/* 挂件内取消按钮 */
+.dark .border-slate-200.hover\:bg-slate-50 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .border-slate-200.hover\:bg-slate-50:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 挂件时间编辑输入框底线 */
+.dark .border-b-2.border-\[\#4D7C5D\] {
+  border-color: #6fad84 !important;
+  color: #e3e4e6 !important;
+}
+
+/* 挂件 — shadow-lg 动画 toast */
+.dark .shadow-lg.animate-fade-in-up {
+  box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ==========================================================================
+   18. 桌面挂件暗黑模式 — theme-glass 与 glassmorphism-dark 联合覆盖
+   ========================================================================== */
+
+/* 挂件根容器: glassmorphism-dark + theme-glass-* 联合暗黑覆盖 */
+.dark .theme-glass-matte.glassmorphism-dark,
+.dark .theme-glass-light.glassmorphism-dark,
+.dark .theme-glass-solid.glassmorphism-dark,
+.dark .glassmorphism-dark.theme-glass-matte,
+.dark .glassmorphism-dark.theme-glass-light,
+.dark .glassmorphism-dark.theme-glass-solid {
+  background: #1a1b1e !important;
+  background-clip: padding-box !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 12px 35px -8px rgba(0, 0, 0, 0.6),
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 锁定态 (theme-glass-solid 直接覆盖) */
+.dark .theme-glass-solid.glassmorphism-dark {
+  background: #1a1b1e !important;
+  box-shadow: none !important;
+}
+
+/* glow-card 伪元素暗黑适配 */
+.dark .glow-card::before {
+  background: linear-gradient(
+    90deg,
+    rgba(80, 100, 120, 0.06),
+    rgba(60, 90, 70, 0.06),
+    rgba(80, 60, 60, 0.06)
+  ) !important;
+  opacity: 0.3 !important;
+}
+.dark .glow-card:hover::before {
+  opacity: 0.5 !important;
+}
+
+/* 挂件内 shimmer 进度条暗黑适配 */
+.dark .shimmer-progress {
+  background: linear-gradient(
+    90deg,
+    rgba(100, 180, 120, 0.6) 0%,
+    rgba(80, 140, 160, 0.6) 50%,
+    rgba(100, 180, 120, 0.6) 100%
+  ) !important;
+  background-size: 200% 100% !important;
+}
+
+/* 挂件内 text-slate-700 / text-slate-600 确保暗黑可读 */
+.dark .text-slate-700 {
+  color: #c5c8ce !important;
+}
+
+/* 挂件内 SwipeCard 卡片背景暗黑适配 */
+.dark .border-urgent-important,
+.dark .border-important-not-urgent,
+.dark .border-urgent-not-important,
+.dark .border-not-urgent-not-important {
+  background: rgba(28, 29, 33, 0.85) !important;
+}
+
+/* ==========================================================================
+   19. 精致排版系统 (Disciplined Type Scale)
+   ========================================================================== */
+
+/* 4-level type scale — 统一字体尺度，替代零散的 4px-13px 混用
+   caption: 10px  — 标签、徽章、次要元信息
+   body:    12px  — 正文、按钮、列表项
+   subhead: 14px  — 卡片标题、导航
+   title:   18px  — 页面标题、模态标题 */
+
+/* 归一化过小字号：4-7px 全部拉升到 caption 10px 保证可读 */
+.text-\[4px\],
+.text-\[5px\],
+.text-\[6px\],
+.text-\[7px\] {
+  font-size: 10px !important;
+  letter-spacing: 0.02em;
+}
+
+/* 归一化 7.5-9.5px 到统一 caption 10px */
+.text-\[7\.5px\],
+.text-\[8px\],
+.text-\[8\.5px\],
+.text-\[9px\],
+.text-\[9\.5px\] {
+  font-size: 10px !important;
+}
+
+/* 归一化 11-12px 到 body 12px */
+.text-\[11px\],
+.text-\[12px\] {
+  font-size: 12px !important;
+  line-height: 1.5;
+}
+
+/* 归一化 13px 到 subhead 14px */
+.text-\[13px\] {
+  font-size: 13px !important;
+  line-height: 1.5;
+}
+
+/* 全局字号节奏：字重收敛到 3 级 */
+/* text-slate-* 家族的默认字重从 extrabold(800) 降到 semibold(600) 更克制 */
+.font-extrabold {
+  font-weight: 700 !important;
+}
+.font-black {
+  font-weight: 700 !important;
+}
+
+/* 增强正文行高 */
+p,
+.text-xs,
+.text-sm {
+  line-height: 1.55;
+}
+
+/* ==========================================================================
+   20. 组件视觉风格统一 (Component Visual Polish)
+   ========================================================================== */
+
+/* 去掉过度的 glassmorphism 效果 — 主要在设置页/仪表盘的卡片上 */
+.bg-white\/70,
+.bg-white\/80 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 精致的卡片阴影 — 更细腻的层次 */
+.rounded-2xl.border.shadow-sm,
+.rounded-xl.border.shadow-sm {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* 侧边栏 — 统一背景为轻透白色 */
+aside {
+  background-color: rgba(250, 250, 248, 0.85) !important;
+}
+
+.dark aside {
+  background-color: rgba(22, 23, 26, 0.85) !important;
+}
+
+/* 侧边栏导航按钮 hover 暗黑模式 */
+.dark .hover\:text-slate-800:hover {
+  color: #e3e4e6 !important;
+}
+.dark .hover\:text-slate-700:hover {
+  color: #e3e4e6 !important;
+}
+.dark .hover\:bg-slate-100\/50:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .hover\:bg-\[\#F0F5F1\]:hover {
+  background-color: rgba(30, 65, 45, 0.35) !important;
+}
+
+/* 暗黑模式通用 hover 缺失覆盖 */
+.dark .hover\:bg-\[\#BF360C\]:hover {
+  background-color: rgba(160, 45, 10, 0.7) !important;
+}
+.dark .hover\:bg-\[\#3D6A4F\]:hover {
+  background-color: #2d5840 !important;
+}
+.dark .hover\:bg-\[\#E4EDE6\]:hover {
+  background-color: rgba(40, 60, 48, 0.5) !important;
+}
+.dark .hover\:bg-\[\#C4D7B2\]:hover {
+  background-color: rgba(55, 110, 70, 0.5) !important;
+}
+.dark .hover\:bg-\[\#F0F5F1\]\/60:hover {
+  background-color: rgba(30, 65, 45, 0.4) !important;
+}
+.dark .hover\:bg-red-100:hover {
+  background-color: rgba(120, 40, 40, 0.3) !important;
+}
+.dark .hover\:bg-red-500:hover {
+  background-color: rgba(180, 40, 40, 0.5) !important;
+}
+.dark .hover\:bg-red-600:hover {
+  background-color: rgba(160, 35, 35, 0.6) !important;
+}
+.dark .hover\:bg-slate-300:hover {
+  background-color: rgba(100, 105, 115, 0.4) !important;
+}
+.dark .hover\:bg-black\/10:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .hover\:bg-black\/5:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.dark .bg-black\/5 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .hover\:bg-white\/30:hover {
+  background-color: rgba(45, 47, 52, 0.5) !important;
+}
+.dark .hover\:border-\[\#EFEBE4\]:hover {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.dark .hover\:border-\[\#C4D7B2\]:hover {
+  border-color: rgba(55, 110, 70, 0.5) !important;
+}
+.dark .hover\:border-slate-200\/60:hover {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.dark .hover\:text-\[\#2D323A\]:hover {
+  color: #e3e4e6 !important;
+}
+.dark .hover\:text-\[\#A34E36\]:hover {
+  color: #e8a0bf !important;
+}
+.dark .hover\:text-\[\#3F684C\]:hover {
+  color: #7fcc9a !important;
+}
+.dark .hover\:text-red-500:hover {
+  color: #f09080 !important;
+}
+.dark .hover\:text-red-400:hover {
+  color: #f0a090 !important;
+}
+.dark .hover\:text-red-600:hover {
+  color: #e07060 !important;
+}
+.dark .hover\:text-white:hover {
+  color: #ffffff !important;
+}
+
+/* 主容器背景 */
+.dark .bg-\[\#FAFAF8\] {
+  background-color: #121214 !important;
+}
+
+/* 暗黑 hover 背景补充 */
+.dark .hover\:bg-\[\#725A31\]:hover {
+  background-color: #5a4525 !important;
+}
+.dark .hover\:bg-\[\#9BB5CF\]:hover {
+  background-color: rgba(100, 140, 175, 0.7) !important;
+}
+
+/* 暗黑 dashed 边框适配 */
+.dark .border-dashed.border-\[\#EFEBE4\] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 暗黑 focus ring */
+.dark .focus\:ring-\[\#4D7C5D\]\/20 {
+  --tw-ring-color: rgba(77, 124, 93, 0.35) !important;
+}
+.dark .focus\:ring-\[\#C4D7B2\] {
+  --tw-ring-color: rgba(100, 180, 120, 0.5) !important;
+}
+
+/* 暗黑 hover shadow 覆盖 */
+.dark .hover\:shadow-xs:hover {
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.4) !important;
+}
+.dark .hover\:shadow-2xs:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .hover\:shadow-md:hover {
+  box-shadow: 0 6px 20px -5px rgba(0, 0, 0, 0.5) !important;
+}
+.dark .hover\:shadow-lg:hover {
+  box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 暗黑 shadow 补充 */
+.dark .shadow-lg {
+  box-shadow: 0 12px 35px -8px rgba(0, 0, 0, 0.55) !important;
+}
+.dark .shadow-xl {
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.6) !important;
+}
+.dark .shadow-2xl {
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* 便签主题阴影暗黑适配 */
+.dark .shadow-\[\#FAF5ED\]\/30 {
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[\#FCF2F0\]\/30 {
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[\#F0F5F1\]\/30 {
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[\#F3F2F7\]\/30 {
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[\#EBF3F6\]\/30 {
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* 暗黑模式补充覆盖 — 剩余高频遗漏 */
+.dark .bg-black\/25 {
+  background-color: rgba(0, 0, 0, 0.45) !important;
+}
+.dark .bg-slate-200 {
+  background-color: rgba(60, 65, 70, 0.5) !important;
+}
+.dark .decoration-slate-300 {
+  text-decoration-color: rgba(255, 255, 255, 0.2) !important;
+}
+.dark .ring-slate-400 {
+  --tw-ring-color: rgba(150, 155, 165, 0.4) !important;
+}
+.dark .ring-offset-2 {
+  --tw-ring-offset-color: #1a1b1e !important;
+}
+.dark .ring-1.ring-\[\#C4D7B2\]\/30 {
+  --tw-ring-color: rgba(100, 180, 120, 0.25) !important;
+}
+.dark .ring-1.ring-\[\#4D7C5D\]\/20 {
+  --tw-ring-color: rgba(77, 124, 93, 0.35) !important;
+}
+
+/* 自定义 shadow 暗黑适配 */
+.dark .shadow-\[0_10px_25px_-5px_rgba\(154\,142\,128\,0\.18\)\] {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45) !important;
+}
+.dark .shadow-\[0_12px_30px_rgba\(154\,142\,128\,0\.12\)\] {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+}
+.dark .shadow-\[0_8px_20px_-8px_rgba\(154\,142\,128\,0\.08\)\] {
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .shadow-\[inset_0_2px_8px_rgba\(77\,124\,93\,0\.02\)\] {
+  box-shadow: inset 0 2px 8px rgba(77, 124, 93, 0.1) !important;
+}
+.dark .shadow-\[0_3px_10px_rgba\(196\,215\,178\,0\.3\)\] {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .shadow-\[inset_0_2px_8px_rgba\(163\,78\,54\,0\.02\)\] {
+  box-shadow: inset 0 2px 8px rgba(163, 78, 54, 0.1) !important;
+}
+.dark .shadow-\[0_3px_10px_rgba\(232\,160\,191\,0\.3\)\] {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35) !important;
+}
+.dark .shadow-\[0_2px_4px_rgba\(77\,124\,93\,0\.1\)\] {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .shadow-\[inset_0_1px_2px_rgba\(0\,0\,0\,0\.3\)\] {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+}
+.dark .shadow-\[0_1px_2px_rgba\(0\,0\,0\,0\.02\)\] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 按钮 hover 统一过渡 */
+button {
+  transition-property: background-color, border-color, color, box-shadow, transform;
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 主色按钮 (bg-[#4D7C5D]) 统一精致外观 */
+button.bg-\[\#4D7C5D\]:not(:disabled):hover {
+  background-color: #3f684c !important;
+  box-shadow: 0 2px 6px rgba(77, 124, 93, 0.25);
+}
+
+/* 输入框统一样式 — 更干净的边框 */
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="time"],
+input[type="search"],
+input[type="number"],
+textarea,
+select {
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #4d7c5d !important;
+  box-shadow: 0 0 0 3px rgba(77, 124, 93, 0.1);
+}
+
+/* 收敛所有过度使用的圆角 */
+.rounded-2xl {
+  border-radius: 14px !important;
+}
+
+/* 去掉零散的动画装饰 — 保留必要的，去掉炫技的 */
+.animate-float-slow,
+.animate-float-reverse {
+  animation: none !important;
+}
+
+/* Watercolor pattern 简化为纯色 */
+.bg-watercolor-pattern {
+  background: #fafaf8 !important;
+}
+.dark .bg-watercolor-pattern {
+  background: #121214 !important;
+}
+
+/* 去掉四象限左边条的花哨 hover 变换 */
+.border-urgent-important:hover,
+.border-important-not-urgent:hover,
+.border-urgent-not-important:hover,
+.border-not-urgent-not-important:hover {
+  transform: none !important;
+}
+
+/* 精致 focus ring — 无障碍必需 */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #4d7c5d;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark [role="button"]:focus-visible,
+.dark [tabindex]:focus-visible {
+  outline-color: #9bb5cf;
+}
+
+/* 全局字体渲染优化 */
+body {
+  font-feature-settings: "cv01", "cv03", "cv04", "cv05", "ss01", "ss02";
+  text-rendering: optimizeLegibility;
+}

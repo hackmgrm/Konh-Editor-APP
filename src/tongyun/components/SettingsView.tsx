@@ -1,0 +1,290 @@
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { X } from "lucide-react";
+import type { CustomizationConfig, AlertSoundType, Task } from "../types";
+import { useTranslation } from "../i18n/LanguageContext";
+import { PersonalizationPanel } from "./personalization/PersonalizationPanel";
+import { SunsetPanel } from "./sunset/SunsetPanel";
+import { AISettingsPanel } from "./ai/AISettingsPanel";
+import { EmailSettingsPanel } from "./email/EmailSettingsPanel";
+import { SyncSettingsPanel } from "./sync/SyncSettingsPanel";
+import { SystemSettingsPanel } from "./system/SystemSettingsPanel";
+import { FunSettingsPanel } from "./fun/FunSettingsPanel";
+import SettingsDialog from "../../components/SettingsDialog";
+import UpdateDialog from "../../components/UpdateDialog";
+
+interface SettingsViewProps {
+  config: CustomizationConfig;
+  onChange: (newConfig: CustomizationConfig) => void;
+  alertSoundType: AlertSoundType;
+  setAlertSoundType: (type: AlertSoundType) => void;
+  resetTasks: () => void;
+  tasks?: Task[];
+  onEditTask?: (id: string, updates: Partial<Task>) => void;
+  onTestMicroBreak?: () => void;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = React.memo(
+  ({
+    config,
+    onChange,
+    alertSoundType,
+    setAlertSoundType,
+    resetTasks,
+    onTestMicroBreak,
+  }) => {
+    const { t } = useTranslation();
+    const s = t.settings;
+    const [subTab, setSubTab] = useState<
+      "personalization" | "ai" | "sunset" | "sync" | "system" | "fun" | "email" | "writing"
+    >(() => {
+      if (typeof sessionStorage !== "undefined") {
+        const initial = sessionStorage.getItem("tongyun_settings_initial_tab");
+        const validTabs = [
+          "personalization",
+          "ai",
+          "sunset",
+          "sync",
+          "system",
+          "fun",
+          "email",
+          "writing",
+        ];
+        if (initial && validTabs.includes(initial)) {
+          return initial as any;
+        }
+      }
+      return "personalization";
+    });
+    // 一次性跳转参数：读取后在 effect 中清除（初始化函数在 StrictMode 下可能执行两次，不在其中产生副作用）
+    useEffect(() => {
+      if (typeof sessionStorage !== "undefined")
+        sessionStorage.removeItem("tongyun_settings_initial_tab");
+    }, []);
+    const [searchQuery, setSearchQuery] = useState("");
+    useEffect(() => {
+      const navigate = () => {
+        const tab = sessionStorage.getItem("tongyun_settings_initial_tab");
+        if (tab && ["personalization", "ai", "sunset", "sync", "system", "fun", "email", "writing"].includes(tab)) {
+          setSubTab(tab as typeof subTab);
+          setSearchQuery("");
+          sessionStorage.removeItem("tongyun_settings_initial_tab");
+        }
+      };
+      window.addEventListener("tongyun-settings-navigation", navigate);
+      return () => window.removeEventListener("tongyun-settings-navigation", navigate);
+    }, []);
+    const [updateOpen, setUpdateOpen] = useState(false);
+    const [toasts, setToasts] = useState<
+      Array<{ id: number; text: string; type: "success" | "error" }>
+    >([]);
+    const toastIdRef = useRef(0);
+
+    const triggerToast = useCallback((text: string, type: "success" | "error") => {
+      const id = ++toastIdRef.current;
+      setToasts((prev) => [...prev, { id, text, type }]);
+      setTimeout(
+        () => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        },
+        type === "error" ? 8000 : 3000,
+      );
+    }, []);
+
+    const TABS = [
+      { id: "writing", label: "写作与发布", keywords: ["写作", "微信", "公众号", "图片", "图床", "导入", "更新", "writing", "wechat", "cloudinary", "reader", "api"] },
+      {
+        id: "personalization",
+        label: s.personalization,
+        keywords: [
+          "个性化",
+          "装扮",
+          "主题",
+          "颜色",
+          "字体",
+          "纹理",
+          "别针",
+          "毛玻璃",
+          "水彩",
+          "personalize",
+          "theme",
+          "color",
+        ],
+      },
+      {
+        id: "sunset",
+        label: s.sunset,
+        keywords: ["日落", "护眼", "暖色", "色温", "sunset", "warm"],
+      },
+      {
+        id: "ai",
+        label: s.ai,
+        keywords: [
+          "ai",
+          "模型",
+          "接口",
+          "智能",
+          "分类",
+          "暖评",
+          "openai",
+          "anthropic",
+          "deepseek",
+          "opencode",
+        ],
+      },
+      {
+        id: "email",
+        label: s.emailTitle,
+        keywords: ["邮件", "邮箱", "smtp", "提醒", "email", "mail"],
+      },
+      {
+        id: "sync",
+        label: s.sync,
+        keywords: ["同步", "备份", "webdav", "坚果云", "云端", "sync", "backup"],
+      },
+      { id: "fun", label: s.fun, keywords: ["趣味", "夸夸", "庆祝", "fun", "celebration"] },
+      {
+        id: "system",
+        label: s.system,
+        keywords: [
+          "系统",
+          "语言",
+          "日历",
+          "节假日",
+          "调休",
+          "法定节假日",
+          "补班",
+          "假期",
+          "ical",
+          "ics",
+          "calendar",
+          "holiday",
+          "声音",
+          "通知",
+          "白噪音",
+          "微休息",
+          "随机微休息",
+          "间隔",
+          "休息时长",
+          "重置",
+          "更新",
+          "检查更新",
+          "版本",
+          "system",
+          "sound",
+          "language",
+          "reset",
+          "update",
+          "version",
+          "micro-break",
+          "break",
+        ],
+      },
+    ];
+
+    const filteredTabs = searchQuery.trim()
+      ? TABS.filter((tab) => {
+          const q = searchQuery.toLowerCase();
+          return (
+            tab.label.toLowerCase().includes(q) ||
+            tab.keywords.some((kw) => kw.toLowerCase().includes(q))
+          );
+        })
+      : TABS;
+
+    // auto-switch to only match
+    useEffect(() => {
+      if (searchQuery.trim() && filteredTabs.length === 1 && subTab !== filteredTabs[0].id) {
+        setSubTab(filteredTabs[0].id as any);
+      }
+    }, [searchQuery, filteredTabs, subTab]);
+
+    return (
+      <div className="animate-fade-in-up flex-grow select-none">
+        <div className="rounded-2xl bg-white/90 dark:bg-[#1C1D21]/90 border border-[#EFEBE4] dark:border-[#33353A] p-5 shadow-xs transition-colors">
+          {/* 设置搜索 */}
+          <div className="relative mb-5">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索设置…"
+              aria-label="搜索设置"
+              className="w-full pl-4 pr-10 py-2.5 text-sm bg-[#FAF8F5]/80 border border-[#EFEBE4] rounded-xl outline-none focus:border-[#C4D7B2] focus:ring-2 focus:ring-[#C4D7B2]/20 transition-all placeholder:text-slate-400 dark:bg-[#252830] dark:border-[#383A42] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#6FAD84] dark:focus:ring-[#6FAD84]/20"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="清除搜索"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* 标签导航 */}
+          <nav aria-label="设置分类" className="flex flex-wrap gap-2 mb-5">
+            {filteredTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                aria-current={subTab === tab.id ? "page" : undefined}
+                onClick={() => setSubTab(tab.id as any)}
+                className={`px-4 py-2 text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                  subTab === tab.id
+                    ? "bg-[#2D323A] dark:bg-[#2A2E38] text-white dark:text-slate-100 shadow-sm border border-transparent dark:border-[#383D4A]"
+                    : "bg-[#FAF8F5] text-slate-600 hover:bg-[#F0EDE7] dark:bg-[#252830] dark:text-slate-400 dark:hover:bg-[#2D313B]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* 面板内容 */}
+          {subTab === "writing" && <div className="konh-writing-settings"><SettingsDialog embedded open onClose={() => {}} onOpenUpdate={() => setUpdateOpen(true)} /><UpdateDialog open={updateOpen} onClose={() => setUpdateOpen(false)} /></div>}
+          {subTab === "personalization" && (
+            <PersonalizationPanel config={config} onChange={onChange} />
+          )}
+          {subTab === "sunset" && <SunsetPanel config={config} onChange={onChange} />}
+          {subTab === "ai" && (
+            <AISettingsPanel config={config} onChange={onChange} triggerToast={triggerToast} />
+          )}
+          {subTab === "email" && <EmailSettingsPanel triggerToast={triggerToast} />}
+          {subTab === "sync" && (
+            <SyncSettingsPanel config={config} onChange={onChange} triggerToast={triggerToast} />
+          )}
+          {subTab === "system" && (
+            <SystemSettingsPanel
+              config={config}
+              onChange={onChange}
+              alertSoundType={alertSoundType}
+              setAlertSoundType={setAlertSoundType}
+              resetTasks={resetTasks}
+              triggerToast={triggerToast}
+              onTestMicroBreak={onTestMicroBreak}
+            />
+          )}
+          {subTab === "fun" && <FunSettingsPanel config={config} onChange={onChange} />}
+
+          {/* Toast 队列 */}
+          {toasts.length > 0 && (
+            <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none">
+              {toasts.map((toast) => (
+                <div
+                  key={toast.id}
+                  className={`pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg text-sm font-bold animate-slide-up ${
+                    toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
+                  }`}
+                >
+                  {toast.text}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  },
+);

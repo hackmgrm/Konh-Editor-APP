@@ -663,13 +663,15 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       if (hasImage) return;
       const html = e.clipboardData?.getData('text/html') ?? '';
       const plain = e.clipboardData?.getData('text/plain') ?? '';
-      const cleaned = html ? richHtmlToMarkdown(html) : cleanPlainPaste(plain);
+      // Preserve Markdown metadata when the clipboard also contains styled HTML.
+      const cleaned = html && !parseFrontMatter(cleanPlainPaste(plain)) ? richHtmlToMarkdown(html) : cleanPlainPaste(plain);
       if (!cleaned || cleaned === plain) return;
       e.preventDefault();
       const { from, to } = view.state.selection.main;
       view.dispatch({ changes: { from, to, insert: cleaned }, selection: { anchor: from + cleaned.length } });
     };
-    dom.addEventListener('paste', onRichPaste);
+    // Handle before CodeMirror's content DOM inserts the clipboard text.
+    dom.addEventListener('paste', onRichPaste, true);
     const onDrop = (e: DragEvent) => {
       const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
       if (!files.length) return;
@@ -677,12 +679,12 @@ const EditorPane = forwardRef<HTMLElement, Props>(function EditorPane(
       void insertImages(files);
     };
     const onDragover = (e: DragEvent) => e.preventDefault();
-    dom.addEventListener('paste', onPaste);
+    dom.addEventListener('paste', onPaste, true);
     dom.addEventListener('drop', onDrop);
     dom.addEventListener('dragover', onDragover);
     return () => {
-      dom.removeEventListener('paste', onPaste);
-      dom.removeEventListener('paste', onRichPaste);
+      dom.removeEventListener('paste', onPaste, true);
+      dom.removeEventListener('paste', onRichPaste, true);
       dom.removeEventListener('drop', onDrop);
       dom.removeEventListener('dragover', onDragover);
     };

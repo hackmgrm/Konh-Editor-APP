@@ -108,7 +108,8 @@
 
    The rim is a fourth box-shadow rather than a border: a border would eat
    into the 9px bezel, and the screen's own radius is measured off it. */
-:root[data-appearance='dark'] .phone-frame {
+:root[data-appearance='dark'] .phone-frame:not(.konh-writing-content *),
+.dark .konh-writing-content .phone-frame {
   /* The same rail, one room darker — the mid band sits at #3a3733, well clear
      of the #141311 canvas, so the body still reads as metal rather than hole */
   background: linear-gradient(148deg, #4a453d 0%, #3e3a33 28%, #3a3733 52%, #423e37 78%, #4c473f 100%);
@@ -511,7 +512,8 @@
 /* Night Sky on a dark shell: deep navy glass, a darker polished rim. Its
    shaded stops are kept off black for the same reason as the iPhone rail
    above — a rim that bottoms out near the canvas stops being metal. */
-:root[data-appearance='dark'] .preview-side[data-device^='duo'] {
+:root[data-appearance='dark'] .preview-side[data-device^='duo']:not(.konh-writing-content *),
+.dark .konh-writing-content .preview-side[data-device^='duo'] {
   --duo-rim: linear-gradient(148deg, #a9b2c2 0%, #454d5c 12%, #7e8797 26%, #272d38 44%, #6d7686 60%, #353c49 78%, #9aa3b3 100%);
   --duo-glass: linear-gradient(170deg, #4b5871 0%, #3e4a62 45%, #323d52 100%);
   --duo-key: rgba(205, 218, 245, 0.18);

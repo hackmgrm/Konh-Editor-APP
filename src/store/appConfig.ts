@@ -21,6 +21,7 @@ import { invoke } from '@tauri-apps/api/core';
 let cache: Record<string, string> = {};
 let loaded = false;
 let writes: Promise<unknown> = Promise.resolve();
+const revisions: Record<string, number> = {};
 
 function enqueueWrite(action: () => Promise<unknown>): Promise<unknown> {
   const next = writes.then(action, action);
@@ -30,8 +31,9 @@ function enqueueWrite(action: () => Promise<unknown>): Promise<unknown> {
 
 /** Publishing cannot start its remote mutation until its journal is on disk. */
 export async function setConfigDurable(key: string, value: string): Promise<void> {
+  const revision = revisions[key] = (revisions[key] ?? 0) + 1;
   await enqueueWrite(() => invoke('config_write', { key, value }));
-  cache[key] = value;
+  if (revisions[key] === revision) cache[key] = value;
 }
 
 /** Call once at startup, before rendering — every read afterwards assumes it
@@ -51,11 +53,13 @@ export function getConfig(key: string): string | null {
 }
 
 export function setConfig(key: string, value: string): void {
+  revisions[key] = (revisions[key] ?? 0) + 1;
   cache[key] = value;
   void enqueueWrite(() => invoke('config_write', { key, value })).catch((e) => console.warn('设置写盘失败', key, e));
 }
 
 export function removeConfig(key: string): void {
+  revisions[key] = (revisions[key] ?? 0) + 1;
   delete cache[key];
   void enqueueWrite(() => invoke('config_remove', { key })).catch((e) => console.warn('设置删除失败', key, e));
 }

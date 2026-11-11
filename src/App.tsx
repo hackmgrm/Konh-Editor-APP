@@ -115,7 +115,7 @@ function findEmbedLine(content: string, name: string): number {
  * picked yet, or may have been moved away since. So: pick one, read it, and
  * only then continue.
  */
-export default function App() {
+export default function App({ active = true, embedded = false, onPlannerSettings }: { active?: boolean; embedded?: boolean; onPlannerSettings?: () => void }) {
   const vault = useVault();
 
   if (vault.status === 'booting') {
@@ -131,10 +131,10 @@ export default function App() {
   }
   // Keyed on dir: a different workspace is a different body of work, so
   // scroll positions and split widths should all start over
-  return <Workspace key={vault.dir} vault={vault} />;
+  return <Workspace key={vault.dir} vault={vault} active={active} embedded={embedded} onPlannerSettings={onPlannerSettings} />;
 }
 
-function Workspace({ vault }: { vault: VaultApi }) {
+function Workspace({ vault, active, embedded, onPlannerSettings }: { vault: VaultApi; active: boolean; embedded: boolean; onPlannerSettings?: () => void }) {
   const { tree, drafts, images, prefs, conflicts } = vault;
 
   // Fall back if the id went stale: drop to the first draft, and let every
@@ -223,6 +223,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
   /** Settings (公众号凭据) — configured once, so it is a dialog of its own
    *  rather than a section of the push dialog */
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = () => onPlannerSettings ? onPlannerSettings() : setSettingsOpen(true);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [articleCenterOpen, setArticleCenterOpen] = useState(false);
@@ -1109,7 +1110,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
       copy: () => void handleCopy(),
       longImage: () => void handleExportImage(),
       publish: () => void openPublish(),
-      settings: () => setSettingsOpen(true),
+      settings: () => openSettings(),
       agent: toggleAgent,
       typeset: () => setTypesetOpen((v) => !v),
       outline: () => setOutlineOpen((v) => !v),
@@ -1117,7 +1118,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
       quickOpen: () => setPalette('drafts'),
       newDraft: () => handleNewDraft(''),
     },
-    !overlayOpen,
+    active && !overlayOpen,
   );
 
   /**
@@ -1215,7 +1216,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
             section: '动作',
             name: SHORTCUTS.settings.label,
             hint: SHORTCUTS.settings.hint,
-            run: () => setSettingsOpen(true),
+            run: () => openSettings(),
           },
           ...[...presetThemes, ...customThemes].map((th) => ({
             id: `theme:${th.id}`,
@@ -1258,6 +1259,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
   return (
     <div className={`app ${isFocus ? 'focus-mode' : ''} ${typewriterMode ? 'typewriter-mode' : ''}`}>
       <Toolbar
+        embedded={embedded}
         viewMode={viewMode}
         onViewMode={setViewMode}
         typewriterMode={typewriterMode}
@@ -1274,7 +1276,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         onOpenArticleCenter={() => setArticleCenterOpen(true)}
         onOpenLayout={() => setLayoutOpen(true)}
         onOpenCloudinary={() => setCloudinaryOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
         hasUpdate={hasUpdate}
         onOpenUpdate={() => setUpdateOpen(true)}
         agentOpen={agentOpen}
@@ -1348,7 +1350,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
           onDelete={handleDelete}
           onMove={handleMove}
           onCleanupImages={handleCleanupImages}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={openSettings}
         />
         {/*
           The sheet. One frosted object holding the source, the preview and
@@ -1501,7 +1503,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
                 vaultDir={vault.dir ?? ''}
                 activeId={activeId}
                 files={drafts.map((draft) => draft.id)}
-                onOpenSettings={() => setSettingsOpen(true)}
+                onOpenSettings={openSettings}
                 onClose={() => setAgentOpen(false)}
                 onBeforeRun={vault.flush}
                 seed={agentSeed}
@@ -1525,7 +1527,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         article={markdown}
         images={images}
         onReplace={setMarkdown}
-        onOpenSettings={() => { setCloudinaryOpen(false); setSettingsOpen(true); }}
+        onOpenSettings={() => { setCloudinaryOpen(false); openSettings(); }}
       />
       <LayoutDialog
         open={layoutOpen}
@@ -1590,7 +1592,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
           // One modal at a time: the push dialog steps aside, and pressing
           // 推草稿 again afterwards comes back with the new credentials
           setPublishOpen(false);
-          setSettingsOpen(true);
+          openSettings();
         }}
       />
       <PreflightDialog
@@ -1613,7 +1615,7 @@ function Workspace({ vault }: { vault: VaultApi }) {
         }}
         onOpenSettings={() => {
           setDraftBoxOpen(false);
-          setSettingsOpen(true);
+          openSettings();
         }}
       />
       <SettingsDialog

@@ -198,15 +198,18 @@ function readCachedToken(appid: string): string | null {
   return null;
 }
 
+let tokenGeneration = 0;
+
 export async function getAccessToken(cfg: WechatConfig): Promise<string> {
   const cached = readCachedToken(cfg.appid);
   if (cached) return cached;
+  const generation = tokenGeneration;
   const data = await call(cfg, 'token', { appid: cfg.appid.trim(), secret: cfg.secret.trim() });
   const token = String(data.access_token ?? '');
   if (!token) throw new Error('没拿到 access_token');
   const ttl = Number(data.expires_in ?? 7200);
   try {
-    setConfig(
+    if (generation === tokenGeneration) setConfig(
       STORAGE_TOKEN,
       JSON.stringify({ appid: cfg.appid, token, expiresAt: Date.now() + Math.max(60, ttl - 300) * 1000 } satisfies CachedToken),
     );
@@ -218,6 +221,7 @@ export async function getAccessToken(cfg: WechatConfig): Promise<string> {
 
 /** Changed credentials invalidate the cached token */
 export function clearToken(): void {
+  tokenGeneration++;
   removeConfig(STORAGE_TOKEN);
 }
 

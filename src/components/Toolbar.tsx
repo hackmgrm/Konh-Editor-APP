@@ -30,6 +30,7 @@ import { hintFor } from '../shortcuts';
 import { chord } from '../platform';
 
 interface Props {
+  embedded?: boolean;
   viewMode: 'split' | 'preview' | 'focus';
   onViewMode: (m: 'split' | 'preview' | 'focus') => void;
   typewriterMode: boolean;
@@ -254,6 +255,7 @@ function ToolbarMenu({
  * "these two are the same kind of thing as the mode switch".
  */
 export default function Toolbar({
+  embedded = false,
   viewMode,
   onViewMode,
   typewriterMode,
@@ -375,16 +377,16 @@ export default function Toolbar({
 
   return (
     <header className="toolbar" data-tauri-drag-region="deep">
-      <div className="brand">
+      {!embedded && <div className="brand">
         <span className="brand-mark" aria-hidden="true">
           <img src="/brand-icon.png" alt="" />
         </span>
         <span className="brand-name">空核编辑器</span>
-      </div>
+      </div>}
 
       {docName && (
         <>
-          <span className="tb-sep" aria-hidden="true" />
+          {!embedded && <span className="tb-sep" aria-hidden="true" />}
           <div className="tb-doc">
             <span className={`tb-dot ${saving ? 'saving' : ''}`} aria-hidden="true" />
             <span className="tb-doc-name" title={saving ? '正在保存…' : '已保存到工作区'}>

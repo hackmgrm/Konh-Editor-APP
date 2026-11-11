@@ -14,7 +14,7 @@ import {
 import { addWechatAccount, deleteWechatAccount, patchWechatConfig, renameWechatAccount, switchWechatAccount, useWechatAccounts, useWechatConfig } from '../store/wechatConfig';
 import { getReaderKey, setReaderKey } from '../reader';
 import { RELEASES_URL, appVersion, checkForUpdate, dismissVerdict, useUpdate } from '../store/updater';
-import { getConfig, setConfig } from '../store/appConfig';
+import { getConfig, setConfig, setConfigDurable } from '../store/appConfig';
 import { listApiModels, testApiAgent } from '../store/agent';
 import { getCloudinaryConfig, setCloudinaryConfig, testCloudinary } from '../cloudinary';
 
@@ -24,6 +24,7 @@ const READER_HOME = 'https://jina.ai/reader/';
 interface Props {
   open: boolean;
   onClose: () => void;
+  embedded?: boolean;
   /** Hand the conversation over to the update dialog once there is something
    *  to install — the release notes and the progress bar live there */
   onOpenUpdate: () => void;
@@ -43,7 +44,7 @@ interface Props {
  * in the workspace — a workspace is a directory meant to be committed to git,
  * and an AppSecret in there is an AppSecret leaked.
  */
-export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
+export default function SettingsDialog({ open, onClose, onOpenUpdate, embedded = false }: Props) {
   const cfg = useWechatConfig();
   const accountStore = useWechatAccounts();
   const update = useUpdate();
@@ -152,15 +153,25 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
     }
   };
 
-  const saveApi = (key: string, value: string) => {
+  const saveApi = async (key: string, value: string) => {
     setApiProbe(null);
-    setConfig(key, value.trim());
+    try {
+      await setConfigDurable(key, value.trim());
+    } catch (err) {
+      setApiProbe({ ok: false, message: `设置保存失败 / Failed to save settings: ${String(err)}` });
+      throw err;
+    }
   };
 
   const runApiTest = async () => {
     setApiTesting(true);
     setApiProbe(null);
     try {
+      await Promise.all([
+        saveApi('agent.api.baseUrl', apiBaseUrl),
+        saveApi('agent.api.key', apiKey),
+        saveApi('agent.api.model', apiModel),
+      ]);
       setApiProbe({ ok: true, message: await testApiAgent() });
     } catch (err) {
       setApiProbe({ ok: false, message: err instanceof Error ? err.message : String(err) });
@@ -177,7 +188,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
       setApiModels(models);
       if (!apiModel.trim() && models[0]) {
         setApiModel(models[0]);
-        saveApi('agent.api.model', models[0]);
+        await saveApi('agent.api.model', models[0]);
       }
       setApiProbe({ ok: true, message: `已获取 ${models.length} 个模型` });
     } catch (err) {
@@ -197,14 +208,15 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
   const runCloudTest = async () => {
     setCloudTesting(true);
     setCloudProbe(null);
-    try { setCloudProbe({ ok: true, message: await testCloudinary() }); }
+    try {
+      await Promise.all(Object.entries(cloudinary).map(([key, value]) => setConfigDurable(`cloudinary.${key}`, value.trim())));
+      setCloudProbe({ ok: true, message: await testCloudinary() });
+    }
     catch (err) { setCloudProbe({ ok: false, message: err instanceof Error ? err.message : String(err) }); }
     finally { setCloudTesting(false); }
   };
 
-  return (
-    <Modal open={open} onClose={onClose} busy={busy} title="设置" foot={<>
-
+  const wechatTest = <>
           {probe && (
             <span className={probe.kind === 'ok' ? 'form-ok' : probe.kind === 'warn' ? 'form-caution' : 'form-error'}>
               {probe.kind === 'ok' && <CheckCircle size={13} weight="fill" />}
@@ -214,13 +226,9 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
           <button className="btn" onClick={() => void runTest()} disabled={busy || !isConfigured(cfg)}>
             {testing && <Spinner />}{testing ? '检查中…' : '测试连接'}
           </button>
-          <button className="btn primary" onClick={onClose} disabled={busy}>
-            完成
-          </button>
-
-    </>}>
-
-          <section className="form-section">
+    </>;
+  const content = <>
+          <fieldset className="form-section" disabled={apiTesting || apiModelsLoading}>
             <div className="form-section-label">图片生成 API</div>
             <p className="form-hint">用于 AI 封面，支持 OpenAI 兼容 images/generations 接口。聊天模型需支持视觉输入才能使用图片对话。</p>
             {[['baseUrl', 'Base URL', 'https://你的服务/v1'], ['key', 'API Key', '图片服务密钥'], ['model', '模型', '图片生成模型名称']].map(([key, label, placeholder]) => <label className="field" key={key}><span>{label}</span><input type={key === 'key' ? 'password' : 'text'} defaultValue={getConfig(`image.api.${key}`) ?? ''} placeholder={placeholder} onChange={e => setConfig(`image.api.${key}`, e.target.value.trim())} /></label>)}
@@ -235,7 +243,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 value={apiBaseUrl}
                 onChange={(e) => {
                   setApiBaseUrl(e.target.value);
-                  saveApi('agent.api.baseUrl', e.target.value);
+                  void saveApi('agent.api.baseUrl', e.target.value).catch(() => {});
                 }}
                 placeholder="https://api.openai.com/v1"
                 spellCheck={false}
@@ -249,10 +257,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                   value={apiKey}
                   onChange={(e) => {
                     setApiKey(e.target.value);
-                    saveApi('agent.api.key', e.target.value);
-                  }}
-                  onBlur={() => {
-                    if (apiBaseUrl.trim() && apiKey.trim() && apiModels.length === 0) void loadApiModels();
+                    void saveApi('agent.api.key', e.target.value).catch(() => {});
                   }}
                   placeholder="sk-…"
                   spellCheck={false}
@@ -274,7 +279,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 value={apiModel}
                 onChange={(e) => {
                   setApiModel(e.target.value);
-                  saveApi('agent.api.model', e.target.value);
+                  void saveApi('agent.api.model', e.target.value).catch(() => {});
                 }}
                 placeholder="例如 gpt-5-mini"
                 spellCheck={false}
@@ -305,9 +310,9 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 </span>
               )}
             </div>
-          </section>
+          </fieldset>
 
-          <section className="form-section">
+          <fieldset className="form-section" disabled={busy}>
             <div className="form-section-label">公众号凭据</div>
             <div className="account-manager">
               <select value={accountStore.activeId} onChange={(event) => switchWechatAccount(event.target.value)} aria-label="当前公众号">
@@ -353,7 +358,8 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 </button>
               </span>
             </label>
-          </section>
+            {embedded && <div className="form-row">{wechatTest}</div>}
+          </fieldset>
 
           <section className="form-section">
             <div className="form-section-label">IP 白名单</div>
@@ -400,7 +406,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
                 Jina Reader <ArrowSquareOut size={11} weight="bold" />
               </a>
               —— 通常不填 key 也能用，每分钟 20 次；部分被 Jina 限制的网络需要 key。填一个免费 key 可以提到每分钟 500 次。
-              这是本应用里唯一一处会经过第三方的请求，发过去的只有你要导入的那个网址。
+              导入时会向 Jina 发送网址，填写 key 时也会发送该 key。其他功能（如 AI、图床、更新和同步）也会按所选服务发送数据。
             </p>
             <label className="field">
               <span>Jina API Key</span>
@@ -417,7 +423,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
             </label>
           </section>
 
-          <section className="form-section">
+          <fieldset className="form-section" disabled={cloudTesting}>
             <div className="form-section-label">Cloudinary 图床</div>
             <p className="form-note">可把当前文章的本地图片上传为永久 HTTPS 链接。API Secret 只保存在本机应用配置目录；公众号发布仍可直接使用微信素材，不依赖此功能。</p>
             <label className="field"><span>Cloud Name</span><input value={cloudinary.cloudName} onChange={(event) => patchCloudinary({ cloudName: event.target.value })} placeholder="your-cloud" spellCheck={false} /></label>
@@ -425,7 +431,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
             <label className="field"><span>API Secret</span><span className="field-with-action"><input type={showCloudSecret ? 'text' : 'password'} value={cloudinary.apiSecret} onChange={(event) => patchCloudinary({ apiSecret: event.target.value })} placeholder="••••••••" spellCheck={false} /><button type="button" className="field-action" onClick={() => setShowCloudSecret((value) => !value)} aria-label={showCloudSecret ? '隐藏' : '显示'}>{showCloudSecret ? <EyeSlash size={15} /> : <Eye size={15} />}</button></span></label>
             <label className="field"><span>远端目录</span><input value={cloudinary.folder} onChange={(event) => patchCloudinary({ folder: event.target.value })} placeholder="konh-editor/articles" spellCheck={false} /></label>
             <div className="form-row"><button className="btn" onClick={() => void runCloudTest()} disabled={cloudTesting || !cloudinary.cloudName || !cloudinary.apiKey || !cloudinary.apiSecret}>{cloudTesting ? '测试中…' : '测试连接'}</button>{cloudProbe && <span className={cloudProbe.ok ? 'form-ok' : 'form-error'}>{cloudProbe.ok && <CheckCircle size={13} weight="fill" />}{cloudProbe.message}</span>}</div>
-          </section>
+          </fieldset>
 
           {/* Version, and the manual way to ask about a new one. The automatic
               check runs at launch and stays silent (see store/updater.ts), so
@@ -482,6 +488,7 @@ export default function SettingsDialog({ open, onClose, onOpenUpdate }: Props) {
             </p>
           </section>
 
-    </Modal>
-  );
+    </>;
+  if (embedded) return content;
+  return <Modal open={open} onClose={onClose} busy={busy} title="设置" foot={<>{wechatTest}<button className="btn primary" onClick={onClose} disabled={busy}>完成</button></>}>{content}</Modal>;
 }

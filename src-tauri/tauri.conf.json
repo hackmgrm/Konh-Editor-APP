@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "KonhEditor",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "identifier": "com.konheditor.app",
   "build": {
     "frontendDist": "../dist",
@@ -10,6 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "空核编辑器",
@@ -22,10 +23,27 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "dragDropEnabled": false
+      },
+      {
+        "label": "widget",
+        "title": "橦云手帐·挂件",
+        "width": 300,
+        "height": 400,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": false,
+        "shadow": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' asset: tauri:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http: https: data:; font-src 'self' asset: data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:5273 http://127.0.0.1:5273 http: https: ws://localhost:5273 ws://127.0.0.1:5273 wss:; media-src 'self' asset: http: https: blob: data:; frame-src https://www.youtube.com https://player.bilibili.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/attachments/**/*"]
+      }
     }
   },
   "bundle": {

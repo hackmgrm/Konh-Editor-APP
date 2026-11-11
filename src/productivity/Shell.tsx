@@ -176,7 +176,7 @@ export default function Shell() {
       </header>
       {writingMounted && (
         <div className="p-writing-host" hidden={page !== 'writing'}>
-          <WritingApp />
+          <WritingApp active={page === 'writing'} embedded />
         </div>
       )}
       {page !== 'writing' && (

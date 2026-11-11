@@ -1,7 +1,7 @@
 {
   "name": "konh-editor",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -39,10 +39,16 @@
     "@tauri-apps/plugin-notification": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-sql": "^2.6.0",
+    "@tauri-apps/plugin-store": "^2.5.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "chrono-node": "^2.10.1",
     "codemirror": "^6.0.2",
+    "dompurify": "^3.4.17",
+    "framer-motion": "^12.43.0",
     "highlight.js": "^11.11.1",
+    "lucide-react": "^1.72.0",
+    "lunar-javascript": "^1.7.8",
     "markdown-it": "^14.1.0",
     "markdown-it-footnote": "^4.0.0",
     "markdown-it-mark": "^4.0.0",
@@ -52,13 +58,23 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@tailwindcss/postcss": "^4.3.5",
     "@tauri-apps/cli": "^2.11.4",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^4.3.5",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.7"
+  },
+  "postcss": {
+    "plugins": {
+      "@tailwindcss/postcss": {}
+    }
   }
 }

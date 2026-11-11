@@ -29,3 +29,9 @@ test('registers the four upstream Punk themes alongside local presets', () => {
   for (const theme of punk) assert.equal(getTheme(theme.id), theme);
   assert.equal(getTheme('olive-journal').id, 'olive-journal');
 });
+
+test('空核域界正文和品牌卡片使用纯白底色', () => {
+  const theme = getTheme('olive-journal');
+  assert.equal(theme.body.bg, '#ffffff');
+  assert.equal(theme.components?.cardBg, '#ffffff');
+});

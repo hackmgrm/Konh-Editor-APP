@@ -30,7 +30,7 @@
    ============================================================ */
 
 /* Tight but still side by side: give the columns back some width */
-@media (max-width: 1180px) {
+@container (max-width: 1180px) {
   .file-tree {
     width: 204px;
   }
@@ -48,7 +48,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@container (max-width: 900px) {
   /* Stacked: the rail on top, the sheet under it. The rail keeps its flush
      left edge, and the gap plus the sheet's own shadow is what separates
      them — same as side by side, turned ninety degrees. */

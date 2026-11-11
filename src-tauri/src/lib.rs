@@ -11,12 +11,21 @@ mod productivity;
 #[cfg(desktop)]
 mod productivity_desktop;
 mod productivity_auth;
+mod tongyun;
+mod backup;
+mod email;
+mod webdav_meta;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| productivity_desktop::show_main(app)))
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| productivity_desktop::show_main(app)));
+    builder
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_sql::Builder::default().build())
         // Reading the clipboard, and only from here. The WebView's own
         // navigator.clipboard.readText() works, but WebKit answers it with a
         // "Paste" confirmation the user has to click — so pre-filling a field
@@ -30,13 +39,12 @@ pub fn run() {
         // Restarting into the freshly installed binary is what completes an
         // in-app update; the frontend calls it from the update dialog
         .plugin(tauri_plugin_process::init())
+        .manage(agent::AgentState::default())
         .manage(vault::WatchState::default())
         .manage(themes::ThemeWatch::default())
         .invoke_handler(tauri::generate_handler![
             productivity::productivity_load,
             productivity::productivity_save,
-            productivity_desktop::productivity_hide_surface,
-            productivity_desktop::productivity_desktop_status,
             productivity_auth::productivity_secret_read,
             productivity_auth::productivity_secret_write,
             productivity_auth::productivity_oauth,
@@ -69,6 +77,10 @@ pub fn run() {
             config::file_save,
             cloudinary::cloudinary_test,
             cloudinary::cloudinary_upload,
+            agent::agent_probe,
+            agent::agent_models,
+            agent::agent_run,
+            agent::agent_stop,
             agent::agent_sessions_read,
             agent::agent_sessions_write,
             agent_api::agent_api_test,
@@ -82,6 +94,38 @@ pub fn run() {
             themes::theme_delete,
             themes::theme_write,
             window::window_chrome,
+            tongyun::save_local_attachment,
+            tongyun::delete_local_attachment,
+            tongyun::sync_todo_state,
+            tongyun::toggle_widget_window,
+            tongyun::set_widget_click_through,
+            tongyun::notify_micro_break,
+            tongyun::webdav_mkcol,
+            tongyun::webdav_upload,
+            tongyun::webdav_download,
+            tongyun::webdav_upload_binary,
+            tongyun::webdav_download_binary,
+            tongyun::webdav_delete,
+            tongyun::tongyun_file_save,
+            tongyun::file_save_b64,
+            tongyun::file_read,
+            tongyun::file_read_b64,
+            tongyun::file_delete,
+            tongyun::file_list,
+            tongyun::fetch_rss,
+            tongyun::fetch_image_base64,
+            tongyun::ai_proxy,
+            email::send_test_email,
+            webdav_meta::webdav_stat,
+            webdav_meta::webdav_download_meta,
+            webdav_meta::webdav_upload_meta,
+            backup::local_backup_write,
+            backup::local_backup_list,
+            backup::local_backup_read,
+            backup::local_backup_prune,
+            backup::local_backup_dir,
+            tongyun::app_quit_ready,
+            tongyun::read_pipeline_home_files,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -92,6 +136,7 @@ pub fn run() {
             // Custom themes are files the agent edits while you watch; the
             // watcher is what makes the preview follow along
             themes::start_watch(app.handle());
+            agent::warm_path(app.handle());
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -103,11 +148,16 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() != "main" || productivity_desktop::close_to_tray(window.app_handle()) {
+                if window.label() == "main" || window.label() == "widget" {
                     api.prevent_close();
                     let _ = window.hide();
-                } else {
-                    window.app_handle().exit(0);
+                    if window.label() == "main" {
+                        if let Some(widget) = window.app_handle().get_webview_window("widget") {
+                            let _ = widget.hide();
+                        }
+                        use tauri::Emitter;
+                        let _ = window.app_handle().emit_to("main", "tongyun-main-hidden", ());
+                    }
                 }
             }
         })

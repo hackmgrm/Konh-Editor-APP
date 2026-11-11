@@ -1105,7 +1105,7 @@ export const oliveJournalTheme: Theme = {
   description: '空核域界品牌定制版：墨黑标题、橄榄灰底卡与橙色强调；front-matter 自动生成品牌头图、导语和签名',
   appearance: 'light',
   mono: MONO,
-  body: { font: OLIVE_FONT, fontSize: '14px', lineHeight: '1.9', color: '#4d4f46', bg: '#fdfdf8', align: 'justify' },
+  body: { font: OLIVE_FONT, fontSize: '14px', lineHeight: '1.9', color: '#4d4f46', bg: '#ffffff', align: 'justify' },
   accent: '#ed7b2f',
   accentSoft: '#eeefe9',
   heading: { font: OLIVE_FONT, fontWeight: '800', color: '#23251d', lineHeight: '1.3', letterSpacing: '0.2px', marginTop: '24px', marginBottom: '8px', decor: 'numbered' },
@@ -1128,7 +1128,7 @@ export const oliveJournalTheme: Theme = {
   footnote: { refColor: '#ed7b2f', blockBorder: '#bfc1b7', textColor: '#9ea096', numColor: '#ed7b2f', textSize: '12px' },
   codePalette: PALETTE_LIGHT,
   codePaletteMode: 'light',
-  components: { frontMatter: true, cardBg: '#fdfdf8', ink: '#1e1f23', border: '#bfc1b7', sub: '#65675e', weak: '#9ea096', olive: '#eeefe9' },
+  components: { frontMatter: true, cardBg: '#ffffff', ink: '#1e1f23', border: '#bfc1b7', sub: '#65675e', weak: '#9ea096', olive: '#eeefe9' },
 };
 
 /** gzh-design presets. Built-ins render through the complete original library

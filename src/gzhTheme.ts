@@ -415,6 +415,7 @@ export function renderGzh(
   if (hasHero && key === 'moyu-green') prefix += toc();
   if (fm?.intro) prefix += intro(inlineText(fm.intro));
   let body = renderRange(tokens);
+  if (!hasHero && key === 'moyu-green') prefix = toc() + prefix;
   if (chapterOpen) body += '</section>';
   const bio = fm?.author ? inlineText(`我是 ${fm.author}${fm.bio ? `，${fm.bio}` : ''}。`) : '';
   if (['moyu-green', 'moyu-ticket', 'olive-journal'].includes(key)) {

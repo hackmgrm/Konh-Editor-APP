@@ -32,7 +32,8 @@
   animation: tip-in var(--t-fast) var(--ease);
 }
 
-:root[data-appearance='dark'] .tooltip {
+:root[data-appearance='dark'] .tooltip:not(.konh-writing-content *),
+.dark .konh-writing-content .tooltip {
   background: #322d28;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
