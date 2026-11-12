@@ -47,7 +47,12 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png"))?;
         tray = tray.icon(icon).icon_as_template(true);
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-windows.png"))?;
+        tray = tray.icon(icon);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
     tray.build(app)?;
     Ok(())

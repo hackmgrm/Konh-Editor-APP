@@ -32,7 +32,9 @@ src-tauri/gen/
 /example.png
 
 # Local release tooling
-scripts/
+scripts/*
+!scripts/generate-windows-branding.py
+!scripts/test-windows-branding.py
 !vendor/gzh-design/scripts/
 !vendor/gzh-design/scripts/**
 
