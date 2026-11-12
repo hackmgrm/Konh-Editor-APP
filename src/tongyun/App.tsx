@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { Task, AppTab } from "./types";
 import { TitleBar } from "./components/TitleBar";
+import { OS } from "../platform";
+import { isDesktopRuntime } from "./utils/tauriRuntime";
+import { showMainTitleBar } from "./utils/mainTitleBar";
 import { Sidebar } from "./components/Sidebar";
 import WritingApp from "../App";
 const DashboardView = React.lazy(() =>
@@ -1077,7 +1080,7 @@ function AppBody() {
 
   if (windowLabel === "widget") {
     return (
-      <React.Suspense fallback={<div className="w-full h-screen bg-[#FAFAF8]" />}>
+      <React.Suspense fallback={<div className="w-full h-screen bg-transparent" />}>
         <WidgetWindow
           tasks={widgetMineTasks}
           completedTasks={tasksHook.completedTasks}
@@ -1878,7 +1881,7 @@ const MainLayout = React.memo(function MainLayout({
           style={{ display: flowMode ? "none" : undefined }}
           className={`w-full h-full min-h-screen bg-[#FAFAF8] dark:bg-[#121316] text-[#2D323A] dark:text-slate-100 flex flex-col select-none overflow-hidden relative theme-font-${fontFamily || "sans"} main-window-root`}
         >
-          <TitleBar />
+          {showMainTitleBar(OS, isDesktopRuntime()) && <TitleBar />}
           <div className="flex flex-grow min-h-0 relative">
             <Sidebar
               onOpenWriting={onOpenWriting}

@@ -321,7 +321,7 @@ export const SystemSettingsPanel: React.FC<SystemSettingsPanelProps> = ({
   };
 
   return (
-    <div className="space-y-6 flex-grow overflow-y-auto max-h-[560px] pr-1 custom-scrollbar">
+    <div className="space-y-6">
       {/* 软件更新 */}
       <div className="space-y-3 pb-3 border-b border-[#EFEBE4] dark:border-[#2D3039]">
         <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">

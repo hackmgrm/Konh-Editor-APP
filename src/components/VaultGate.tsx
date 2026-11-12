@@ -21,14 +21,8 @@ export default function VaultGate({ error, onChoose }: Props) {
   return (
     <div className="vault-gate">
       <div className="vault-gate-card">
-        {/* Horizon mark, identical to the toolbar's, public/favicon.svg and the
-            app icon. Fixed brand colors, not theme tokens. */}
         <span className="vault-gate-mark" aria-hidden="true">
-          <svg viewBox="0 0 100 100">
-            <rect width="100" height="100" rx="22" fill="#F1ECE3" />
-            <path d="M18 58A32 32 0 0 1 82 58Z" fill="#C4482A" />
-            <rect x="14" y="64" width="72" height="10" rx="5" fill="#6E2715" />
-          </svg>
+          <img src="/brand-icon.png" alt="" />
         </span>
         <h1>火星编辑器</h1>
         <p>写 Markdown，排成公众号文章。选一个文件夹当稿库开始。</p>

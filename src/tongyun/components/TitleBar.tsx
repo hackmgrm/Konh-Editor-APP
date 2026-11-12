@@ -17,8 +17,8 @@ export const TitleBar: React.FC = React.memo(() => {
       className="w-full h-9 flex items-center justify-between gap-2 px-4 bg-[#F4EFEA]/80 dark:bg-[#16181C]/90 border-b border-[#EFEBE4] dark:border-[#2B2D33] z-20 relative flex-shrink-0 cursor-move select-none"
     >
       <div data-tauri-drag-region className="flex items-center gap-2 min-w-0">
-        <div className="w-5 h-5 overflow-hidden flex items-center justify-center rounded-md">
-          <img src="/brand-icon.png" alt="Konh robot" className="w-5 h-5 object-cover rounded-md" />
+        <div className="w-5 h-5 flex items-center justify-center">
+          <img src="/brand-icon.png" alt="Konh robot" className="w-5 h-5 object-contain" />
         </div>
         <span
           data-tauri-drag-region

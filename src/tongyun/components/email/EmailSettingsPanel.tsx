@@ -124,7 +124,7 @@ export const EmailSettingsPanel: React.FC<EmailSettingsPanelProps> = ({ triggerT
   };
 
   return (
-    <div className="space-y-4 flex-grow overflow-y-auto max-h-[520px] pr-1 custom-scrollbar">
+    <div className="space-y-4">
       <div className="bg-[#FAF5ED] dark:bg-[#25221B] border border-[#EFE5D3] dark:border-[#3D3526] p-4 rounded-2xl flex items-start gap-3">
         <Mail className="w-5 h-5 text-[#8B6E3C] dark:text-[#D4AF37] mt-0.5 shrink-0" />
         <div className="text-xs text-slate-600 dark:text-[#E2D8C3] leading-relaxed font-medium">
@@ -262,7 +262,7 @@ export const EmailSettingsPanel: React.FC<EmailSettingsPanelProps> = ({ triggerT
         </p>
       </div>
 
-      <div className="flex gap-3 pt-1 sticky bottom-0 bg-white/90 dark:bg-[#16171B]/90 pb-1">
+      <div className="flex flex-wrap gap-3 pt-1 pb-1">
         <button
           type="button"
           onClick={() => {

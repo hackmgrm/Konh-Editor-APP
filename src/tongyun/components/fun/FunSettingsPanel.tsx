@@ -20,7 +20,7 @@ export const FunSettingsPanel: React.FC<FunSettingsPanelProps> = ({ config, onCh
   const [generatingPraise, setGeneratingPraise] = useState(false);
 
   return (
-    <div className="space-y-6 flex-grow overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
+    <div className="space-y-6">
       <div className="bg-[#FAF8F5] dark:bg-[#1E2026]/70 border border-[#EFEBE4] dark:border-[#2D3039] rounded-2xl p-4 flex items-center justify-between">
         <div>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-200 block">

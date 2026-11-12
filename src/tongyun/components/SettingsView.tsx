@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import { X } from "lucide-react";
 import type { CustomizationConfig, AlertSoundType, Task } from "../types";
 import { useTranslation } from "../i18n/LanguageContext";
@@ -60,6 +60,11 @@ export const SettingsView: React.FC<SettingsViewProps> = React.memo(
       if (typeof sessionStorage !== "undefined")
         sessionStorage.removeItem("tongyun_settings_initial_tab");
     }, []);
+    const settingsRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+      const main = settingsRef.current?.closest("main");
+      if (main) main.scrollTop = 0;
+    }, [subTab]);
     const [searchQuery, setSearchQuery] = useState("");
     useEffect(() => {
       const navigate = () => {
@@ -199,7 +204,7 @@ export const SettingsView: React.FC<SettingsViewProps> = React.memo(
     }, [searchQuery, filteredTabs, subTab]);
 
     return (
-      <div className="animate-fade-in-up flex-grow select-none">
+      <div ref={settingsRef} className="animate-fade-in-up flex-grow select-none">
         <div className="rounded-2xl bg-white/90 dark:bg-[#1C1D21]/90 border border-[#EFEBE4] dark:border-[#33353A] p-5 shadow-xs transition-colors">
           {/* 设置搜索 */}
           <div className="relative mb-5">
@@ -224,7 +229,7 @@ export const SettingsView: React.FC<SettingsViewProps> = React.memo(
           </div>
 
           {/* 标签导航 */}
-          <nav aria-label="设置分类" className="flex flex-wrap gap-2 mb-5">
+          <nav aria-label="设置分类" className="settings-category-nav flex flex-wrap gap-2 mb-5">
             {filteredTabs.map((tab) => (
               <button
                 key={tab.id}

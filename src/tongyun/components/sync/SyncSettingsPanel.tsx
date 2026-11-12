@@ -232,7 +232,7 @@ export function SyncSettingsPanel({ config, onChange, triggerToast }: SyncSettin
   }, []);
 
   return (
-    <div className="space-y-4 flex-grow overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
+    <div className="space-y-4">
       <div className="bg-[#FAF8F5] dark:bg-slate-800/40 border border-[#EFEBE4] dark:border-slate-700 p-4 rounded-2xl flex items-start gap-3">
         <Cloud className="w-5 h-5 text-[#8B6E3C] mt-0.5 flex-shrink-0" />
         <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium space-y-2">

@@ -114,7 +114,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
   };
 
   return (
-    <div className="space-y-4 flex-grow overflow-y-auto max-h-[520px] pr-1 custom-scrollbar">
+    <div className="space-y-4">
       <div className="bg-[#FAF5ED] dark:bg-[#2A241C] border border-[#EFE5D3] dark:border-[#3E3526] p-4 rounded-2xl flex items-start gap-3 transition-colors">
         <Sparkles className="w-5 h-5 text-[#8B6E3C] dark:text-[#E2C799] mt-0.5" />
         <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
@@ -300,7 +300,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({
 
       </>}
       {/* 保存 & 测试连接 */}
-      <div className="flex gap-3 pt-1 sticky bottom-0 bg-white/90 dark:bg-[#1C1D21]/90 backdrop-blur-xs pb-1 transition-colors">
+      <div className="flex flex-wrap gap-3 pt-1 pb-1">
         <button
           type="button"
           onClick={handleSaveAiConfig}

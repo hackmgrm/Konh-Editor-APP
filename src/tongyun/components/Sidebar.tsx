@@ -320,8 +320,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           <div
             className={`flex items-center gap-2.5 ${isCollapsed ? "justify-center px-0" : "px-1"}`}
           >
-            <div className="w-8 h-8 overflow-hidden flex items-center justify-center flex-shrink-0 rounded-xl">
-              <img src="/brand-icon.png" alt="Konh robot" className="w-8 h-8 object-cover rounded-xl" />
+            <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+              <img src="/brand-icon.png" alt="Konh robot" className="w-8 h-8 object-contain" />
             </div>
             <div className={`flex flex-col ${textClass}`}>
               <h1 className="text-[13px] font-bold tracking-wide text-[#2D323A] dark:text-slate-100 whitespace-nowrap">

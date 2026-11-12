@@ -455,9 +455,9 @@ export const WidgetWindow: React.FC<WidgetWindowProps> = ({
       {/* 顶部标题栏 */}
       <div
         data-tauri-drag-region
-        className="w-full flex items-center justify-between pb-2 border-b border-slate-200 pointer-events-auto"
+        className="w-full flex items-center justify-between gap-1 pb-2 border-b border-slate-200 pointer-events-auto"
       >
-        <div data-tauri-drag-region className="flex items-center gap-1.5 flex-grow cursor-move">
+        <div data-tauri-drag-region className="flex items-center gap-1.5 flex-grow min-w-0 overflow-hidden whitespace-nowrap cursor-move">
           <BookOpen className="w-3.5 h-3.5 text-[#8B6E3C]" />
           <span
             data-tauri-drag-region
@@ -480,7 +480,7 @@ export const WidgetWindow: React.FC<WidgetWindowProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {isWidgetLocked && (
             <span className="text-[7px] font-extrabold uppercase tracking-wider text-[#8B6E3C] bg-[#FAF5ED]/80 px-1.5 py-0.5 rounded border border-[#EFE5D3] animate-pulse">
               锁定
@@ -1147,14 +1147,14 @@ export const WidgetWindow: React.FC<WidgetWindowProps> = ({
       )}
 
       {/* 底部 Tab 导航 */}
-      <div className="w-full pt-2 border-t border-slate-200 flex items-center justify-between pointer-events-auto">
+      <div className="w-full pt-2 border-t border-slate-200 flex items-center justify-between gap-1 pointer-events-auto">
         <div
           data-tauri-drag-region
-          className="text-[8px] text-slate-500 font-extrabold uppercase tracking-wider cursor-move py-1 pr-3"
+          className="min-w-0 flex-1 truncate text-[8px] text-slate-500 font-extrabold uppercase cursor-move py-1"
         >
           {w.taskCount.replace("{count}", String(tasks.length))}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setWidgetView("card")}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1221,7 +1221,7 @@ export const WidgetWindow: React.FC<WidgetWindowProps> = ({
         </div>
         <div
           data-tauri-drag-region
-          className="text-[8px] text-slate-500 font-extrabold cursor-move py-1 pl-3"
+          className="min-w-0 flex-1 truncate text-right text-[8px] text-slate-500 font-extrabold cursor-move py-1"
         >
           {w.progressPercent.replace("{pct}", String(progressPercentage))}
         </div>

@@ -25,6 +25,8 @@ export function initPlatformClass(): boolean {
   const mac = isMacOS();
   if (mac) {
     document.documentElement.classList.add("platform-macos");
+  } else if (/Win/i.test(navigator.userAgent || "") || /Win/i.test(navigator.platform || "")) {
+    document.documentElement.classList.add("platform-windows");
   }
   return mac;
 }

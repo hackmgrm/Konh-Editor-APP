@@ -26,7 +26,7 @@ export const SunsetPanel: React.FC<SunsetPanelProps> = ({ config, onChange }) =>
   };
 
   return (
-    <div className="space-y-5 flex-grow overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
+    <div className="space-y-5">
       <div className="bg-[#FAF5ED] border border-[#EFE5D3] p-4 rounded-2xl flex items-start gap-3">
         <Moon className="w-5 h-5 text-[#8B6E3C] mt-0.5" />
         <div className="text-xs text-slate-600 leading-relaxed font-medium">

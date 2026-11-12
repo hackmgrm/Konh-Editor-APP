@@ -149,7 +149,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
         animate={controls}
         style={{ x, rotate, opacity, scale, borderColor: borderStyle }}
         whileDrag={{ scale: 1.02, boxShadow: "0 15px 30px -5px rgba(154,142,128,0.18)" }}
-        className={`absolute w-[280px] h-[195px] rounded-2xl p-5 flex flex-col justify-between cursor-grab active:cursor-grabbing shadow-[0_12px_30px_rgba(154,142,128,0.12)] border border-[#EFEBE4] transition-all duration-300 ${cardBgClass}`}
+        className={`absolute w-full max-w-[280px] h-[195px] rounded-2xl p-5 flex flex-col justify-between cursor-grab active:cursor-grabbing shadow-[0_12px_30px_rgba(154,142,128,0.12)] border border-[#EFEBE4] transition-all duration-300 ${cardBgClass}`}
       >
         {cardBackground === "doodle" && (
           <div className="absolute right-4 bottom-14 opacity-10 pointer-events-none select-none text-slate-700">
@@ -236,11 +236,11 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
         )}
 
         {/* 底部引导栏 */}
-        <div className="flex items-center justify-between border-t border-[#FAF8F5] pt-2 text-[8px] text-slate-400 tracking-wider font-bold">
-          <span className="flex items-center gap-0.5">
+        <div className="flex items-center justify-between gap-0.5 border-t border-[#FAF8F5] pt-2 text-[7px] text-slate-400 font-bold whitespace-nowrap">
+          <span className="min-w-0 flex-1 truncate">
             <span className="text-[#A34E36]">←</span> {tc.swipeLeft}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -264,7 +264,7 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
               <span>{tc.focus}</span>
             </button>
           </div>
-          <span className="flex items-center gap-0.5">
+          <span className="min-w-0 flex-1 truncate text-right">
             {tc.swipeRight} <span className="text-[#4D7C5D]">→</span>
           </span>
         </div>
