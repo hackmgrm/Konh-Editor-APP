@@ -291,13 +291,13 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
     });
 
     return (
-      <div className="animate-fade-in-up flex flex-col gap-5 flex-grow z-10 relative select-none max-w-3xl mx-auto w-full pt-2">
+      <div className="animate-fade-in-up flex flex-col gap-5 flex-grow z-10 relative select-none max-w-3xl lg:max-w-7xl mx-auto w-full pt-2">
         {/* 问候与天气头部模块 */}
         <div className="flex items-center justify-between flex-wrap gap-4 bg-white/80 dark:bg-[#16171B]/90 border border-[#EFEBE4]/80 dark:border-[#282A30] p-5 rounded-3xl shadow-xs">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{greetEmoji}</span>
-              <h1 className={`text-2xl font-black tracking-tight ${greetGradientClass}`}>
+          <div className="space-y-1.5 min-w-0 max-w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-2xl shrink-0">{greetEmoji}</span>
+              <h1 className={`min-w-0 [overflow-wrap:anywhere] text-2xl font-black tracking-tight ${greetGradientClass}`}>
                 {greeting}
               </h1>
             </div>
@@ -339,13 +339,13 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
           ) : null}
         </div>
 
-        {/* 今日回顾 + 今日习惯 并排 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 今日回顾、灵感与习惯 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* 今日回顾：任务 × 日记 × 番茄 */}
           <button
             type="button"
             onClick={() => onOpenJournal?.()}
-            className="w-full text-left rounded-2xl bg-white/90 dark:bg-[#16171B]/90 border border-[#EFEBE4] dark:border-[#282A30] p-4 shadow-2xs hover:shadow-xs card-hover-lift cursor-pointer transition-all"
+            className="lg:order-1 min-w-0 w-full text-left rounded-2xl bg-white/90 dark:bg-[#16171B]/90 border border-[#EFEBE4] dark:border-[#282A30] p-4 shadow-2xs hover:shadow-xs card-hover-lift cursor-pointer transition-all"
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-[9px] font-black text-[#4D7C5D] dark:text-[#78C496] tracking-widest uppercase flex items-center gap-1.5">
@@ -397,7 +397,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
           </button>
 
           {/* Quote + History in 2-column on wide screens */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0 lg:order-3 lg:col-span-2">
             {/* Quote */}
             <div className="rounded-2xl bg-white/90 dark:bg-[#16171B]/90 border border-[#EFEBE4] dark:border-[#282A30] p-4.5 shadow-2xs hover:shadow-xs card-hover-lift flex flex-col justify-between min-h-[150px]">
               <div className="quote-decoration space-y-2">
@@ -482,12 +482,14 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
           </div>
 
           {/* 今日习惯打卡 */}
-          <HabitCard
-            habits={habitsHook.habits}
-            onToggle={habitsHook.toggleHabit}
-            onAdd={habitsHook.addHabit}
-            onRemove={habitsHook.removeHabit}
-          />
+          <div className="min-w-0 lg:order-2">
+            <HabitCard
+              habits={habitsHook.habits}
+              onToggle={habitsHook.toggleHabit}
+              onAdd={habitsHook.addHabit}
+              onRemove={habitsHook.removeHabit}
+            />
+          </div>
         </div>
 
         {/* AI 每日建议 —— 当日缓存，进入即用；右上角提供手动重新生成 */}
@@ -530,7 +532,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
                 {d.aiSuggestionRetry || "生成失败，点击重试"}
               </button>
             ) : (
-              <p className="text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
+              <p className="max-w-3xl text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
                 {dailySuggestion}
               </p>
             )}
@@ -538,7 +540,9 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
         )}
 
         {/* AI 散文 */}
-        <ProseCard config={config} tasks={tasks} />
+        <div className="w-full max-w-3xl">
+          <ProseCard config={config} tasks={tasks} />
+        </div>
 
         {/* Today's Tasks — 含今日 / 逾期 / 未设日期 */}
         <div className="rounded-3xl bg-white/90 dark:bg-[#16171B]/90 border border-[#EFEBE4] dark:border-[#282A30] shadow-2xs overflow-hidden">
@@ -553,7 +557,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(
           </div>
           <div className="p-3">
             {todayTasks.length > 0 ? (
-              <div className="space-y-1.5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
                 {todayTasks.map((task) => {
                   const kind = getHomeTaskKind(task, today);
                   const priorityBarClass = `task-bar-${task.category || "urgent-important"}`;

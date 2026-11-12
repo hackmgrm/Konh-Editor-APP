@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
-  <!-- Monochrome menu-bar adaptation of the Konh book and pen mark. -->
-  <path fill="#000" fill-rule="evenodd" d="M10 5.5Q10 4 11.7 4.5L20.3 7 25.2 5.4Q26.5 5 26.5 6.5V11L22.8 14A5 5 0 1 0 25.4 18.2l1.1-.9v10.2q0 2-2 2l-14-2.5q-4.5-.8-4.5-4.5V10q0-3.2 4-2v2q-2-.7-2 1v11.5q0 2 2 2.5V5.5ZM20 15a3 3 0 1 0 1.7 5.5l-1.1.8a1.8 1.8 0 0 1-2.2-2.9l2.5-2A3 3 0 0 0 20 15Z"/>
-  <path d="M20 19.8 30 12" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Small monochrome interpretation of the B1 robot's tilted face. -->
+  <g transform="rotate(12 18 18)">
+    <path fill="#000" fill-rule="evenodd" d="M5 18C5 11 9 9 18 9s13 2 13 9-4 9-13 9S5 25 5 18Zm6.5-3.7c-1.4 0-2.2 1.4-2.2 3.7s.8 3.7 2.2 3.7 2.2-1.4 2.2-3.7-.8-3.7-2.2-3.7Zm13 0c-1.4 0-2.2 1.4-2.2 3.7s.8 3.7 2.2 3.7 2.2-1.4 2.2-3.7-.8-3.7-2.2-3.7ZM15 20q3 2.6 6 0l.7 1.5q-3.7 3.5-7.4 0Z"/>
+  </g>
 </svg>

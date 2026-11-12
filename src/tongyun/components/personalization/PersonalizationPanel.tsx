@@ -190,7 +190,7 @@ export const PersonalizationPanel: React.FC<PersonalizationPanelProps> = ({ conf
     <div className="animate-fade-in-up grid grid-cols-1 lg:grid-cols-5 gap-6 flex-grow select-none">
       {/* 左侧配置栏 */}
       <div className="rounded-2xl bg-white/90 border border-[#EFEBE4] p-5 flex flex-col gap-5 shadow-sm lg:col-span-3">
-        <div className="space-y-5 flex-grow overflow-y-auto max-h-[380px] pr-1 custom-scrollbar">
+        <div className="space-y-5">
           {/* 0. 昵称 */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-[#8B6E3C] tracking-wide uppercase">
@@ -300,11 +300,11 @@ export const PersonalizationPanel: React.FC<PersonalizationPanelProps> = ({ conf
               {quadrants.map((quad) => {
                 const selectedColor = config.qColors[quad.id];
                 return (
-                  <div key={quad.id} className="flex items-center justify-between gap-4">
+                  <div key={quad.id} className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300 min-w-[90px]">
                       {quad.label}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {Object.entries(PLANNER_COLORS).map(([colorKey, colorConfig]) => {
                         const isSelected = selectedColor === colorKey;
                         return (
@@ -486,7 +486,7 @@ export const PersonalizationPanel: React.FC<PersonalizationPanelProps> = ({ conf
       </div>
 
       {/* 右侧实时预览面板 */}
-      <div className="lg:col-span-2 rounded-2xl bg-[#F4EFEA]/80 dark:bg-[#1E2026]/90 border border-[#EFEBE4] dark:border-[#33353A] p-5 flex flex-col items-center justify-center gap-5 shadow-xs relative min-h-[360px] transition-colors">
+      <div className="lg:col-span-2 self-start w-full rounded-2xl bg-[#F4EFEA]/80 dark:bg-[#1E2026]/90 border border-[#EFEBE4] dark:border-[#33353A] p-5 flex flex-col items-center justify-center gap-5 shadow-xs relative min-h-[360px] transition-colors">
         <span className="absolute top-3.5 left-4 text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
           {s.livePreview}
         </span>

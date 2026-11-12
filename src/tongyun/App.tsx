@@ -1405,6 +1405,7 @@ const MainLayout = React.memo(function MainLayout({
 
     return (
       <main
+        key={activeTab}
         className={`flex-grow ${
           activeTab === "matrix"
             ? "p-3.5 sm:p-4 gap-2.5 overflow-hidden"
@@ -1426,6 +1427,8 @@ const MainLayout = React.memo(function MainLayout({
                           ? t.header.analytics
                           : activeTab === "completed"
                             ? t.header.completed
+                            : activeTab === "settings"
+                              ? t.header.settings
                             : activeTab === "countdown"
                               ? t.header.countdown
                               : activeTab === "news"

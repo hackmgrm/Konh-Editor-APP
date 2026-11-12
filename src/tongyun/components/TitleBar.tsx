@@ -2,7 +2,6 @@ import React from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Minus, Maximize2, X } from "lucide-react";
 import { useTranslation } from "../i18n/LanguageContext";
-import logo from "../../../src-tauri/icons/128x128.png";
 import { IS_MAC } from "../../platform";
 
 export const TitleBar: React.FC = React.memo(() => {
@@ -19,7 +18,7 @@ export const TitleBar: React.FC = React.memo(() => {
     >
       <div data-tauri-drag-region className="flex items-center gap-2 min-w-0">
         <div className="w-5 h-5 overflow-hidden flex items-center justify-center rounded-md">
-          <img src={logo} alt="Konh" className="w-5 h-5 object-cover rounded-md" />
+          <img src="/brand-icon.png" alt="Konh robot" className="w-5 h-5 object-cover rounded-md" />
         </div>
         <span
           data-tauri-drag-region

@@ -14,15 +14,18 @@ export async function fetchTrending(platform: string, tauri: boolean, transport:
   try {
     response = await transport(url);
   } catch (error) {
-    if (tauri) throw new Error(`网络请求失败：${String(error)}`);
+    if (tauri) throw new Error(`网络请求失败，请检查网络连接或稍后重试：${String(error)}`);
     try {
       response = await transport(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
     } catch (proxyError) {
-      throw new Error(`浏览器请求及 CORS 代理均失败：${String(proxyError)}`);
+      throw new Error(`浏览器直连及跨域代理均失败，请检查网络或使用桌面版后重试：${String(proxyError)}`);
     }
   }
   if (!response.ok) throw new Error(`上游请求失败：HTTP ${response.status}`);
-  const raw = await response.text();
+  let raw: string;
+  try { raw = await response.text(); } catch (error) {
+    throw new Error(`读取上游响应失败，请检查网络后重试：${String(error)}`);
+  }
   if (platform === "producthunt") {
     const doc = new DOMParser().parseFromString(raw, "text/xml");
     if (doc.querySelector("parsererror") || !["rss", "feed", "RDF"].includes(doc.documentElement.localName)) {

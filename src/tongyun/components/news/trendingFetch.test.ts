@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { fetchTrending } from "./trendingFetch";
+import { PLATFORMS } from "./types";
 
 const response = (body: string, status = 200) => new Response(body, { status });
 
@@ -20,6 +21,13 @@ describe("trending fetch", () => {
     }
     await expect(fetchTrending("weibo", true, async () => response("", 429))).rejects.toThrow("HTTP 429");
     expect(await fetchTrending("weibo", true, async () => response('{"list":[]}'))).toEqual([]);
+  });
+  it("routes every configured hotboard platform through native transport with its own key", async () => {
+    for (const { key } of PLATFORMS.filter((p) => p.key !== "producthunt")) {
+      const transport = vi.fn().mockResolvedValue(response('{"list":[]}'));
+      await fetchTrending(key, true, transport);
+      expect(transport).toHaveBeenCalledWith(`https://uapis.cn/api/v1/misc/hotboard?type=${encodeURIComponent(key)}`);
+    }
   });
   it("parses Product Hunt Atom and rejects HTML error pages", async () => {
     const xml = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Product</title><link rel="alternate" href="https://www.producthunt.com/products/a"/></entry></feed>';

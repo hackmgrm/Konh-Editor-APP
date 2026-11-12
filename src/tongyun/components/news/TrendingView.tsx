@@ -1,67 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { TrendingUp, RefreshCw } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { openExternal } from "../../utils/openExternal";
 import { PLATFORMS, type TrendingItem } from "./types";
-import { parseRSSXML } from "./rssParser";
+import { fetchTrending } from "./trendingFetch";
 import { getCachedData, setCachedData, fetchWithRetry } from "../../utils/cache";
 import { NewsItemActions } from "./NewsItemActions";
 import type { NewsActions } from "./newsActions";
 
 const isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined;
 
-const MAX_PER_CARD = 8;
 const CACHE_TTL = 30 * 60 * 1000;
+const cacheKey = (platform: string) => "trending_v2_" + platform;
 
 async function fetchPlatformData(platform: string): Promise<TrendingItem[]> {
-  const fetchUrl = async (url: string): Promise<string> => {
-    if (isTauri) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    }
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    } catch (e: any) {
-      if ((e.message || "").startsWith("HTTP")) throw e;
-      const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const proxyRes = await fetch(proxy);
-      if (!proxyRes.ok) throw new Error(`CORS 拦截，代理也失效了`, { cause: e });
-      return proxyRes.text();
-    }
-  };
-
-  if (platform === "producthunt") {
-    const xml = isTauri
-      ? await invoke<string>("fetch_rss", { url: "https://www.producthunt.com/feed" })
-      : await (async () => {
-          const raw = await fetchUrl("https://www.producthunt.com/feed");
-          if (raw.trim().startsWith("{")) {
-            try {
-              return JSON.parse(raw).contents;
-            } catch {
-              return raw;
-            }
-          }
-          return raw;
-        })();
-    const articles = parseRSSXML(xml);
-    return articles.slice(0, MAX_PER_CARD).map((a, i) => ({
-      title: a.title,
-      url: a.link,
-      index: i + 1,
-    }));
-  }
-
-  const raw = await fetchUrl(`https://uapis.cn/api/v1/misc/hotboard?type=${platform}`);
-  try {
-    const json = JSON.parse(raw);
-    return (json.list || []).slice(0, MAX_PER_CARD);
-  } catch {
-    return [];
-  }
+  return fetchTrending(platform, isTauri);
 }
 
 async function fetchPlatformDataWithRetry(platform: string): Promise<TrendingItem[]> {
@@ -72,7 +24,7 @@ export const TrendingView: React.FC<{ actions: NewsActions }> = ({ actions }) =>
   const [allTrendingData, setAllTrendingData] = useState<Record<string, TrendingItem[]>>(() => {
     const cached: Record<string, TrendingItem[]> = {};
     for (const p of PLATFORMS) {
-      const data = getCachedData<TrendingItem[]>("trending_" + p.key, CACHE_TTL);
+      const data = getCachedData<TrendingItem[]>(cacheKey(p.key), CACHE_TTL);
       if (data) cached[p.key] = data;
     }
     return cached;
@@ -85,7 +37,7 @@ export const TrendingView: React.FC<{ actions: NewsActions }> = ({ actions }) =>
 
     const needsFetch = force
       ? platformKeys
-      : platformKeys.filter((key) => !getCachedData<TrendingItem[]>("trending_" + key, CACHE_TTL));
+      : platformKeys.filter((key) => !getCachedData<TrendingItem[]>(cacheKey(key), CACHE_TTL));
 
     if (!force && needsFetch.length === 0) return;
     setLoadingPlatforms(new Set(needsFetch));
@@ -99,7 +51,7 @@ export const TrendingView: React.FC<{ actions: NewsActions }> = ({ actions }) =>
         batch.map(async (key) => {
           try {
             const data = await fetchPlatformDataWithRetry(key);
-            setCachedData("trending_" + key, data);
+            setCachedData(cacheKey(key), data);
             return { key, data, error: null };
           } catch (e: any) {
             return { key, data: [] as TrendingItem[], error: e.message || "加载失败" };
@@ -112,7 +64,7 @@ export const TrendingView: React.FC<{ actions: NewsActions }> = ({ actions }) =>
     // Merge cached entries that were skipped
     for (const key of platformKeys) {
       if (!results.find((r) => r.key === key)) {
-        const cached = getCachedData<TrendingItem[]>("trending_" + key, CACHE_TTL);
+        const cached = getCachedData<TrendingItem[]>(cacheKey(key), CACHE_TTL);
         if (cached) results.push({ key, data: cached, error: null });
       }
     }
@@ -132,7 +84,7 @@ export const TrendingView: React.FC<{ actions: NewsActions }> = ({ actions }) =>
     setLoadingPlatforms((prev) => new Set(prev).add(key));
     fetchPlatformDataWithRetry(key)
       .then((data) => {
-        setCachedData("trending_" + key, data);
+        setCachedData(cacheKey(key), data);
         setAllTrendingData((prev) => ({ ...prev, [key]: data }));
         setErrorPlatforms((prev) => {
           const n = { ...prev };
