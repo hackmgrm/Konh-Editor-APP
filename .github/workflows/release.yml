@@ -42,16 +42,31 @@ jobs:
           result-encoding: string
           script: |
             const tag = process.env.TAG
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tag,
-              name: `空核编辑器 ${tag}`,
-              body: process.env.NOTES || '',
-              draft: true,
-              prerelease: false,
-            })
-            return data.id
+            // Re-running the workflow for a tag that already has a release must
+            // top up the missing platforms instead of failing on 422, so find
+            // the existing release first and only create one when there is none.
+            let release
+            try {
+              const found = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag,
+              })
+              release = found.data
+            } catch (error) {
+              if (error.status !== 404) throw error
+              const created = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: `空核编辑器 ${tag}`,
+                body: process.env.NOTES || '',
+                draft: true,
+                prerelease: false,
+              })
+              release = created.data
+            }
+            return String(release.id)
         env:
           TAG: ${{ inputs.tag }}
           NOTES: ${{ steps.notes.outputs.body }}
@@ -64,7 +79,7 @@ jobs:
         include:
           - platform: ubuntu-22.04
             args: --bundles deb,rpm,appimage
-          - platform: macos-14
+          - platform: macos-15
             args: --bundles app,dmg
           - platform: windows-latest
             args: --bundles nsis
