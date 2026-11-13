@@ -6,6 +6,10 @@ import {
   type JournalImageBackup,
 } from "./tongyun/utils/journalImages";
 import { drainPendingStorage } from "./tongyun/utils/deferredStorage";
+import {
+  beginMaintenance,
+  waitForMaintenanceWrites,
+} from "./tongyun/utils/maintenanceLock";
 
 /** One archive, one folder, one restore path for writing and planner data. */
 
@@ -122,6 +126,19 @@ export interface ExportSummary extends ExportResult {
   workspace: string | null;
 }
 
+/** Identifies this window in the maintenance broadcast. */
+const WINDOW_OWNER = `window-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Retry the localStorage→SQLite mirror after a maintenance window ends. */
+async function flushStorageMirror(): Promise<void> {
+  try {
+    const { storage } = await import("./tongyun/utils/unifiedStorage");
+    await storage.flushNow();
+  } catch (error) {
+    console.warn("恢复后写入本机数据库失败", error);
+  }
+}
+
 /**
  * Export everything in one pass. Nothing is published until the native side has
  * hashed every staged file, so a failure never leaves a half-usable archive or
@@ -133,6 +150,9 @@ export async function runUnifiedExport(options: ExportOptions): Promise<ExportSu
   if (!destination) throw new Error("请选择备份目标目录");
   await drainPendingStorage();
 
+  // Freeze ordinary writes for the duration: the archive must describe one
+  // instant, and a half-written row would land in the planner snapshot.
+  const releaseMaintenance = beginMaintenance(WINDOW_OWNER, "备份");
   const token = await invoke<string>("unified_backup_begin", { destination });
   try {
     const journalImages = await stageJournalImages(token);
@@ -148,6 +168,10 @@ export async function runUnifiedExport(options: ExportOptions): Promise<ExportSu
       // The staging directory is cleaned up when the process exits either way.
     }
     throw error;
+  } finally {
+    // Writes that were refused while the marker was up come back here.
+    releaseMaintenance();
+    void flushStorageMirror();
   }
 }
 
@@ -227,9 +251,13 @@ export async function restorePlannerFromBackup(
 
   const resumeSync = await syncEngine.pauseAndDrain();
   const gateToken = await invoke<number>("write_gate_acquire");
+  // Native writes are held by the gate above; this marker holds the ones that
+  // go straight from the web view to SQLite.
+  const releaseMaintenance = beginMaintenance(WINDOW_OWNER, "恢复");
   let committed = false;
   try {
     await drainPendingStorage();
+    await waitForMaintenanceWrites();
     let imageCount = 0;
     if (images) imageCount = await restoreJournalImagesInPlace(images);
     const result = await invoke<RestoreResult>("unified_backup_restore_planner", {
@@ -242,6 +270,7 @@ export async function restorePlannerFromBackup(
     try {
       await invoke("write_gate_release", { token: gateToken });
     } finally {
+      releaseMaintenance();
       // A committed restore keeps sync paused on purpose: the window reloads,
       // which drops the pause count, so nothing is pushed or pulled until the
       // user has seen the restored data. A failed restore has to lift the pause
@@ -279,7 +308,12 @@ export async function restoreWritingAssetsFromBackup(backup: string): Promise<Re
   native();
   const inspection = await inspectUnifiedBackup(backup);
   if (!inspection.ok) throw new Error(`备份校验失败：${inspection.problems.slice(0, 5).join("；")}`);
-  return await invoke<RestoreResult>("unified_backup_restore_writing", { backup });
+  const releaseMaintenance = beginMaintenance(WINDOW_OWNER, "恢复");
+  try {
+    return await invoke<RestoreResult>("unified_backup_restore_writing", { backup });
+  } finally {
+    releaseMaintenance();
+  }
 }
 
 /** Timestamped default folder for a writing restore, e.g. Konh恢复-20261113-1130. */

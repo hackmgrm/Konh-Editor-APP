@@ -1,4 +1,5 @@
 import { initializeDomainDatabase } from "../data/domainDatabase";
+import { guardDatabaseWrites } from "./maintenanceLock";
 
 const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -117,7 +118,7 @@ class UnifiedStorage {
 
     try {
       const { default: Database } = await import("@tauri-apps/plugin-sql");
-      this.db = await Database.load(DB_NAME);
+      this.db = guardDatabaseWrites(await Database.load(DB_NAME));
 
       await this.db.execute(
         `CREATE TABLE IF NOT EXISTS storage (

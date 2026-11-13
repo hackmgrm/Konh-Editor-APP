@@ -9,6 +9,7 @@ import type {
   TimeBlock,
 } from "../types";
 import { safeJsonParse } from "../utils/json";
+import { guardDatabaseWrites } from "../utils/maintenanceLock";
 
 const DB_NAME = "sqlite:tongyun_planner.db";
 export const SCHEMA_VERSION = 3;
@@ -30,6 +31,7 @@ export function getDomainDatabase(): Promise<Database | null> {
   if (!databasePromise) {
     databasePromise = import("@tauri-apps/plugin-sql")
       .then(({ default: DatabaseClass }) => DatabaseClass.load(DB_NAME))
+      .then((db) => guardDatabaseWrites(db))
       .catch((error) => {
         console.warn("Domain database unavailable", error);
         return null;
