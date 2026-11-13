@@ -166,7 +166,12 @@ test('every library component can be inserted without being rewritten by the ren
 test('six exported articles pass the original WeChat validator', () => {
   for (const th of gzhThemes) {
     const result = renderArticle(sample + '\n\n```js\n  const x = "保留半角";\n```', th);
-    const check = spawnSync('python3', ['vendor/gzh-design/scripts/validate_gzh_html.py', '--stdin'], { input: result.html, encoding: 'utf8' });
+    // Windows hands the child a cp1252 stdout, and the validator prints emoji.
+    const check = spawnSync('python3', ['vendor/gzh-design/scripts/validate_gzh_html.py', '--stdin'], {
+      input: result.html,
+      encoding: 'utf8',
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+    });
     assert.equal(check.status, 0, `${th.id}: ${check.stdout}${check.stderr}`);
     assert.doesNotMatch(check.stdout, /WARNING|⚠️/);
   }
