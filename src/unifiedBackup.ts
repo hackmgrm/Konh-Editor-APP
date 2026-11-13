@@ -260,12 +260,15 @@ export async function restorePlannerFromBackup(
   let gateToken: number | null = null;
   let committed = false;
   try {
+    // Deferred storage has to be flushed *before* the marker goes up: the
+    // flush writes through SQLite, which the marker itself would refuse, so
+    // draining afterwards turned a routine restore into a hard failure.
+    await drainPendingStorage();
     // Raise the marker first: it can refuse (another window is mid-backup), and
     // taking the native lease before that would leave a barrier with no owner
     // to release it.
     releaseMaintenance = beginMaintenance(WINDOW_OWNER, "恢复");
     gateToken = await invoke<number>("write_gate_acquire");
-    await drainPendingStorage();
     await waitForMaintenanceWrites();
     let imageCount = 0;
     if (images) imageCount = await restoreJournalImagesInPlace(images);
