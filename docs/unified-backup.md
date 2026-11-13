@@ -51,9 +51,9 @@ konh-backup/
 
 ## 写入端做了什么
 
-1. 先取 Rust 维护锁（`src-tauri/src/write_gate.rs`），有窗口正在写就返回 `E_GATE_BUSY`，绝不并发写。
-2. 同时升起前端维护标记（`src/tongyun/utils/maintenanceLock.ts`）。这是补齐的另一半：手帐的 SQL 写入走 Tauri SQL 插件，直接从 webview 发到 SQLite，绕过了 Rust 锁。标记会广播到所有窗口，期间每个 `Database.execute` 都被 `withMaintenanceWriteLock` 拒绝（`E_WRITE_PAUSED`），只读的 `select` 不受影响。标记带 30 分钟有效期，窗口关掉或进程崩了都不会把应用永久锁死。
-3. 等待前端延迟落盘队列排空（`drainPendingStorage()`）。
+1. 先排空前端延迟落盘队列（`drainPendingStorage()`）。这一步必须排在锁之前：落盘本身要写 SQLite，一旦标记升起，这次冲刷就会被标记自己拒绝。
+2. 升起前端维护标记（`src/tongyun/utils/maintenanceLock.ts`）。这是补齐的另一半：手帐的 SQL 写入走 Tauri SQL 插件，直接从 webview 发到 SQLite，绕过了 Rust 锁。标记会广播到所有窗口，期间每个 `Database.execute` 都被 `withMaintenanceWriteLock` 拒绝（`E_WRITE_PAUSED`），只读的 `select` 不受影响。标记带 30 分钟有效期，窗口关掉或进程崩了都不会把应用永久锁死。模块加载时就开始监听，没发起过备份的窗口同样会拒绝写入。
+3. 再取 Rust 维护锁（`src-tauri/src/write_gate.rs`），有窗口正在写就返回 `E_GATE_BUSY`，绝不并发写。
 4. 在一个隐藏的暂存目录里组装归档，逐文件流式算 SHA-256。
 5. 复制工作区前后各扫描一次：路径、大小、修改时间、哈希。中途任何文件变了，本次备份直接失败，暂存目录删除，不发布。
 6. 校验通过后用不改名的原子重命名发布。目标已存在时返回 `E_BACKUP_EXISTS`，绝不覆盖已有备份。
@@ -70,7 +70,7 @@ konh-backup/
 顺序是固定的：
 
 1. 暂停 WebDAV 同步并等待写入队列排空。
-2. 取维护锁并升起维护标记，恢复期间所有写入（Rust 的与 webview 直接发 SQL 的）都被拒绝。
+2. 排空延迟落盘队列，然后升起维护标记、再取维护锁（顺序同上：标记先起，锁后取；标记被别的窗口拒绝时不会留下无人释放的锁）。恢复期间所有写入（Rust 的与 webview 直接发 SQL 的）都被拒绝。
 3. 等已经开始的守护写入落地（`waitForMaintenanceWrites()`），再动表。
 4. 把当前手帐导出成回滚点，落在应用数据目录的 `rollback/` 下。
 5. 先在内存里校验日记图片 JSON，再清空 IndexedDB 重写，逐条核对数量与字节。
