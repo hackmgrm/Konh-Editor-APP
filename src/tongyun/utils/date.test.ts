@@ -6,6 +6,7 @@ import {
   addLocalMonths,
   getHomeTaskKind,
   filterHomeActionableTasks,
+  taskBelongsToLocalDate,
 } from "./date";
 
 describe("date utils", () => {
@@ -25,6 +26,15 @@ describe("date utils", () => {
 
     it("should default to current date when no argument passed", () => {
       expect(getLocalDateString()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  describe("taskBelongsToLocalDate", () => {
+    it("uses the local calendar date for completion", () => {
+      const completedAt = new Date(2026, 10, 7, 1, 30).getTime();
+      expect(taskBelongsToLocalDate({ completedAt }, "2026-11-07")).toBe(true);
+      expect(taskBelongsToLocalDate({ completedAt }, "2026-11-06")).toBe(false);
+      expect(taskBelongsToLocalDate({ dueDate: "2026-11-07" }, "2026-11-07")).toBe(true);
     });
   });
 

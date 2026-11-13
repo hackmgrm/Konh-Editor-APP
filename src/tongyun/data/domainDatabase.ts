@@ -17,6 +17,7 @@ const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in 
 
 let databasePromise: Promise<Database | null> | null = null;
 let domainWriteQueue: Promise<void> = Promise.resolve();
+let domainWriteErrors: unknown[] = [];
 let dbOverrideForTesting: Database | null = null;
 
 export function setDatabaseOverrideForTesting(db: Database | null): void {
@@ -38,11 +39,23 @@ export function getDomainDatabase(): Promise<Database | null> {
 }
 
 export function queueDomainWrite(work: (db: Database) => Promise<void>): Promise<void> {
-  domainWriteQueue = domainWriteQueue.then(async () => {
+  const result = domainWriteQueue.then(async () => {
     const db = await getDomainDatabase();
     if (db) await work(db);
   });
-  return domainWriteQueue;
+  domainWriteQueue = result.catch((error) => { domainWriteErrors.push(error); });
+  return result;
+}
+
+/** Wait for writes submitted before this call, consuming and reporting their failures. */
+export function drainDomainWrites(): Promise<void> {
+  const barrier = domainWriteQueue.then(() => {
+    const errors = domainWriteErrors;
+    domainWriteErrors = [];
+    if (errors.length) throw new AggregateError(errors, "Domain writes failed");
+  });
+  domainWriteQueue = barrier.catch(() => undefined);
+  return barrier;
 }
 
 export async function createSchema(db: Database): Promise<void> {

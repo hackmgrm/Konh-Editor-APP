@@ -448,6 +448,7 @@ fn read_vault(dir: &str) -> Result<VaultContent, String> {
 /// (which live in the app config directory)
 #[tauri::command]
 pub fn vault_load(app: AppHandle, dir: String) -> Result<VaultData, String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     log::info!("vault_load {dir}");
     let content = read_vault(&dir)?;
     Ok(VaultData {
@@ -485,7 +486,6 @@ pub fn draft_read(dir: String, id: String) -> Result<DraftDto, String> {
 /// changed it in the meantime — so nothing is written, and the disk version goes
 /// back with the answer for the front end to ask the user about, rather than
 /// silently overwriting someone's work.
-#[tauri::command]
 pub fn draft_write(
     dir: String,
     id: String,
@@ -512,7 +512,6 @@ pub fn draft_write(
 
 /// Create a draft under `parent`. An empty parent means the workspace root.
 /// A name collision gets a numeric suffix rather than overwriting an existing file.
-#[tauri::command]
 pub fn draft_create(
     dir: String,
     parent: String,
@@ -584,7 +583,6 @@ fn sanitize_title(name: &str) -> String {
 
 /// Create a folder. If it already exists, return its path (the user almost
 /// certainly just wants to go into that directory).
-#[tauri::command]
 pub fn dir_create(dir: String, parent: String, name: String) -> Result<String, String> {
     let base = sanitize_title(&name);
     let mut rel = join_rel(&parent, &base);
@@ -633,7 +631,6 @@ pub fn entry_rename_target(dir: String, path: String, name: String) -> Result<St
     Ok(target)
 }
 
-#[tauri::command]
 pub fn entry_rename(dir: String, path: String, name: String) -> Result<String, String> {
     let target = entry_rename_target(dir.clone(), path.clone(), name)?;
     if target != path {
@@ -671,7 +668,6 @@ pub fn entry_move_target(dir: String, path: String, to_parent: String) -> Result
     Ok(target)
 }
 
-#[tauri::command]
 pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String, String> {
     let target = entry_move_target(dir.clone(), path.clone(), to_parent)?;
     if target != path {
@@ -684,7 +680,6 @@ pub fn entry_move(dir: String, path: String, to_parent: String) -> Result<String
 ///
 /// No second confirmation here — that was asked in the front end; this layer
 /// only carries it out.
-#[tauri::command]
 pub fn entry_delete(dir: String, path: String) -> Result<bool, String> {
     if path.is_empty() {
         return Err("不能删除工作区本身".to_string());
@@ -757,7 +752,6 @@ pub fn entry_reveal(dir: String, path: String) -> Result<(), String> {
 /// canvas processing); this decodes it back to binary and writes it as-is — what
 /// lands on disk is an image file you can double-click open.
 /// The destination is fixed at `images/`; returns its workspace-relative path.
-#[tauri::command]
 pub fn image_write(dir: String, name: String, data_url: String) -> Result<String, String> {
     let comma = data_url
         .find(',')
@@ -778,7 +772,6 @@ pub fn image_write(dir: String, name: String, data_url: String) -> Result<String
     Ok(rel)
 }
 
-#[tauri::command]
 pub fn image_delete(dir: String, path: String) -> Result<(), String> {
     fs::remove_file(resolve(&dir, &path)?).map_err(|e| format!("删不掉图片 {path}：{e}"))
 }
@@ -874,6 +867,7 @@ fn adopt_legacy_prefs(root: &Path) -> Option<serde_json::Value> {
 
 #[tauri::command]
 pub fn prefs_write(app: AppHandle, dir: String, prefs: serde_json::Value) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     let mut map = read_prefs_map(&app);
     map.insert(dir, prefs);
     write_prefs_map(&app, &map)
@@ -892,6 +886,7 @@ fn pointer_file(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn vault_remember(app: AppHandle, dir: String) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     log::info!("vault_remember {dir}");
     fs::write(pointer_file(&app)?, dir).map_err(|e| format!("记不住工作区位置：{e}"))
 }

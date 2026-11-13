@@ -6,6 +6,7 @@ mod config;
 mod cloudinary;
 mod themes;
 mod vault;
+mod vault_writes;
 mod window;
 mod productivity;
 #[cfg(desktop)]
@@ -13,6 +14,9 @@ mod productivity_desktop;
 mod productivity_auth;
 mod tongyun;
 mod backup;
+mod write_gate;
+mod workspace_backup;
+mod unified_backup;
 mod email;
 mod webdav_meta;
 
@@ -39,9 +43,11 @@ pub fn run() {
         // Restarting into the freshly installed binary is what completes an
         // in-app update; the frontend calls it from the update dialog
         .plugin(tauri_plugin_process::init())
+        .manage(write_gate::WriteGate::default())
         .manage(agent::AgentState::default())
         .manage(vault::WatchState::default())
         .manage(themes::ThemeWatch::default())
+        .manage(unified_backup::UnifiedBackup::default())
         .invoke_handler(tauri::generate_handler![
             productivity::productivity_load,
             productivity::productivity_save,
@@ -54,18 +60,18 @@ pub fn run() {
             vault::vault_remember,
             vault::vault_recall,
             vault::draft_read,
-            vault::draft_write,
-            vault::draft_create,
-            vault::dir_create,
-            vault::entry_rename,
+            vault_writes::draft_write,
+            vault_writes::draft_create,
+            vault_writes::dir_create,
+            vault_writes::entry_rename,
             vault::entry_rename_target,
             vault::entry_move_target,
-            vault::entry_move,
-            vault::entry_delete,
+            vault_writes::entry_move,
+            vault_writes::entry_delete,
             vault::entry_reveal,
             vault::image_read,
-            vault::image_write,
-            vault::image_delete,
+            vault_writes::image_write,
+            vault_writes::image_delete,
             vault::prefs_write,
             artifacts::artifact_save,
             artifacts::artifact_read,
@@ -119,11 +125,22 @@ pub fn run() {
             webdav_meta::webdav_stat,
             webdav_meta::webdav_download_meta,
             webdav_meta::webdav_upload_meta,
+            write_gate::write_gate_acquire,
+            write_gate::write_gate_release,
             backup::local_backup_write,
             backup::local_backup_list,
             backup::local_backup_read,
             backup::local_backup_prune,
             backup::local_backup_dir,
+            unified_backup::unified_backup_begin,
+            unified_backup::unified_backup_put_journal_images,
+            unified_backup::unified_backup_abort,
+            unified_backup::unified_backup_finish,
+            unified_backup::unified_backup_inspect,
+            unified_backup::unified_backup_read_file,
+            unified_backup::unified_backup_restore_workspace,
+            unified_backup::unified_backup_restore_planner,
+            unified_backup::unified_backup_restore_writing,
             tongyun::app_quit_ready,
             tongyun::read_pipeline_home_files,
         ])
@@ -147,6 +164,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                window.state::<write_gate::WriteGate>().release_owner(window.label());
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" || window.label() == "widget" {
                     api.prevent_close();

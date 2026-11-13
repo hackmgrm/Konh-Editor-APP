@@ -303,7 +303,7 @@ export function usePomodoroTimer({
           const newLog = {
             id: createId("pomodoro-log"),
             timestamp: Date.now(),
-            duration: s.focusDuration,
+            duration: s.focusDuration * 60,
             taskId: s.taskId || undefined,
             taskTitle: s.taskTitle || undefined,
           };
@@ -336,8 +336,8 @@ export function usePomodoroTimer({
       }
     };
 
-    tick();
     const intervalId = setInterval(tick, 1000);
+    tick();
     return () => {
       clearInterval(intervalId);
       if (microBreakTimeoutRef.current) {

@@ -16,6 +16,7 @@ pnpm-debug.log*
 
 # Editor / OS
 .DS_Store
+._*
 .vscode/
 .idea/
 
@@ -40,3 +41,9 @@ scripts/*
 
 # Agent tooling
 .claude/
+
+# macOS resource forks inside reverse-ignored vendor paths
+vendor/gzh-design/scripts/._*
+
+# Local Windows test builds
+/test-builds/

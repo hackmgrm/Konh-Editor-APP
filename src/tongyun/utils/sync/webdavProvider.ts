@@ -27,6 +27,7 @@ import {
   isRemoteChanged,
   conflictBackupFileName,
 } from "./conflict";
+import { reconcileFingerprintDrift } from "./drift";
 
 export type { SyncConflict } from "./types";
 
@@ -203,6 +204,14 @@ async function tryDownload(config: WebDavConfig, filename: string): Promise<stri
   }
 }
 
+function assertCategoryPayload(cat: SyncCategory, payload: unknown): void {
+  const valid =
+    cat === "config"
+      ? payload === null || (typeof payload === "object" && !Array.isArray(payload))
+      : Array.isArray(payload);
+  if (!valid) throw new Error(`云端 ${cat} 数据无效，已保留本机数据，请重新同步。`);
+}
+
 export class WebDAVProvider implements SyncProvider {
   readonly type = "webdav" as const;
   readonly displayName = "坚果云 WebDAV";
@@ -337,25 +346,21 @@ export class WebDAVProvider implements SyncProvider {
       const remoteVersion = remoteManifest?.[cat]?.version || 0;
       const currentFp = remoteFingerprint(meta, remoteVersion);
 
+      let driftedPayload: unknown = null;
       if (isRemoteChanged(storedFp, currentFp, meta.exists)) {
         console.warn(
-          `[sync] conflict detected on ${cat}: storedFp=${storedFp}, currentFp=${currentFp}`,
+          `[sync] fingerprint changed on ${cat}: storedFp=${storedFp}, currentFp=${currentFp}`,
         );
         let remoteContent = "";
         let remotePayload: unknown = null;
+        let downloadedFp: string | null = null;
         try {
           const res = await downloadWithMeta(this.config, remoteFilePath);
           remoteContent = res.content;
           remotePayload = JSON.parse(remoteContent);
+          downloadedFp = remoteFingerprint(res, remoteVersion);
         } catch (e) {
           console.error(`[sync] download remote content failed for conflict backup:`, e);
-        }
-
-        const backupPaths: string[] = [];
-        if (remoteContent) {
-          const rBackupName = conflictBackupFileName(now, cat, "remote");
-          const rPath = await writeLocalBackup("conflicts", rBackupName, remoteContent);
-          if (rPath) backupPaths.push(rPath);
         }
 
         let localPayload: unknown =
@@ -369,22 +374,44 @@ export class WebDAVProvider implements SyncProvider {
                 : undefined,
           });
         }
-        const localContent = JSON.stringify(localPayload, null, 2);
-        const lBackupName = conflictBackupFileName(now, cat, "local");
-        const lPath = await writeLocalBackup("conflicts", lBackupName, localContent);
-        if (lPath) backupPaths.push(lPath);
+        const drift =
+          remotePayload == null
+            ? { action: "conflict" as const }
+            : reconcileFingerprintDrift(cat, localPayload, remotePayload);
+        if (drift.action === "align") {
+          // 正文相同，只认新的 ETag / Last-Modified，避免把同一份文件再传一遍。
+          const fp = downloadedFp || currentFp;
+          if (fp) setFingerprint(account, fileName, fp);
+          continue;
+        }
+        if (drift.action === "upload") {
+          // 只是某一边多了一篇日记。合并后继续上传，不挡用户。
+          driftedPayload = drift.payload;
+          if (cat !== "config") applyCategoryPayload(cat, drift.payload);
+        } else {
+          const backupPaths: string[] = [];
+          if (remoteContent) {
+            const rBackupName = conflictBackupFileName(now, cat, "remote");
+            const rPath = await writeLocalBackup("conflicts", rBackupName, remoteContent);
+            if (rPath) backupPaths.push(rPath);
+          }
+          const localContent = JSON.stringify(localPayload, null, 2);
+          const lBackupName = conflictBackupFileName(now, cat, "local");
+          const lPath = await writeLocalBackup("conflicts", lBackupName, localContent);
+          if (lPath) backupPaths.push(lPath);
 
-        conflicts.push({
-          category: cat,
-          fileName,
-          remoteContent,
-          remotePayload,
-          remoteFingerprint: currentFp,
-          remoteManifestVersion: remoteVersion,
-          backupPaths,
-        });
-        // DO NOT upload this category
-        continue;
+          conflicts.push({
+            category: cat,
+            fileName,
+            remoteContent,
+            remotePayload,
+            remoteFingerprint: currentFp,
+            remoteManifestVersion: remoteVersion,
+            backupPaths,
+          });
+          // 同一篇正文冲突时不上传，避免互相覆盖。
+          continue;
+        }
       }
 
       if (currentFp === null && meta.exists) {
@@ -392,15 +419,17 @@ export class WebDAVProvider implements SyncProvider {
       }
 
       // Existing logic (empty-overwrite guard etc.)
-      let payload = getCategoryPayload(data, cat);
+      let payload = driftedPayload ?? getCategoryPayload(data, cat);
       let remotePayload: unknown = null;
       if (meta.exists) {
         try {
           const downloaded = await downloadWithMeta(this.config, remoteFilePath);
           remotePayload = JSON.parse(downloaded.content);
-        } catch {
+        } catch (error) {
+          if (cat === "journal") throw new Error(`Cannot read remote journal before upload: ${String(error)}`);
           remotePayload = null;
         }
+        if (cat === "journal") assertCategoryPayload(cat, remotePayload);
       }
 
       const guard = protectAgainstEmptyOverwrite(
@@ -535,24 +564,30 @@ export class WebDAVProvider implements SyncProvider {
         downloaded = await downloadWithMeta(this.config, remoteFilePath);
       } catch (e: any) {
         const msg = typeof e === "string" ? e : e?.message || "";
-        if (msg.startsWith("E_NOT_FOUND")) continue;
+        if (msg.startsWith("E_NOT_FOUND") && cat !== "journal") continue;
         throw e;
       }
       if (!downloaded) continue;
 
-      const fp = remoteFingerprint(downloaded, remoteVer);
-      if (fp) {
-        setFingerprint(account, fileName, fp);
+      // The user may have edited while the network request was in flight.
+      // Do not acknowledge or apply a snapshot that would overwrite that edit.
+      if (!forceConfig && (dirtyOnly?.has(cat) || getLocalCategoryVersion(cat) !== localVer)) {
+        continue;
       }
-
       const remotePayload = JSON.parse(downloaded.content);
+      assertCategoryPayload(cat, remotePayload);
+      const fp = remoteFingerprint(downloaded, remoteVer);
       const localPayload =
         cat === "config" ? localData.customizationConfig : getCategoryPayload(localData, cat);
 
       // Newer local config: import encrypted secrets only, leave public fields and the version stamp.
-      if (forceConfig && localVer >= remoteVer) {
-        await importDecryptedSecrets(remotePayload, localPayload);
+      if (
+        forceConfig &&
+        (localVer >= remoteVer || dirtyOnly?.has(cat) || getLocalCategoryVersion(cat) !== localVer)
+      ) {
+        await importDecryptedSecrets(remotePayload, getLocalSyncData().customizationConfig);
         clearForceConfigPull();
+        if (fp) setFingerprint(account, fileName, fp);
         anyUpdated = true;
         continue;
       }
@@ -560,14 +595,28 @@ export class WebDAVProvider implements SyncProvider {
       // 远端为主 + 本地补充合并
       const merged = mergeRemoteIntoLocal(cat, remotePayload, localPayload);
       applyCategoryPayload(cat, merged);
+      const writeBackJournal = cat === "journal" && Array.isArray(merged) &&
+        Array.isArray(remotePayload) && merged.length > remotePayload.length;
+      if (writeBackJournal) {
+        localStorage.setItem("tongyun_cat_ver_journal", String(Math.max(Date.now(), remoteVer + 1)));
+        try {
+          await this.uploadCategory(cat, merged);
+        } catch (error) {
+          localStorage.setItem("tongyun_cat_ver_journal", String(localVer));
+          throw error;
+        }
+      }
       if (cat === "config") {
         await importDecryptedSecrets(remotePayload, localPayload);
         if (forceConfig) clearForceConfigPull();
       }
-      localStorage.setItem(
-        "tongyun_cat_ver_" + cat,
-        String(categoryVersionAfterPull(localVer, remoteVer, forceConfig)),
-      );
+      if (!writeBackJournal) {
+        localStorage.setItem(
+          "tongyun_cat_ver_" + cat,
+          String(categoryVersionAfterPull(localVer, remoteVer, forceConfig)),
+        );
+        if (fp) setFingerprint(account, fileName, fp);
+      }
       anyUpdated = true;
     }
 
@@ -666,13 +715,25 @@ export class WebDAVProvider implements SyncProvider {
       }
     }
 
-    const localConfig =
-      conflict.category === "config" ? getLocalSyncData().customizationConfig : null;
+    if (remotePayload == null && !conflict.remoteContent) {
+      throw new Error("云端数据尚未成功读取，已保留本机数据，请重新同步。");
+    }
+    assertCategoryPayload(conflict.category, remotePayload);
+
+    const localData = getLocalSyncData();
+    const localConfig = conflict.category === "config" ? localData.customizationConfig : null;
     const payload =
       conflict.category === "config"
         ? mergeRemoteIntoLocal("config", remotePayload, localConfig)
-        : remotePayload;
+        : conflict.category === "journal"
+          ? mergeRemoteIntoLocal("journal", remotePayload, localData.journal)
+          : remotePayload;
     applyCategoryPayload(conflict.category, payload);
+    if (conflict.category === "journal") {
+      // 云端没有的本地日记留在合并结果里，并写回云端，避免下次再被整本对账删掉。
+      bumpCategoryVersion("journal");
+      await this.uploadCategory("journal", payload);
+    }
     if (conflict.category === "config") {
       await importDecryptedSecrets(remotePayload, localConfig);
     }
@@ -694,14 +755,14 @@ export class WebDAVProvider implements SyncProvider {
       }
     }
 
-    if (conflict.remoteManifestVersion > 0) {
+    if (conflict.category !== "journal" && conflict.remoteManifestVersion > 0) {
       localStorage.setItem(
         "tongyun_cat_ver_" + conflict.category,
         String(conflict.remoteManifestVersion),
       );
     }
 
-    if (conflict.remoteFingerprint) {
+    if (conflict.category !== "journal" && conflict.remoteFingerprint) {
       const account = this.getAccount();
       setFingerprint(account, conflict.fileName, conflict.remoteFingerprint);
     }

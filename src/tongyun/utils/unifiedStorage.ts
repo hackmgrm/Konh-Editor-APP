@@ -19,6 +19,7 @@ function getAllKnownKeys(): string[] {
     "tongyun_webdav_url",
     "tongyun_webdav_user",
     "tongyun_webdav_pass",
+    "tongyun_webdav_fp",
     "tongyun_sync_backend",
     "tongyun_remote_dsn",
     "tongyun_last_remote_sync_time",
@@ -196,7 +197,7 @@ class UnifiedStorage {
     if (this.flushTimer !== null) return;
     this.flushTimer = window.setTimeout(() => {
       this.flushTimer = null;
-      this.flush();
+      void this.flush().catch((error) => console.error("SQLite flush failed", error));
     }, 300);
   }
 
@@ -206,7 +207,8 @@ class UnifiedStorage {
     const keys = Array.from(this.dirtyKeys);
     this.dirtyKeys.clear();
 
-    this.writeQueue = this.writeQueue.then(async () => {
+    const writeBatch = async () => {
+      let failure: unknown;
       for (const key of keys) {
         try {
           const value = this.origGetItem!(key);
@@ -219,12 +221,16 @@ class UnifiedStorage {
             await this.db.execute("DELETE FROM storage WHERE key = $1", [key]);
           }
         } catch (e) {
+          this.dirtyKeys.add(key);
+          failure ??= e;
           console.error(`SQLite flush failed for "${key}"`, e);
         }
       }
-    });
-
-    await this.writeQueue;
+      if (failure !== undefined) throw failure;
+    };
+    const operation = this.writeQueue.then(writeBatch, writeBatch);
+    this.writeQueue = operation;
+    await operation;
   }
 
   async flushNow(): Promise<void> {
@@ -232,8 +238,21 @@ class UnifiedStorage {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
-    if (this.dirtyKeys.size > 0) await this.flush();
-    await this.writeQueue;
+    // Wait for earlier batches before checking dirty keys: they may fail and
+    // put keys back while this drain is waiting.
+    try {
+      await this.writeQueue;
+    } catch (error) {
+      // A subsequent drain can retry the keys restored by the failed batch.
+      this.writeQueue = Promise.resolve();
+      throw error;
+    }
+    while (this.dirtyKeys.size > 0) {
+      try { await this.flush(); } catch (error) {
+        this.writeQueue = Promise.resolve();
+        throw error;
+      }
+    }
   }
 }
 

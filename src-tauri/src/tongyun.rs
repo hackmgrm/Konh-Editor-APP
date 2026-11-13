@@ -37,6 +37,7 @@ pub fn app_quit_ready(app: AppHandle) {
 
 #[tauri::command]
 pub fn save_local_attachment(app: AppHandle, file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     if bytes.len() > 20 * 1024 * 1024 {
         return Err("E_ATTACHMENT_TOO_LARGE".to_string());
     }
@@ -57,6 +58,7 @@ pub fn save_local_attachment(app: AppHandle, file_name: String, bytes: Vec<u8>) 
 
 #[tauri::command]
 pub fn delete_local_attachment(app: AppHandle, file_name: String) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     if file_name.is_empty() || file_name == "." || file_name == ".." || !file_name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
         return Err("E_INVALID_ATTACHMENT_NAME".to_string());
     }
@@ -410,6 +412,7 @@ fn ensure_tongyun_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn tongyun_file_save(app: AppHandle, path: String, data: Vec<u8>) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     let base = ensure_tongyun_dir(&app)?;
     let full = safe_path(&base, &path)?;
     if let Some(parent) = full.parent() {
@@ -420,6 +423,7 @@ pub fn tongyun_file_save(app: AppHandle, path: String, data: Vec<u8>) -> Result<
 
 #[tauri::command]
 pub fn file_save_b64(app: AppHandle, path: String, data_b64: String) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     use base64::Engine;
     let data = base64::engine::general_purpose::STANDARD
         .decode(&data_b64)
@@ -456,6 +460,7 @@ pub fn file_read_b64(app: AppHandle, path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn file_delete(app: AppHandle, path: String) -> Result<(), String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     let base = ensure_tongyun_dir(&app)?;
     let full = safe_path(&base, &path)?;
     if !full.exists() {

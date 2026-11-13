@@ -1,5 +1,7 @@
 # 上游 v0.1.4 整合记录
 
+后续上游版本追踪、对比及选择性移植流程见 [upstream-tracking.md](upstream-tracking.md)。本记录为历史报告，不代表当前完整同步。
+
 2026-10-08 将 `whyubel1eve/Mars-Editor-APP` 的 `main`（`919bc2d`）整合到空核编辑器。保留原有未提交的生产力功能；合并前已有代码单独保存为快照，实际整合在 `codex/integrate-upstream-014` 分支完成。
 
 ## 引入内容

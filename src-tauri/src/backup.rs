@@ -34,6 +34,7 @@ pub fn local_backup_write(
     file_name: String,
     content: String,
 ) -> Result<String, String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     validate_backup_kind(&kind)?;
     validate_backup_name(&file_name)?;
 
@@ -134,6 +135,7 @@ pub fn local_backup_read(app: AppHandle, kind: String, file_name: String) -> Res
 
 #[tauri::command]
 pub fn local_backup_prune(app: AppHandle, kind: String, keep: usize) -> Result<usize, String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     validate_backup_kind(&kind)?;
 
     let dir = app

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
-import { getConfig, initAppConfig, setConfig, setConfigDurable } from './appConfig';
+import { getConfig, initAppConfig, setConfig, setConfigDurable, drainAppConfigWrites } from './appConfig';
 
 describe('durable app configuration', () => {
   beforeEach(async () => {
@@ -20,6 +20,16 @@ describe('durable app configuration', () => {
     await pending;
     expect(getConfig('key')).toBe('new');
     await Promise.resolve();
+  });
+  it('reports background failures until a newer write succeeds', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    invoke.mockRejectedValueOnce(new Error('disk full'));
+    setConfig('background', 'value');
+    await expect(drainAppConfigWrites()).rejects.toThrow('disk full');
+    invoke.mockResolvedValueOnce(undefined);
+    setConfig('background', 'retry');
+    await expect(drainAppConfigWrites()).resolves.toBeUndefined();
+    vi.restoreAllMocks();
   });
   it('keeps the previous value on failure and permits a later retry', async () => {
     invoke.mockRejectedValueOnce(new Error('disk full'));

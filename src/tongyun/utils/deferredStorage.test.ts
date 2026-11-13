@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { scheduleStorageWrite, flushPendingStorage } from "./deferredStorage";
+import { scheduleStorageWrite, flushPendingStorage, drainPendingStorage } from "./deferredStorage";
 
 describe("deferredStorage utils", () => {
   const mockStore: Record<string, string> = {};
@@ -70,6 +70,17 @@ describe("deferredStorage utils", () => {
     flushPendingStorage();
     expect(mockStore["key_a"]).toBe("[1,2,3]");
     expect(mockStore["key_b"]).toBe(JSON.stringify({ active: true }));
+  });
+
+  it("reports failures and retains failed writes for retry", () => {
+    const original = localStorage.setItem.bind(localStorage);
+    const spy = vi.spyOn(localStorage, "setItem").mockImplementation(() => { throw new Error("full"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    scheduleStorageWrite("retry", "value", 5000);
+    expect(() => drainPendingStorage()).toThrow("full");
+    spy.mockImplementation(original);
+    drainPendingStorage();
+    expect(mockStore.retry).toBe("value");
   });
 
   it("should write automatically after the delay elapses", async () => {

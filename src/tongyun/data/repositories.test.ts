@@ -6,6 +6,7 @@ import {
   stickyNoteRepository,
   countdownRepository,
   timeBlockRepository,
+  drainRepositoryWrites,
 } from "./repositories";
 import { setDatabaseOverrideForTesting } from "./domainDatabase";
 
@@ -98,6 +99,18 @@ describe("Repositories (Tasks, Journal, and P0 Entities)", () => {
 
   afterEach(() => {
     setDatabaseOverrideForTesting(null);
+  });
+
+  it("drains failures and permits subsequent writes", async () => {
+    const failure = new Error("disk full");
+    const execute = vi.fn(async (): Promise<void> => { throw failure; });
+    setDatabaseOverrideForTesting({ select: async () => [], execute } as any);
+    taskRepository.remove("bad");
+    await expect(drainRepositoryWrites()).rejects.toMatchObject({ errors: [failure] });
+    expect(execute).toHaveBeenCalled();
+    execute.mockImplementation(async () => {});
+    taskRepository.remove("good");
+    await expect(drainRepositoryWrites()).resolves.toBeUndefined();
   });
 
   describe("TaskRepository (tasks table)", () => {

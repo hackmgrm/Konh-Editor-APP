@@ -6,6 +6,16 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Match the due date or the local calendar day of completion. */
+export function taskBelongsToLocalDate(
+  task: { dueDate?: string; completedAt?: number },
+  dateStr: string,
+): boolean {
+  if (task.dueDate === dateStr) return true;
+  if (task.completedAt == null) return false;
+  return getLocalDateString(new Date(task.completedAt)) === dateStr;
+}
+
 export function parseLocalDate(dateStr: string): Date | null {
   const parts = dateStr.split("-").map((part) => parseInt(part, 10));
   if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return null;

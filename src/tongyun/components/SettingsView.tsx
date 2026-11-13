@@ -7,6 +7,7 @@ import { SunsetPanel } from "./sunset/SunsetPanel";
 import { AISettingsPanel } from "./ai/AISettingsPanel";
 import { EmailSettingsPanel } from "./email/EmailSettingsPanel";
 import { SyncSettingsPanel } from "./sync/SyncSettingsPanel";
+import { UnifiedBackupPanel } from "./sync/UnifiedBackupPanel";
 import { SystemSettingsPanel } from "./system/SystemSettingsPanel";
 import { FunSettingsPanel } from "./fun/FunSettingsPanel";
 import SettingsDialog from "../../components/SettingsDialog";
@@ -96,7 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = React.memo(
     }, []);
 
     const TABS = [
-      { id: "writing", label: "写作与发布", keywords: ["写作", "微信", "公众号", "图片", "图床", "导入", "更新", "writing", "wechat", "cloudinary", "reader", "api"] },
+      { id: "writing", label: "写作与发布", keywords: ["写作", "微信", "公众号", "图片", "图床", "导入", "更新", "工作区备份", "恢复", "workspace backup", "restore", "writing", "wechat", "cloudinary", "reader", "api"] },
       {
         id: "personalization",
         label: s.personalization,
@@ -258,7 +259,7 @@ export const SettingsView: React.FC<SettingsViewProps> = React.memo(
           )}
           {subTab === "email" && <EmailSettingsPanel triggerToast={triggerToast} />}
           {subTab === "sync" && (
-            <SyncSettingsPanel config={config} onChange={onChange} triggerToast={triggerToast} />
+            <><UnifiedBackupPanel triggerToast={triggerToast} /><SyncSettingsPanel config={config} onChange={onChange} triggerToast={triggerToast} /></>
           )}
           {subTab === "system" && (
             <SystemSettingsPanel

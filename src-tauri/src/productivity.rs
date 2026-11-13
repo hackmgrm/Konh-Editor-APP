@@ -104,6 +104,7 @@ pub fn productivity_load(app: AppHandle) -> Result<Snapshot, String> {
 }
 #[tauri::command]
 pub fn productivity_save(app: AppHandle, expected: i64, data: Value) -> Result<Snapshot, String> {
+    let _permit = app.state::<crate::write_gate::WriteGate>().write()?;
     let result = save(&mut database(&app)?, expected, &data)?;
     let _ = app.emit("productivity-changed", result.revision);
     Ok(result)

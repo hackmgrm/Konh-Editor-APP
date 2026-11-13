@@ -1,5 +1,26 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createSchema, migrateLegacyData, SCHEMA_VERSION } from "./domainDatabase";
+import { createSchema, migrateLegacyData, SCHEMA_VERSION, queueDomainWrite, drainDomainWrites, setDatabaseOverrideForTesting } from "./domainDatabase";
+
+describe("domain write drain", () => {
+  it("waits for the barrier, reports multiple errors and recovers", async () => {
+    setDatabaseOverrideForTesting({} as any);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const first = new Error("first");
+    const second = new Error("second");
+    void queueDomainWrite(async () => { await gate; throw first; }).catch(() => {});
+    void queueDomainWrite(async () => { throw second; }).catch(() => {});
+    const drain = drainDomainWrites();
+    let finished = false;
+    void drain.catch(() => { finished = true; });
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    release();
+    await expect(drain).rejects.toMatchObject({ errors: [first, second] });
+    await expect(drainDomainWrites()).resolves.toBeUndefined();
+    setDatabaseOverrideForTesting(null);
+  });
+});
 
 describe("Domain Database Schema & Migrations", () => {
   let executedSql: string[] = [];

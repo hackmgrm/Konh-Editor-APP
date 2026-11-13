@@ -14,7 +14,7 @@ import type {
 } from "../types";
 import { safeJsonParse } from "../utils/json";
 import { mergeTaskSources } from "../utils/taskMerge";
-import { getDomainDatabase, queueDomainWrite } from "./domainDatabase";
+import { drainDomainWrites, getDomainDatabase, queueDomainWrite } from "./domainDatabase";
 
 type DataRow = { id: string; data: string };
 
@@ -98,21 +98,13 @@ function parseTaskRow(row: DbTaskRow): Task {
 }
 
 class TaskRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   private syncPartition(items: Task[], completed: boolean): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const rows = await db
             .select<{ id: string; data: string }[]>(
               `SELECT id, data FROM tasks WHERE completed_at IS ${completed ? "NOT " : ""}NULL AND deleted_at IS NULL`,
-            )
-            .catch(async () => {
-              return db.select<{ id: string; data: string }[]>(
-                `SELECT id, data FROM domain_tasks WHERE completed_at IS ${completed ? "NOT " : ""}NULL`,
-              );
-            });
+            );
 
           const existing = new Map(rows.map((row) => [row.id, row.data]));
           await db.execute("BEGIN IMMEDIATE");
@@ -165,7 +157,7 @@ class TaskRepository {
                     now,
                   ],
                 )
-                .catch(() => undefined);
+                ;
 
               // Maintain domain_tasks
               await db
@@ -183,16 +175,15 @@ class TaskRepository {
                     task.runStatus ?? null,
                   ],
                 )
-                .catch(() => undefined);
+                ;
             }
             await db.execute("COMMIT");
           } catch (error) {
             await db.execute("ROLLBACK").catch(() => undefined);
             throw error;
           }
-        }),
-      )
-      .catch((error) => console.error("Task repository partition sync failed", error));
+        });
+    void write.catch(() => undefined);
   }
 
   syncActive(tasks: Task[]): void {
@@ -209,37 +200,31 @@ class TaskRepository {
 
   /** 只给这一行打删除标记。列表里没出现的任务不会被顺带删掉。 */
   remove(id: string): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           await db
             .execute("UPDATE tasks SET deleted_at = $1, updated_at = $1 WHERE id = $2", [now, id])
-            .catch(() => undefined);
-          await db.execute("DELETE FROM domain_tasks WHERE id = $1", [id]).catch(() => undefined);
-        }),
-      )
-      .catch((error) => console.error("Task repository delete failed", error));
+            ;
+          await db.execute("DELETE FROM domain_tasks WHERE id = $1", [id]);
+        });
+    void write.catch(() => undefined);
   }
 
   /** 给已完成分区打删除标记。未完成任务不动。 */
   removeCompleted(): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           await db
             .execute(
               "UPDATE tasks SET deleted_at = $1, updated_at = $1 WHERE completed_at IS NOT NULL AND deleted_at IS NULL",
               [now],
             )
-            .catch(() => undefined);
+            ;
           await db
             .execute("DELETE FROM domain_tasks WHERE completed_at IS NOT NULL")
-            .catch(() => undefined);
-        }),
-      )
-      .catch((error) => console.error("Task repository clear completed failed", error));
+            ;
+        });
+    void write.catch(() => undefined);
   }
 
   async load(): Promise<{ tasks: Task[]; completed: Task[] } | null> {
@@ -336,17 +321,15 @@ class TaskRepository {
 
   syncSnapshot(tasks: Task[], completed: Task[]): void {
     const desired = [...tasks, ...completed];
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const taskRows = await db
             .select<{ id: string; data: string }[]>(
               "SELECT id, data FROM tasks WHERE deleted_at IS NULL",
             )
-            .catch(() => []);
+            ;
           const legacyRows = await db
             .select<{ id: string; data: string }[]>("SELECT id, data FROM domain_tasks")
-            .catch(() => []);
+            ;
 
           const allExisting = new Map<string, string>();
           for (const r of legacyRows) allExisting.set(r.id, r.data);
@@ -363,10 +346,10 @@ class TaskRepository {
                     "UPDATE tasks SET deleted_at = $1, updated_at = $1 WHERE id = $2 AND deleted_at IS NULL",
                     [removedAt, id],
                   )
-                  .catch(() => undefined);
+                  ;
                 await db
                   .execute("DELETE FROM domain_tasks WHERE id = $1", [id])
-                  .catch(() => undefined);
+                  ;
               }
             }
             for (const task of desired) {
@@ -417,7 +400,7 @@ class TaskRepository {
                     now,
                   ],
                 )
-                .catch(() => undefined);
+                ;
 
               await db
                 .execute(
@@ -434,16 +417,15 @@ class TaskRepository {
                     task.runStatus ?? null,
                   ],
                 )
-                .catch(() => undefined);
+                ;
             }
             await db.execute("COMMIT");
           } catch (error) {
             await db.execute("ROLLBACK").catch(() => undefined);
             throw error;
           }
-        }),
-      )
-      .catch((error) => console.error("Task repository sync failed", error));
+        });
+    void write.catch(() => undefined);
   }
 }
 
@@ -511,7 +493,6 @@ function parseJournalRow(row: DbJournalRow): JournalEntry {
 }
 
 class JournalRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<JournalEntry[] | null> {
     const db = await getDomainDatabase();
@@ -540,12 +521,9 @@ class JournalRepository {
   }
 
   syncSnapshot(entries: JournalEntry[]): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const rows = await db
-            .select<DataRow[]>("SELECT id, data FROM journal_entries WHERE deleted_at IS NULL")
-            .catch(async () => db.select<DataRow[]>("SELECT id, data FROM domain_journal"));
+            .select<DataRow[]>("SELECT id, data FROM journal_entries WHERE deleted_at IS NULL");
 
           const existing = new Map(rows.map((row) => [row.id, row.data]));
           const desiredIds = new Set(entries.map((entry) => entry.id));
@@ -559,10 +537,10 @@ class JournalRepository {
                     "UPDATE journal_entries SET deleted_at = $1, updated_at = $1 WHERE id = $2 AND deleted_at IS NULL",
                     [removedAt, row.id],
                   )
-                  .catch(() => undefined);
+                  ;
                 await db
                   .execute("DELETE FROM domain_journal WHERE id = $1", [row.id])
-                  .catch(() => undefined);
+                  ;
               }
             }
             for (const entry of entries) {
@@ -597,7 +575,7 @@ class JournalRepository {
                     entry.updatedAt || now,
                   ],
                 )
-                .catch(() => undefined);
+                ;
 
               await db
                 .execute(
@@ -605,22 +583,19 @@ class JournalRepository {
                  VALUES ($1, $2, $3, $4, $5)`,
                   [entry.id, entry.date, entry.isDaily ? 1 : 0, entry.updatedAt ?? now, data],
                 )
-                .catch(() => undefined);
+                ;
             }
             await db.execute("COMMIT");
           } catch (error) {
             await db.execute("ROLLBACK").catch(() => undefined);
             throw error;
           }
-        }),
-      )
-      .catch((error) => console.error("Journal repository sync failed", error));
+        });
+    void write.catch(() => undefined);
   }
 
   upsert(entry: JournalEntry): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const data = JSON.stringify(entry);
           const now = Date.now();
           await db
@@ -651,7 +626,7 @@ class JournalRepository {
                 entry.updatedAt || now,
               ],
             )
-            .catch(() => undefined);
+            ;
 
           await db
             .execute(
@@ -659,27 +634,23 @@ class JournalRepository {
              VALUES ($1, $2, $3, $4, $5)`,
               [entry.id, entry.date, entry.isDaily ? 1 : 0, entry.updatedAt ?? now, data],
             )
-            .catch(() => undefined);
-        }),
-      )
-      .catch((error) => console.error("Journal repository upsert failed", error));
+            ;
+        });
+    void write.catch(() => undefined);
   }
 
   delete(id: string): void {
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           await db
             .execute(
               "UPDATE journal_entries SET deleted_at = $1, updated_at = $1 WHERE id = $2",
               [now, id],
             )
-            .catch(() => undefined);
-          await db.execute("DELETE FROM domain_journal WHERE id = $1", [id]).catch(() => undefined);
-        }),
-      )
-      .catch((error) => console.error("Journal repository delete failed", error));
+            ;
+          await db.execute("DELETE FROM domain_journal WHERE id = $1", [id]);
+        });
+    void write.catch(() => undefined);
   }
 }
 
@@ -695,7 +666,6 @@ const DEFAULT_AGENTS: DomainAgent[] = [
 ];
 
 class AgentRepository {
-  private queue: Promise<void> = Promise.resolve();
   private cachedAgents: DomainAgent[] | null = null;
 
   private readFromLocalStorage(): DomainAgent[] {
@@ -771,9 +741,7 @@ class AgentRepository {
       localStorage.setItem("tongyun_domain_agents", JSON.stringify(updated));
     }
 
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const metaStr =
             typeof agent.meta === "string" ? agent.meta : JSON.stringify(agent.meta || {});
           const now = agent.updatedAt || Date.now();
@@ -783,7 +751,7 @@ class AgentRepository {
              VALUES ($1, $2, $3, $4, $5, $6)`,
               [agent.id, agent.handle, agent.kind, agent.enabled ? 1 : 0, metaStr, now],
             )
-            .catch(() => undefined);
+            ;
 
           await db
             .execute(
@@ -791,11 +759,10 @@ class AgentRepository {
              VALUES ($1, $2, $3, $4, $5, $6)`,
               [agent.id, agent.handle, agent.kind, agent.enabled ? 1 : 0, metaStr, now],
             )
-            .catch(() => undefined);
-        }),
-      )
-      .catch((err) => console.error("AgentRepository save failed", err));
-    return this.queue;
+            ;
+        });
+    void write.catch(() => undefined);
+    return write;
   }
 
   async delete(id: string): Promise<void> {
@@ -806,15 +773,12 @@ class AgentRepository {
       localStorage.setItem("tongyun_domain_agents", JSON.stringify(updated));
     }
 
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
-          await db.execute("DELETE FROM agents WHERE id = $1", [id]).catch(() => undefined);
-          await db.execute("DELETE FROM domain_agents WHERE id = $1", [id]).catch(() => undefined);
-        }),
-      )
-      .catch((err) => console.error("AgentRepository delete failed", err));
-    return this.queue;
+    const write = queueDomainWrite(async (db) => {
+          await db.execute("DELETE FROM agents WHERE id = $1", [id]);
+          await db.execute("DELETE FROM domain_agents WHERE id = $1", [id]);
+        });
+    void write.catch(() => undefined);
+    return write;
   }
 
   async getEnabled(): Promise<DomainAgent[]> {
@@ -824,7 +788,6 @@ class AgentRepository {
 }
 
 class DispatchRepository {
-  private queue: Promise<void> = Promise.resolve();
   private cachedDispatches: DomainTaskDispatch[] | null = null;
 
   private readFromLocalStorage(): DomainTaskDispatch[] {
@@ -922,9 +885,7 @@ class DispatchRepository {
       localStorage.setItem("tongyun_task_dispatches", JSON.stringify(updated));
     }
 
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           await db
             .execute(
               `INSERT INTO task_dispatch(id, task_id, agent_id, status, note, created_at, updated_at)
@@ -939,7 +900,7 @@ class DispatchRepository {
                 dispatch.updatedAt,
               ],
             )
-            .catch(() => undefined);
+            ;
 
           await db
             .execute(
@@ -955,11 +916,9 @@ class DispatchRepository {
                 dispatch.updatedAt,
               ],
             )
-            .catch(() => undefined);
-        }),
-      )
-      .catch((err) => console.error("DispatchRepository recordDispatch failed", err));
-
+            ;
+        });
+    await write;
     return dispatch;
   }
 
@@ -976,9 +935,7 @@ class DispatchRepository {
       localStorage.setItem("tongyun_task_dispatches", JSON.stringify(updated));
     }
 
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           await db
             .execute(
               `UPDATE task_dispatch
@@ -986,7 +943,7 @@ class DispatchRepository {
              WHERE task_id = $2 AND status IN ('queued', 'running')`,
               [now, taskId],
             )
-            .catch(() => undefined);
+            ;
 
           await db
             .execute(
@@ -995,11 +952,10 @@ class DispatchRepository {
              WHERE task_id = $2 AND status IN ('queued', 'running')`,
               [now, taskId],
             )
-            .catch(() => undefined);
-        }),
-      )
-      .catch((err) => console.error("DispatchRepository cancelDispatch failed", err));
-    return this.queue;
+            ;
+        });
+    void write.catch(() => undefined);
+    return write;
   }
 
   async updateStatus(taskId: string, status: TaskRunStatus, note?: string): Promise<void> {
@@ -1018,9 +974,7 @@ class DispatchRepository {
       localStorage.setItem("tongyun_task_dispatches", JSON.stringify(updated));
     }
 
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           await db
             .execute(
               `UPDATE task_dispatch
@@ -1028,7 +982,7 @@ class DispatchRepository {
              WHERE task_id = $4 AND status IN ('queued', 'running')`,
               [status, note ?? null, now, taskId],
             )
-            .catch(() => undefined);
+            ;
 
           await db
             .execute(
@@ -1037,11 +991,10 @@ class DispatchRepository {
              WHERE task_id = $4 AND status IN ('queued', 'running')`,
               [status, note ?? null, now, taskId],
             )
-            .catch(() => undefined);
-        }),
-      )
-      .catch((err) => console.error("DispatchRepository updateStatus failed", err));
-    return this.queue;
+            ;
+        });
+    void write.catch(() => undefined);
+    return write;
   }
 
   async getDispatchForTask(taskId: string): Promise<DomainTaskDispatch | null> {
@@ -1051,7 +1004,6 @@ class DispatchRepository {
 }
 
 class StickyNoteRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<StickyNote[]> {
     const db = await getDomainDatabase();
@@ -1102,19 +1054,17 @@ class StickyNoteRepository {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("aero_sticky_notes", JSON.stringify(notes));
     }
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           const desiredIds = new Set(notes.map((n) => n.id));
           const existing = await db
             .select<{ id: string }[]>("SELECT id FROM sticky_notes WHERE deleted_at IS NULL")
-            .catch(() => []);
+            ;
           for (const row of existing) {
             if (!desiredIds.has(row.id)) {
               await db
                 .execute("DELETE FROM sticky_notes WHERE id = $1", [row.id])
-                .catch(() => undefined);
+                ;
             }
           }
           for (const n of notes) {
@@ -1124,16 +1074,14 @@ class StickyNoteRepository {
                  VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                 [n.id, n.title ?? null, n.text, n.color, n.rotate || 0, now, JSON.stringify(n)],
               )
-              .catch(() => undefined);
+              ;
           }
-        }),
-      )
-      .catch((e) => console.error("StickyNoteRepository sync failed", e));
+        });
+    void write.catch(() => undefined);
   }
 }
 
 class CountdownRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<CountdownEvent[]> {
     const db = await getDomainDatabase();
@@ -1187,19 +1135,17 @@ class CountdownRepository {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("tongyun_countdowns", JSON.stringify(events));
     }
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           const desiredIds = new Set(events.map((e) => e.id));
           const existing = await db
             .select<{ id: string }[]>("SELECT id FROM countdowns WHERE deleted_at IS NULL")
-            .catch(() => []);
+            ;
           for (const row of existing) {
             if (!desiredIds.has(row.id)) {
               await db
                 .execute("DELETE FROM countdowns WHERE id = $1", [row.id])
-                .catch(() => undefined);
+                ;
             }
           }
           for (const e of events) {
@@ -1218,16 +1164,14 @@ class CountdownRepository {
                   JSON.stringify(e),
                 ],
               )
-              .catch(() => undefined);
+              ;
           }
-        }),
-      )
-      .catch((e) => console.error("CountdownRepository sync failed", e));
+        });
+    void write.catch(() => undefined);
   }
 }
 
 class TimeBlockRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<TimeBlock[]> {
     const db = await getDomainDatabase();
@@ -1284,19 +1228,17 @@ class TimeBlockRepository {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("tongyun_timeblocks", JSON.stringify(blocks));
     }
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           const desiredIds = new Set(blocks.map((b) => b.id));
           const existing = await db
             .select<{ id: string }[]>("SELECT id FROM timeblocks WHERE deleted_at IS NULL")
-            .catch(() => []);
+            ;
           for (const row of existing) {
             if (!desiredIds.has(row.id)) {
               await db
                 .execute("DELETE FROM timeblocks WHERE id = $1", [row.id])
-                .catch(() => undefined);
+                ;
             }
           }
           for (const b of blocks) {
@@ -1316,16 +1258,14 @@ class TimeBlockRepository {
                   JSON.stringify(b),
                 ],
               )
-              .catch(() => undefined);
+              ;
           }
-        }),
-      )
-      .catch((e) => console.error("TimeBlockRepository sync failed", e));
+        });
+    void write.catch(() => undefined);
   }
 }
 
 class PomodoroRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<PomodoroLog[]> {
     const db = await getDomainDatabase();
@@ -1376,18 +1316,16 @@ class PomodoroRepository {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("aero_pomodoro_logs", JSON.stringify(logs));
     }
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const desiredIds = new Set(logs.map((l) => l.id));
           const existing = await db
             .select<{ id: string }[]>("SELECT id FROM pomodoro_logs WHERE deleted_at IS NULL")
-            .catch(() => []);
+            ;
           for (const row of existing) {
             if (!desiredIds.has(row.id)) {
               await db
                 .execute("DELETE FROM pomodoro_logs WHERE id = $1", [row.id])
-                .catch(() => undefined);
+                ;
             }
           }
           for (const l of logs) {
@@ -1405,16 +1343,14 @@ class PomodoroRepository {
                   JSON.stringify(l),
                 ],
               )
-              .catch(() => undefined);
+              ;
           }
-        }),
-      )
-      .catch((e) => console.error("PomodoroRepository sync failed", e));
+        });
+    void write.catch(() => undefined);
   }
 }
 
 class HabitRepository {
-  private queue: Promise<void> = Promise.resolve();
 
   async load(): Promise<HabitItem[]> {
     const db = await getDomainDatabase();
@@ -1468,17 +1404,15 @@ class HabitRepository {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("tongyun_habits", JSON.stringify(habits));
     }
-    this.queue = this.queue
-      .then(() =>
-        queueDomainWrite(async (db) => {
+    const write = queueDomainWrite(async (db) => {
           const now = Date.now();
           const desiredIds = new Set(habits.map((h) => h.id));
           const existing = await db
             .select<{ id: string }[]>("SELECT id FROM habits WHERE deleted_at IS NULL")
-            .catch(() => []);
+            ;
           for (const row of existing) {
             if (!desiredIds.has(row.id)) {
-              await db.execute("DELETE FROM habits WHERE id = $1", [row.id]).catch(() => undefined);
+              await db.execute("DELETE FROM habits WHERE id = $1", [row.id]);
             }
           }
           for (const h of habits) {
@@ -1497,11 +1431,10 @@ class HabitRepository {
                   JSON.stringify(h),
                 ],
               )
-              .catch(() => undefined);
+              ;
           }
-        }),
-      )
-      .catch((e) => console.error("HabitRepository sync failed", e));
+        });
+    void write.catch(() => undefined);
   }
 }
 
@@ -1514,3 +1447,6 @@ export const countdownRepository = new CountdownRepository();
 export const timeBlockRepository = new TimeBlockRepository();
 export const pomodoroRepository = new PomodoroRepository();
 export const habitRepository = new HabitRepository();
+
+/** Drain all repository and direct domain writes submitted before this call. */
+export const drainRepositoryWrites = drainDomainWrites;
