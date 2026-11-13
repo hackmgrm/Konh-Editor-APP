@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import raw from "../../../src-tauri/tauri.conf.json?raw";
+import raw from "../../../../src-tauri/tauri.conf.json?raw";
 
 type TauriConfig = {
   plugins: {
@@ -21,7 +21,7 @@ describe("tauri.conf.json", () => {
 
     expect(typeof pubkey).toBe("string");
     expect(pubkey.length).toBeGreaterThan(0);
-    expect(atob(pubkey)).toContain("5D75A341756FAA3F");
+    expect(atob(pubkey)).toContain("F45BA40E74EFCF33");
 
     expect(Array.isArray(endpoints)).toBe(true);
     expect(endpoints.length).toBeGreaterThan(0);

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 /**
@@ -51,6 +51,42 @@ const VENDOR_GROUPS: Record<string, string[]> = {
   ],
 };
 
+
+/**
+ * Suites driven by `node --test` (see the test:* scripts in package.json).
+ * Vitest cannot collect them — they register through node:test — so without
+ * this list a plain `npx vitest run` reports every one of them as an empty
+ * suite and hides real failures behind 26 collection errors.
+ */
+const NODE_TEST_SUITES = [
+  'src/articleIdentity.test.ts',
+  'src/cloudinary.test.ts',
+  'src/deepTalk.test.ts',
+  'src/draftNaming.test.ts',
+  'src/frontMatter.test.ts',
+  'src/gzhTheme.test.ts',
+  'src/humanizer.test.ts',
+  'src/layoutResults.test.ts',
+  'src/plannerDarkStyles.test.js',
+  'src/preflight.test.ts',
+  'src/productivity/calendarLayout.test.ts',
+  'src/productivity/googleCalendar.test.ts',
+  'src/productivity/model.test.ts',
+  'src/productivity/syncDatabase.test.ts',
+  'src/productivity/syncModel.test.ts',
+  'src/publishJournal.test.ts',
+  'src/store/contentState.test.ts',
+  'src/theme.test.ts',
+  'src/tongyun/navigationLayout.test.js',
+  'src/tongyun/settingsNavigation.test.ts',
+  'src/tongyun/settingsPanelScroll.test.js',
+  'src/tongyun/widgetWindow.test.ts',
+  'src/unifiedIntegration.test.ts',
+  'src/uploadCache.test.ts',
+  'src/upstreamIntegration.test.ts',
+  'src/writingCommands.test.ts',
+];
+
 /** node_modules path → its group (exact package-name match, so lang-* and other
  *  shared-prefix packages are not caught by accident) */
 function vendorChunk(id: string): string | undefined {
@@ -82,6 +118,15 @@ export default defineConfig({
   },
   // Environment variables injected by Tauri have to be readable
   envPrefix: ['VITE_', 'TAURI_ENV_'],
+  test: {
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/test-builds/**',
+      '**/._*',
+      ...NODE_TEST_SUITES,
+    ],
+  },
   build: {
     // WKWebView on macOS matches Safari 13's feature set
     target: 'safari13',

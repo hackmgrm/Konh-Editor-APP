@@ -35,14 +35,20 @@ describe("release versions stay aligned", () => {
 });
 
 describe("release workflow", () => {
-  it("publishes on v* tags and signs updater artifacts in CI", () => {
-    expect(releaseYml).toMatch(/tags:\s*\n\s*- ['"]v\*['"]/);
-    expect(releaseYml).toContain(
-      "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
-    );
-    expect(releaseYml).toContain(
-      "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
-    );
-    expect(releaseYml).toContain("includeUpdaterJson:");
+  // Releases are cut by hand so a stray tag cannot publish anything, and
+  // the installers ship unsigned; both are documented in README.md.
+  it("requires a manually supplied tag that already exists on the remote", () => {
+    expect(releaseYml).toMatch(/workflow_dispatch:/);
+    expect(releaseYml).toMatch(/inputs:\s*\n\s*tag:/);
+    expect(releaseYml).toMatch(/required: true/);
+    expect(releaseYml).toContain('git rev-parse -q --verify "refs/tags/$TAG"');
+    expect(releaseYml).not.toMatch(/push:\s*\n\s*tags:/);
+  });
+
+  it("builds every desktop bundle for the tag it was given", () => {
+    for (const args of ["--bundles deb,rpm,appimage", "--bundles app,dmg", "--bundles nsis"]) {
+      expect(releaseYml).toContain(args);
+    }
+    expect(releaseYml).toContain("ref: ${{ inputs.tag }}");
   });
 });
