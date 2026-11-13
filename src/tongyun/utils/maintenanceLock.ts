@@ -32,7 +32,11 @@ let idleWaiters: Array<() => void> = [];
 let inFlight = 0;
 
 function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  if (typeof window === "undefined") return false;
+  const internals = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__;
+  // A bare `__TAURI_INTERNALS__` object shows up in jsdom shims too; the real
+  // bridge always carries `invoke`, and without it `emit`/`listen` just throw.
+  return typeof internals?.invoke === "function";
 }
 
 /**

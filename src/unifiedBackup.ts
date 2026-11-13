@@ -153,8 +153,12 @@ export async function runUnifiedExport(options: ExportOptions): Promise<ExportSu
   // Freeze ordinary writes for the duration: the archive must describe one
   // instant, and a half-written row would land in the planner snapshot.
   const releaseMaintenance = beginMaintenance(WINDOW_OWNER, "备份");
-  const token = await invoke<string>("unified_backup_begin", { destination });
+  let token: string | null = null;
   try {
+    // Inside the try on purpose: `begin` refuses an existing destination, and
+    // an early throw here used to leave the marker up for its full TTL — the
+    // whole app read-only because a folder name was taken.
+    token = await invoke<string>("unified_backup_begin", { destination });
     const journalImages = await stageJournalImages(token);
     const result = await invoke<ExportResult>("unified_backup_finish", {
       token,
@@ -162,10 +166,12 @@ export async function runUnifiedExport(options: ExportOptions): Promise<ExportSu
     });
     return { ...result, journalImages, workspace: options.workspace?.trim() || null };
   } catch (error) {
-    try {
-      await invoke("unified_backup_abort", { token });
-    } catch {
-      // The staging directory is cleaned up when the process exits either way.
+    if (token !== null) {
+      try {
+        await invoke("unified_backup_abort", { token });
+      } catch {
+        // The staging directory is cleaned up when the process exits either way.
+      }
     }
     throw error;
   } finally {
