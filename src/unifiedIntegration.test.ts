@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 
-const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+// A Windows checkout hands back CRLF; the assertions below spell out LF.
+const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('both writing hosts pass visibility to the shortcut gate', () => {
   assert.match(source('./tongyun/App.tsx'), /<WritingApp active=\{writingActive\}/);

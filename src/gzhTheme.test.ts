@@ -82,7 +82,9 @@ test('ships all six original presets and retains the branded olive preset', () =
 test('compiled catalog preserves every original component HTML verbatim', () => {
   for (const [key, blocks] of Object.entries(gzhTemplates)) {
     const file = key === 'common-components' ? `${key}.md` : `theme-${key}.md`;
-    const source = readFileSync(new URL(`../vendor/gzh-design/references/${file}`, import.meta.url), 'utf8');
+    // The templates hold LF, but a Windows checkout turns the reference files
+    // into CRLF, so normalise before comparing.
+    const source = readFileSync(new URL(`../vendor/gzh-design/references/${file}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     const expected = [...source.matchAll(/```html\n([\s\S]*?)```/g)].map(m => m[1].trim());
     for (const block of blocks) assert.ok(expected.includes(block.html), `${key}: ${block.name}`);
     assert.equal(blocks.length, expected.length - (key === 'common-components' ? 0 : 1));
