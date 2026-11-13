@@ -227,6 +227,7 @@ export async function restorePlannerFromBackup(
 
   const resumeSync = await syncEngine.pauseAndDrain();
   const gateToken = await invoke<number>("write_gate_acquire");
+  let committed = false;
   try {
     await drainPendingStorage();
     let imageCount = 0;
@@ -235,12 +236,17 @@ export async function restorePlannerFromBackup(
       backup: options.backup,
     });
     await options.onCommitted?.();
+    committed = true;
     return { images: imageCount, rows: result.rows, rollbackDir: result.rollbackDir };
   } finally {
     try {
       await invoke("write_gate_release", { token: gateToken });
     } finally {
-      resumeSync();
+      // A committed restore keeps sync paused on purpose: the window reloads,
+      // which drops the pause count, so nothing is pushed or pulled until the
+      // user has seen the restored data. A failed restore has to lift the pause
+      // itself, or the app would stay read-only until the next restart.
+      if (!committed) resumeSync();
     }
   }
 }

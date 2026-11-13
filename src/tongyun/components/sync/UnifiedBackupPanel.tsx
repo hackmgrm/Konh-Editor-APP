@@ -23,6 +23,16 @@ import {
 
 type Mode = "export" | "inspect" | "restore";
 
+/**
+ * The planner and the writing panes hold their own in-memory copies, so the
+ * window has to reload once the committed data is on disk. The short delay
+ * lets the success toast land first.
+ */
+function reloadToShowRestoredData(): void {
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => window.location.reload(), 600);
+}
+
 const SECTIONS: Array<{ key: keyof InspectResult["sections"]; label: string }> = [
   { key: "workspace", label: "写作工作区文件" },
   { key: "planner", label: "手帐数据（任务、日历、日记、便签、专注、习惯、倒计时、时间块）" },
@@ -174,6 +184,7 @@ export function UnifiedBackupPanel({ triggerToast }: { triggerToast?: (message: 
       say(
         `手帐已恢复：${result.rows} 行数据、${result.images} 张图片。回滚点：${result.rollbackDir ?? "（无）"}。WebDAV 自动同步保持暂停，请检查数据后手动开启。`,
       );
+      reloadToShowRestoredData();
     } catch (error) {
       setFailure(`${describeError(error)}（当前数据未被覆盖）`);
     } finally {
@@ -217,6 +228,7 @@ export function UnifiedBackupPanel({ triggerToast }: { triggerToast?: (message: 
     try {
       const result = await restoreWritingAssetsFromBackup(backupPath.trim());
       say(`文章素材与主题已恢复（${result.files} 个文件）。回滚点：${result.rollbackDir ?? "（无）"}`);
+      reloadToShowRestoredData();
     } catch (error) {
       setFailure(describeError(error));
     } finally {
