@@ -214,6 +214,9 @@ pub(crate) fn export(source: &Path, destination: &Path) -> Result<(), String> {
     let mut file = private_file(&dest.path.join(MANIFEST))?;
     file.write_all(&bytes).map_err(err)?;
     file.sync_all().map_err(err)?;
+    // Windows refuses to rename a directory that still holds an open handle,
+    // so the manifest has to be closed before publication.
+    drop(file);
     sync_dir(&dest.path)?;
     publish(&mut dest)
 }
