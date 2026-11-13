@@ -1273,7 +1273,15 @@ pub fn unified_backup_restore_planner(app: AppHandle, backup: String) -> Result<
 }
 
 #[tauri::command]
-pub fn unified_backup_restore_writing(app: AppHandle, backup: String) -> Result<RestoreResult, String> {
+pub fn unified_backup_restore_writing(
+    app: AppHandle,
+    gate: State<'_, WriteGate>,
+    backup: String,
+) -> Result<RestoreResult, String> {
+    // Replacing the article assets and the theme folder swaps directories that
+    // the editor and the theme watcher read at the same time, so it has to sit
+    // behind the same barrier as any other write.
+    let _permit = gate.write()?;
     let app_data = app.path().app_data_dir().map_err(err)?;
     let app_config = app.path().app_config_dir().map_err(err)?;
     let root = Path::new(&backup);
