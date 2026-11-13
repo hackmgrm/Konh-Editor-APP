@@ -9,6 +9,10 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("./tongyun/utils/sync/engine", () => ({ syncEngine: { pauseAndDrain } }));
 
 import { restorePlannerFromBackup } from "./unifiedBackup";
+import {
+  resetMaintenanceForTesting,
+  setMaintenanceForTesting,
+} from "./tongyun/utils/maintenanceLock";
 
 const SECTIONS = {
   workspace: false,
@@ -38,6 +42,7 @@ beforeEach(() => {
   resume.mockReset();
   pauseAndDrain.mockClear();
   Object.assign(window, { __TAURI_INTERNALS__: {} });
+  resetMaintenanceForTesting();
 });
 
 describe("restorePlannerFromBackup", () => {
@@ -97,5 +102,25 @@ describe("restorePlannerFromBackup", () => {
     );
     expect(pauseAndDrain).not.toHaveBeenCalled();
     expect(invoke.mock.calls.map((call) => call[0])).not.toContain("write_gate_acquire");
+  });
+
+  it("never takes the native lease when another window is already restoring", async () => {
+    // A marker from elsewhere means the front-end half of the lock is busy.
+    // Taking the lease first would strand a barrier nobody owns.
+    setMaintenanceForTesting({ owner: "window-b", label: "恢复", until: Date.now() + 60_000 });
+    invoke.mockImplementation(async (command: string) => {
+      if (command === "unified_backup_inspect") return inspection();
+      throw new Error(`unexpected ${command}`);
+    });
+
+    await expect(restorePlannerFromBackup({ backup: "/tmp/konh-backup" })).rejects.toThrow(
+      /E_WRITE_PAUSED/,
+    );
+    const commands = invoke.mock.calls.map((call) => call[0]);
+    expect(commands).not.toContain("write_gate_acquire");
+    expect(commands).not.toContain("write_gate_release");
+    expect(commands).not.toContain("unified_backup_restore_planner");
+    // The pause it took before noticing has to be lifted again.
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 });

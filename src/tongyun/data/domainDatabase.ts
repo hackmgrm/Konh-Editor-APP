@@ -9,7 +9,7 @@ import type {
   TimeBlock,
 } from "../types";
 import { safeJsonParse } from "../utils/json";
-import { guardDatabaseWrites } from "../utils/maintenanceLock";
+import { guardDatabaseWrites, isMaintenanceError } from "../utils/maintenanceLock";
 
 const DB_NAME = "sqlite:tongyun_planner.db";
 export const SCHEMA_VERSION = 3;
@@ -45,7 +45,12 @@ export function queueDomainWrite(work: (db: Database) => Promise<void>): Promise
     const db = await getDomainDatabase();
     if (db) await work(db);
   });
-  domainWriteQueue = result.catch((error) => { domainWriteErrors.push(error); });
+  domainWriteQueue = result.catch((error) => {
+    // A write refused during a backup or restore is the lock doing its job, not
+    // a database failure: the caller already surfaces it, and remembering it
+    // here would make the next drain report a stale AggregateError.
+    if (!isMaintenanceError(error)) domainWriteErrors.push(error);
+  });
   return result;
 }
 

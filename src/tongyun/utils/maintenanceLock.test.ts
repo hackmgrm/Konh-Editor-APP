@@ -4,7 +4,9 @@ import {
   assertMaintenanceIdle,
   beginMaintenance,
   guardDatabaseWrites,
+  initMaintenanceBridge,
   isMaintenanceActive,
+  isMaintenanceError,
   maintenanceInFlight,
   resetMaintenanceForTesting,
   setMaintenanceForTesting,
@@ -95,5 +97,30 @@ describe("maintenance lock", () => {
       "SELECT 2",
       "INSERT INTO tasks VALUES (3)",
     ]);
+  });
+});
+
+describe("bridge wiring", () => {
+  beforeEach(() => {
+    resetMaintenanceForTesting();
+  });
+
+  it("initialises idempotently so every window listens from startup", () => {
+    expect(() => initMaintenanceBridge()).not.toThrow();
+    expect(() => initMaintenanceBridge()).not.toThrow();
+  });
+
+  it("recognises its own rejection and nothing else", () => {
+    const release = beginMaintenance("window-a", "备份");
+    try {
+      assertMaintenanceIdle();
+      throw new Error("expected a refusal");
+    } catch (error) {
+      expect(isMaintenanceError(error)).toBe(true);
+    } finally {
+      release();
+    }
+    expect(isMaintenanceError(new Error("boom"))).toBe(false);
+    expect(isMaintenanceError("boom")).toBe(false);
   });
 });

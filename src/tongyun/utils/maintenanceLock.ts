@@ -35,8 +35,12 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** Subscribe once so a marker raised in another window is honoured here. */
-function ensureBridge(): void {
+/**
+ * Subscribe once so a marker raised in another window is honoured here.
+ * Called at module load, not from `beginMaintenance`: a window that never
+ * starts a backup still has to refuse writes when another one does.
+ */
+export function initMaintenanceBridge(): void {
   if (bridgeReady || !isTauri()) return;
   bridgeReady = true;
   void (async () => {
@@ -86,7 +90,7 @@ export function maintenanceError(live: Marker): Error {
  * and closing the window releases it automatically.
  */
 export function beginMaintenance(owner: string, label: string, ttlMs = DEFAULT_TTL_MS): () => void {
-  ensureBridge();
+  initMaintenanceBridge();
   const existing = liveMarker();
   if (existing && existing.owner !== owner) throw maintenanceError(existing);
 
@@ -185,4 +189,15 @@ export function guardDatabaseWrites<T extends SqlExecutor>(db: T): T {
         );
     },
   }) as T;
+}
+
+/** True for the rejection raised when a write lands during maintenance. */
+export function isMaintenanceError(error: unknown): boolean {
+  return error instanceof Error && error.name === "MaintenanceWritePaused";
+}
+
+// Every window has to listen from the moment the app starts, otherwise the
+// first backup started elsewhere would go unnoticed here.
+if (typeof window !== "undefined") {
+  initMaintenanceBridge();
 }

@@ -250,12 +250,15 @@ export async function restorePlannerFromBackup(
   const images = inspection.sections.journalImages ? await readJournalImageBackup(options.backup) : null;
 
   const resumeSync = await syncEngine.pauseAndDrain();
-  const gateToken = await invoke<number>("write_gate_acquire");
-  // Native writes are held by the gate above; this marker holds the ones that
-  // go straight from the web view to SQLite.
-  const releaseMaintenance = beginMaintenance(WINDOW_OWNER, "恢复");
+  let releaseMaintenance: (() => void) | null = null;
+  let gateToken: number | null = null;
   let committed = false;
   try {
+    // Raise the marker first: it can refuse (another window is mid-backup), and
+    // taking the native lease before that would leave a barrier with no owner
+    // to release it.
+    releaseMaintenance = beginMaintenance(WINDOW_OWNER, "恢复");
+    gateToken = await invoke<number>("write_gate_acquire");
     await drainPendingStorage();
     await waitForMaintenanceWrites();
     let imageCount = 0;
@@ -268,9 +271,13 @@ export async function restorePlannerFromBackup(
     return { images: imageCount, rows: result.rows, rollbackDir: result.rollbackDir };
   } finally {
     try {
-      await invoke("write_gate_release", { token: gateToken });
+      if (gateToken !== null) {
+        await invoke("write_gate_release", { token: gateToken }).catch((error) => {
+          console.warn("释放维护锁失败", error);
+        });
+      }
     } finally {
-      releaseMaintenance();
+      releaseMaintenance?.();
       // A committed restore keeps sync paused on purpose: the window reloads,
       // which drops the pause count, so nothing is pushed or pulled until the
       // user has seen the restored data. A failed restore has to lift the pause
