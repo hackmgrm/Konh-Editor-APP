@@ -48,7 +48,14 @@ jobs:
           npm run test:gzh
 
       - name: 日记图片与统一备份入口测试
-        run: npx vitest run src/tongyun/utils/journalImages.test.ts src/tongyun/data/domainDatabase.test.ts src/tongyun/data/repositories.test.ts src/backupDisabled.test.js
+        run: >
+          npx vitest run
+          src/tongyun/utils/journalImages.test.ts
+          src/tongyun/data/domainDatabase.test.ts
+          src/tongyun/data/repositories.test.ts
+          src/backupDisabled.test.js
+          src/unifiedBackup.test.ts
+          src/tongyun/components/sync/UnifiedBackupPanel.test.tsx
 
       - name: Rust 测试（含备份、维护锁与集成测试）
         working-directory: src-tauri
