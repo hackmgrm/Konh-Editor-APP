@@ -1658,6 +1658,37 @@ mod tests {
     }
 
     #[test]
+    fn export_reads_rows_that_only_live_in_the_wal() {
+        // The planner database runs in WAL mode, so a row can sit in the
+        // -wal file while another connection is still writing. The export
+        // must see it instead of archiving a stale snapshot.
+        let fx = fixture();
+        let path = planner_db(&fx.app_data);
+        let writer = Connection::open(&path).unwrap();
+        let mode: String = writer
+            .query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode.to_lowercase(), "wal");
+        writer
+            .execute(
+                "INSERT INTO tasks VALUES('t2','写在 WAL 里','{\"id\":\"t2\"}')",
+                [],
+            )
+            .unwrap();
+        let wal = path.with_extension("db-wal");
+        assert!(wal.exists(), "the row should still be in the write-ahead log");
+
+        let bytes = read_planner_bytes(&fx.app_data).unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("写在 WAL 里"), "WAL rows must be exported: {text}");
+        assert!(text.contains("买牛奶"));
+
+        let manifest = export_into(&fx.backup, &fx.app_data, &fx.app_config, None).unwrap();
+        assert!(manifest.sections.planner);
+        drop(writer);
+    }
+
+    #[test]
     fn journal_images_are_streamed_and_archived_verbatim() {
         let fx = fixture();
         let token = unique_token();
